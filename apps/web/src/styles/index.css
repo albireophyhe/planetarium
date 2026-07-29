@@ -527,6 +527,17 @@ button:disabled {
   margin: 0;
 }
 
+.time-boundary-notice {
+  background: rgba(36, 96, 142, 0.24);
+  border: 1px solid rgba(74, 167, 255, 0.42);
+  border-radius: 8px;
+  color: #d8edff;
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+  padding: 7px 10px;
+}
+
 .time-controls {
   align-items: stretch;
   background: rgba(6, 19, 37, 0.72);

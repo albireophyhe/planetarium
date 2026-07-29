@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -251,17 +252,133 @@ describe("App selection announcements", () => {
           "datetime",
           expectedDateTime,
         );
+        expect(
+          screen.getByText(
+            "対応期間は1900年から2100年です。最も近い日時へ調整しました。",
+            { selector: ".time-boundary-notice" },
+          ),
+        ).toBeVisible();
+        const liveRegion = screen.getByRole("status", {
+          name: "時間境界通知",
+        });
+        act(() => {
+          vi.advanceTimersByTime(50);
+        });
+        expect(liveRegion).toHaveTextContent(
+          "対応期間は1900年から2100年です。最も近い日時へ調整しました。",
+        );
+        vi.setSystemTime(new Date(systemTime));
         fireEvent.click(screen.getByRole("button", { name: "いま" }));
+        expect(liveRegion).toHaveTextContent("");
+        act(() => {
+          vi.advanceTimersByTime(50);
+        });
         expect(readout).toHaveAttribute(
           "datetime",
           expectedDateTime,
         );
+        expect(liveRegion).toHaveTextContent(
+          "対応期間は1900年から2100年です。最も近い日時へ調整しました。",
+        );
+        expect(
+          screen.getByText(
+            "対応期間は1900年から2100年です。最も近い日時へ調整しました。",
+            { selector: ".time-boundary-notice" },
+          ),
+        ).toBeVisible();
         unmount();
       } finally {
         vi.useRealTimers();
       }
     },
   );
+
+  it("does not show a clock-adjustment notice for a supported startup time", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-07-29T12:00:00.000Z"));
+      const { unmount } = render(<App />);
+
+      expect(
+        screen.queryByText(
+          "対応期間は1900年から2100年です。最も近い日時へ調整しました。",
+        ),
+      ).not.toBeInTheDocument();
+      unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("announces every blocked playback attempt without invalidating the supported datetime", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2100-12-31T23:59:59.999Z"));
+      const { unmount } = render(<App />);
+      const input = screen.getByLabelText("観測日時（Asia/Tokyo）");
+      const liveRegion = screen.getByRole("status", {
+        name: "時間境界通知",
+      });
+      const playButton = screen.getByRole("button", {
+        name: "時間を再生",
+      });
+
+      fireEvent.click(playButton);
+      act(() => {
+        vi.advanceTimersByTime(50);
+      });
+      expect(liveRegion).toHaveTextContent(
+        "対応期間の終了（2100年）に達したため、時間の再生を停止しました。",
+      );
+      expect(input).toHaveAttribute("aria-invalid", "false");
+      expect(input).not.toHaveAttribute(
+        "aria-describedby",
+        expect.stringContaining("observation-time-error"),
+      );
+
+      fireEvent.click(playButton);
+      expect(liveRegion).toHaveTextContent("");
+      act(() => {
+        vi.advanceTimersByTime(50);
+      });
+      expect(
+        screen.getByRole("status", { name: "時間境界通知" }),
+      ).toBe(liveRegion);
+      expect(liveRegion).toHaveTextContent(
+        "対応期間の終了（2100年）に達したため、時間の再生を停止しました。",
+      );
+      expect(input).toHaveAttribute("aria-invalid", "false");
+      unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clamps a manual hour step to the endpoint and reports it as a status", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2100-12-31T23:30:00.000Z"));
+      const { unmount } = render(<App />);
+
+      fireEvent.click(screen.getByRole("button", { name: "＋1時間" }));
+
+      expect(document.querySelector(".playback-readout time")).toHaveAttribute(
+        "datetime",
+        "2100-12-31T23:59:59.999Z",
+      );
+      expect(
+        screen.getByText(
+          "対応期間の終了（2100年）に達しました。",
+        ),
+      ).toHaveTextContent("対応期間の終了（2100年）に達しました。");
+      expect(
+        screen.getByLabelText("観測日時（Asia/Tokyo）"),
+      ).toHaveAttribute("aria-invalid", "false");
+      unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it("announces an explicit selection without repeating updated coordinates on time changes", async () => {
     const user = userEvent.setup();

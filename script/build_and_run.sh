@@ -17,7 +17,8 @@ INFO_PLIST="$APP_CONTENTS/Info.plist"
 INFO_PLIST_TEMPLATE="$ROOT_DIR/apps/macos/Resources/Info.plist"
 APP_ICON="$APP_RESOURCES/Planetarium.icns"
 APP_ICON_SOURCE="$ROOT_DIR/apps/macos/Resources/Planetarium.icns"
-PACKAGED_RESOURCE_BUNDLE="$APP_RESOURCES/Planetarium_PlanetariumShared.bundle"
+PACKAGED_RESOURCE_BUNDLE_NAME="Planetarium_PlanetariumShared.bundle"
+PACKAGED_RESOURCE_BUNDLE="$APP_RESOURCES/$PACKAGED_RESOURCE_BUNDLE_NAME"
 
 cd "$ROOT_DIR"
 
@@ -47,12 +48,21 @@ open_app() {
   /usr/bin/open -n "$APP_BUNDLE"
 }
 
-verify_staged_bundle() {
+verify_staged_bundle() (
+  local actual_resources_file
   local excluded_path
+  local expected_resources_file
+  local inventory_dir
+  local resource_path
   local resource_name
   local bundle_identifier
   local bundle_icon_file
   local minimum_system_version
+
+  inventory_dir="$(mktemp -d)"
+  trap '/bin/rm -rf -- "$inventory_dir"' EXIT
+  actual_resources_file="$inventory_dir/actual-resources.txt"
+  expected_resources_file="$inventory_dir/expected-resources.txt"
 
   test -x "$APP_BINARY"
   /usr/bin/plutil -lint "$INFO_PLIST" >/dev/null
@@ -191,7 +201,61 @@ verify_staged_bundle() {
       -quit
   )"
   [[ -z "$excluded_path" ]]
-}
+
+  test -s "$PACKAGED_RESOURCE_BUNDLE/Info.plist"
+  /usr/bin/plutil -lint \
+    "$PACKAGED_RESOURCE_BUNDLE/Info.plist" >/dev/null
+
+  {
+    printf '%s\n' \
+      "Planetarium.icns" \
+      "$PACKAGED_RESOURCE_BUNDLE_NAME/Info.plist" \
+      "$PACKAGED_RESOURCE_BUNDLE_NAME/IAU-SOFA-derived-work-notice.md" \
+      "$PACKAGED_RESOURCE_BUNDLE_NAME/astro-test-vectors.v1.json" \
+      "$PACKAGED_RESOURCE_BUNDLE_NAME/astro-test-vectors.v2.json" \
+      "$PACKAGED_RESOURCE_BUNDLE_NAME/bright-stars.v1.json" \
+      "$PACKAGED_RESOURCE_BUNDLE_NAME/bright-stars.v2.json" \
+      "$PACKAGED_RESOURCE_BUNDLE_NAME/cities.v1.json" \
+      "$PACKAGED_RESOURCE_BUNDLE_NAME/constellations.v1.json" \
+      "$PACKAGED_RESOURCE_BUNDLE_NAME/iers-finals2000a-eop.v1.json" \
+      "$PACKAGED_RESOURCE_BUNDLE_NAME/sofa-diurnal-aberration.v1.json" \
+      "$PACKAGED_RESOURCE_BUNDLE_NAME/sofa-solar-light-deflection.v1.json" \
+      "$PACKAGED_RESOURCE_BUNDLE_NAME/sofa-solar-position.v1.json" \
+      "$PACKAGED_RESOURCE_BUNDLE_NAME/star-names.v1.json" \
+      "$PACKAGED_RESOURCE_BUNDLE_NAME/truncated-earth-heliocentric.v1.json"
+    while IFS= read -r resource_name; do
+      printf '%s\n' \
+        "$PACKAGED_RESOURCE_BUNDLE_NAME/$resource_name"
+    done < <(
+      /usr/bin/jq -r \
+        '.chunks[].file | split("/")[-1]' \
+        "$PACKAGED_RESOURCE_BUNDLE/iers-finals2000a-eop.v1.json"
+    )
+  } | LC_ALL=C sort >"$expected_resources_file"
+
+  while IFS= read -r resource_path; do
+    printf '%s\n' \
+      "${resource_path#"$APP_RESOURCES"/}"
+  done < <(
+    find "$APP_RESOURCES" \
+      -mindepth 1 \
+      ! -type d \
+      -print
+  ) | LC_ALL=C sort >"$actual_resources_file"
+
+  if ! /usr/bin/cmp -s \
+    "$expected_resources_file" \
+    "$actual_resources_file"
+  then
+    echo \
+      "unexpected or missing files in app Resources" \
+      >&2
+    /usr/bin/diff -u \
+      "$expected_resources_file" \
+      "$actual_resources_file" >&2 || true
+    exit 1
+  fi
+)
 
 case "$MODE" in
   run)

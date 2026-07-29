@@ -118,9 +118,10 @@ macOS版はこの構造を`NavigationSplitView`のdetailとinspectorに適応し
 Webは同じ線幅の小さなSVGを使い、SwiftUIは対応するSF Symbolsを使います。星の選択記号は文字の`★`を操作ラベルの代わりにせず、Canvas上の円と一覧行の選択境界で表現します。
 
 アプリアイコンは濃紺の全天図、方位軸、4つの星を共通意匠とし、Webは
-`favicon.svg`、macOSは同じ原画から10解像度を収録した`Planetarium.icns`を
-配布します。原画とICNSのSHA-256、10表現、librsvg 2.62.3でのbyte再現は
-`script/build_app_icon.sh --check`と`--reproduce`で検証します。
+`favicon.svg`、不透明RGBの180px Apple touch icon、192/512px PWA PNGを、
+macOSは同じ原画から10解像度を収録した`Planetarium.icns`を配布します。
+原画と生成物のSHA-256、寸法、manifest用途、librsvg 2.62.3でのbyte再現は
+`npm run icons:check`と`npm run icons:reproduce`で検証します。
 
 ## 動き
 

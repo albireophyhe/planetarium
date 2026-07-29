@@ -36,6 +36,62 @@ async function requireFile(root, relativePath, context) {
   }
 }
 
+function pngChunkTypes(buffer) {
+  let offset = 8;
+  const types = [];
+  while (offset + 12 <= buffer.length) {
+    const length = buffer.readUInt32BE(offset);
+    const nextOffset = offset + 12 + length;
+    if (nextOffset > buffer.length) {
+      return null;
+    }
+    const type = buffer.toString("ascii", offset + 4, offset + 8);
+    types.push(type);
+    offset = nextOffset;
+    if (type === "IEND") {
+      return offset === buffer.length ? types : null;
+    }
+  }
+  return null;
+}
+
+function validateSquarePng(buffer, expectedSize, context) {
+  const signature = Buffer.from([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a
+  ]);
+  if (
+    buffer.length < 26 ||
+    !buffer.subarray(0, 8).equals(signature) ||
+    buffer.toString("ascii", 12, 16) !== "IHDR"
+  ) {
+    violations.push(`${context}: PNG形式が不正です`);
+    return;
+  }
+
+  const width = buffer.readUInt32BE(16);
+  const height = buffer.readUInt32BE(20);
+  const colorType = buffer[25];
+  const chunkTypes = pngChunkTypes(buffer);
+  if (
+    !chunkTypes ||
+    !chunkTypes.includes("IDAT") ||
+    chunkTypes.at(-1) !== "IEND"
+  ) {
+    violations.push(`${context}: PNG chunk構造が不正です`);
+    return;
+  }
+  if (width !== expectedSize || height !== expectedSize) {
+    violations.push(
+      `${context}: ${expectedSize}x${expectedSize}pxが必要です`
+    );
+  }
+  if (colorType !== 2 || chunkTypes.includes("tRNS")) {
+    violations.push(
+      `${context}: OSが任意色で補完しない不透明RGB PNGが必要です`
+    );
+  }
+}
+
 try {
   const [
     sourceManifestText,
@@ -128,6 +184,20 @@ try {
       );
     }
   }
+  if (
+    ![manifest.name, manifest.short_name].some(
+      (value) => typeof value === "string" && value.trim() !== ""
+    )
+  ) {
+    violations.push(
+      "manifest.webmanifest: nameまたはshort_nameが必要です"
+    );
+  }
+  if (manifest.prefer_related_applications === true) {
+    violations.push(
+      "manifest.webmanifest: Web版を直接インストールするためprefer_related_applicationsをtrueにできません"
+    );
+  }
   for (const colorField of ["background_color", "theme_color"]) {
     if (!/^#[0-9a-fA-F]{6}$/.test(manifest[colorField] ?? "")) {
       violations.push(
@@ -135,12 +205,15 @@ try {
       );
     }
   }
-  if (!Array.isArray(manifest.icons) || manifest.icons.length === 0) {
+  const manifestIcons = Array.isArray(manifest.icons)
+    ? manifest.icons
+    : [];
+  if (manifestIcons.length === 0) {
     violations.push("manifest.webmanifest: iconsが必要です");
   } else {
-    for (const [index, icon] of manifest.icons.entries()) {
+    for (const [index, icon] of manifestIcons.entries()) {
       const iconPath =
-        typeof icon.src === "string" && icon.src.trim() !== ""
+        typeof icon?.src === "string" && icon.src.trim() !== ""
           ? localPath(icon.src)
           : null;
       if (
@@ -159,6 +232,75 @@ try {
       ]);
     }
   }
+  for (const requiredIcon of [
+    { path: "icon-192.png", size: 192 },
+    { path: "icon-512.png", size: 512 }
+  ]) {
+    const manifestIcon = manifestIcons.find(
+      (icon) =>
+        typeof icon?.src === "string" &&
+        localPath(icon.src) === requiredIcon.path &&
+        icon.sizes ===
+          `${requiredIcon.size}x${requiredIcon.size}` &&
+        icon.type === "image/png"
+    );
+    const purposes = new Set(
+      typeof manifestIcon?.purpose === "string"
+        ? manifestIcon.purpose.split(/\s+/).filter(Boolean)
+        : []
+    );
+    if (
+      !manifestIcon ||
+      !purposes.has("any") ||
+      !purposes.has("maskable")
+    ) {
+      violations.push(
+        `manifest.webmanifest: ${requiredIcon.path}をany/maskable用途で定義してください`
+      );
+      continue;
+    }
+
+    const [sourceIcon, distIcon] = await Promise.all([
+      readFile(join(publicRoot, requiredIcon.path)),
+      readFile(join(distRoot, requiredIcon.path))
+    ]);
+    validateSquarePng(
+      sourceIcon,
+      requiredIcon.size,
+      `public/${requiredIcon.path}`
+    );
+    validateSquarePng(
+      distIcon,
+      requiredIcon.size,
+      `dist/${requiredIcon.path}`
+    );
+    if (!sourceIcon.equals(distIcon)) {
+      violations.push(
+        `dist/${requiredIcon.path}がpublicの最新版と一致しません`
+      );
+    }
+  }
+  const scalableIcon = manifestIcons.find(
+    (icon) =>
+      typeof icon?.src === "string" &&
+      localPath(icon.src) === "favicon.svg"
+  );
+  const scalablePurposes = new Set(
+    typeof scalableIcon?.purpose === "string"
+      ? scalableIcon.purpose.split(/\s+/).filter(Boolean)
+      : []
+  );
+  if (
+    !scalableIcon ||
+    scalableIcon.sizes !== "any" ||
+    scalableIcon.type !== "image/svg+xml" ||
+    scalablePurposes.size !== 1 ||
+    !scalablePurposes.has("any")
+  ) {
+    violations.push(
+      "manifest.webmanifest: 透明角を持つfavicon.svgはany用途だけにしてください"
+    );
+  }
 
   if (!/<html\s+lang="ja"/.test(indexHtml)) {
     violations.push("dist/index.html: html lang=\"ja\" が必要です");
@@ -175,6 +317,38 @@ try {
     violations.push(
       "dist/index.html: /manifest.webmanifestへのlinkが必要です"
     );
+  }
+  const appleTouchLink = indexHtml.match(
+    /<link\b[^>]*\brel="apple-touch-icon"[^>]*>/i
+  )?.[0];
+  if (
+    !appleTouchLink ||
+    !/\bsizes="180x180"/i.test(appleTouchLink) ||
+    !/\bhref="\/apple-touch-icon\.png"/i.test(appleTouchLink)
+  ) {
+    violations.push(
+      "dist/index.html: 180x180の/apple-touch-icon.pngが必要です"
+    );
+  } else {
+    const [sourceTouchIcon, distTouchIcon] = await Promise.all([
+      readFile(join(publicRoot, "apple-touch-icon.png")),
+      readFile(join(distRoot, "apple-touch-icon.png"))
+    ]);
+    validateSquarePng(
+      sourceTouchIcon,
+      180,
+      "public/apple-touch-icon.png"
+    );
+    validateSquarePng(
+      distTouchIcon,
+      180,
+      "dist/apple-touch-icon.png"
+    );
+    if (!sourceTouchIcon.equals(distTouchIcon)) {
+      violations.push(
+        "dist/apple-touch-icon.pngがpublicの最新版と一致しません"
+      );
+    }
   }
   if (
     !indexHtml.includes("data-boot-shell") ||

@@ -8,7 +8,7 @@ final class SkyStoreEarthOrientationIntegrationTests:
     XCTestCase
 {
     @MainActor
-    func testInitializationClampsNowBeforeComputingDerivedState()
+    func testInitializationClampsUnsupportedNowAndSurfacesStatus()
         throws
     {
         let cases: [(now: Date, expected: Date)] = [
@@ -59,6 +59,10 @@ final class SkyStoreEarthOrientationIntegrationTests:
                 testCase.expected
             )
             XCTAssertEqual(
+                store.statusMessage,
+                "対応期間は1900年から2100年です。最も近い日時へ調整しました。"
+            )
+            XCTAssertEqual(
                 provider.requestedDates,
                 [testCase.expected]
             )
@@ -81,6 +85,111 @@ final class SkyStoreEarthOrientationIntegrationTests:
                 try Sun.state(context: expectedContext)
             )
         }
+    }
+
+    @MainActor
+    func testInitializationKeepsSupportedNowWithoutBoundaryStatus()
+        throws
+    {
+        let supportedDates = [
+            ObservationConstraints.minimumDate,
+            Date(timeIntervalSince1970: 1_774_953_600),
+            ObservationConstraints.maximumDate,
+        ]
+
+        for now in supportedDates {
+            let store = try makeEmptyStore(now: now)
+
+            XCTAssertEqual(store.observationDate, now)
+            XCTAssertNil(store.statusMessage)
+        }
+    }
+
+    @MainActor
+    func testPlaybackStopsAtExactFractionalMaximum()
+        throws
+    {
+        let store = try makeEmptyStore(
+            now: ObservationConstraints.maximumDate
+                .addingTimeInterval(-0.05)
+        )
+        store.setPlaybackSpeed(.realTime)
+
+        store.togglePlayback()
+        XCTAssertTrue(store.isPlaybackPlaying)
+        store.advancePlayback(realTimeDelta: 0.1)
+
+        XCTAssertEqual(
+            store.observationDate,
+            ObservationConstraints.maximumDate
+        )
+        XCTAssertFalse(store.isPlaybackPlaying)
+        XCTAssertEqual(
+            store.statusMessage,
+            "対応期間の終了（2100年）で時間再生を停止しました。"
+        )
+    }
+
+    @MainActor
+    func testSuccessfulTimeTransitionsClearOnlyBoundaryStatus()
+        throws
+    {
+        let current = Date(timeIntervalSince1970: 1_774_953_600)
+        let store = try makeEmptyStore(
+            now: ObservationConstraints.maximumDate
+        )
+
+        store.addHours(1)
+        XCTAssertNotNil(store.statusMessage)
+        store.addHours(-1)
+        XCTAssertNil(store.statusMessage)
+
+        store.addHours(1)
+        store.addHours(1)
+        XCTAssertNotNil(store.statusMessage)
+
+        store.useCurrentTime(
+            ObservationConstraints.maximumDate
+                .addingTimeInterval(1)
+        )
+        XCTAssertEqual(
+            store.observationDate,
+            ObservationConstraints.maximumDate
+        )
+        XCTAssertTrue(
+            store.statusMessage?.contains("調整しました") == true
+        )
+
+        store.useCurrentTime(current)
+        XCTAssertEqual(store.observationDate, current)
+        XCTAssertNil(store.statusMessage)
+
+        store.statusMessage = "地点を変更しました。"
+        store.addHours(-1)
+        XCTAssertEqual(
+            store.statusMessage,
+            "地点を変更しました。"
+        )
+    }
+
+    @MainActor
+    func testStartingInwardPlaybackClearsOutboundBoundaryStatus()
+        throws
+    {
+        let store = try makeEmptyStore(
+            now: ObservationConstraints.maximumDate
+        )
+
+        store.togglePlayback()
+        XCTAssertFalse(store.isPlaybackPlaying)
+        XCTAssertNotNil(store.statusMessage)
+
+        store.setPlaybackDirection(.backward)
+        store.togglePlayback()
+
+        XCTAssertTrue(store.isPlaybackPlaying)
+        XCTAssertNil(store.statusMessage)
+        store.pausePlayback()
     }
 
     @MainActor
@@ -294,6 +403,25 @@ final class SkyStoreEarthOrientationIntegrationTests:
         XCTAssertEqual(store.sunState, expected)
         store.useStandardAtmosphericRefraction = true
         XCTAssertEqual(store.sunState, expected)
+    }
+
+    @MainActor
+    private func makeEmptyStore(now: Date) throws -> SkyStore {
+        let provider = try RecordingEOPProvider()
+        return SkyStore(
+            catalogLoader: {
+                SkyCatalog(
+                    stars: [],
+                    names: [],
+                    constellations: [],
+                    cities: []
+                )
+            },
+            earthOrientationServiceLoader: {
+                provider
+            },
+            now: now
+        )
     }
 }
 

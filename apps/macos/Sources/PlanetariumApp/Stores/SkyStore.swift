@@ -27,6 +27,26 @@ final class SkyStore {
             "planetarium.selectedStarTrajectoryDefault"
     }
 
+    private enum TimeBoundaryStatus {
+        static let adjusted =
+            "対応期間は1900年から2100年です。最も近い日時へ調整しました。"
+        static let manualMinimum =
+            "対応期間の開始（1900年）に達しました。"
+        static let manualMaximum =
+            "対応期間の終了（2100年）に達しました。"
+        static let playbackMinimum =
+            "対応期間の開始（1900年）で時間再生を停止しました。"
+        static let playbackMaximum =
+            "対応期間の終了（2100年）で時間再生を停止しました。"
+        static let messages: Set<String> = [
+            adjusted,
+            manualMinimum,
+            manualMaximum,
+            playbackMinimum,
+            playbackMaximum,
+        ]
+    }
+
     private(set) var catalog: SkyCatalog
     private(set) var renderedStars: [RenderedStar] = []
     private(set) var renderedStarsByHR: [Int: RenderedStar] = [:]
@@ -61,7 +81,9 @@ final class SkyStore {
             let clampedDate = ObservationConstraints.clampedDate(observationDate)
             if clampedDate != observationDate {
                 observationDate = clampedDate
-                statusMessage = "対応期間は1900年から2100年です。最も近い日時へ調整しました。"
+                statusMessage = TimeBoundaryStatus.adjusted
+            } else if observationDate != oldValue {
+                clearStaleTimeBoundaryStatus()
             }
             recomputeSky()
         }
@@ -191,6 +213,10 @@ final class SkyStore {
     ) {
         let initialObservationDate =
             ObservationConstraints.clampedDate(now)
+        let initialTimeBoundaryStatus =
+            initialObservationDate == now
+                ? nil
+                : TimeBoundaryStatus.adjusted
         var initialError: String?
         var initialCatalogLoadFailure: String?
         let loadedCatalog: SkyCatalog
@@ -268,6 +294,7 @@ final class SkyStore {
             location: initialLocation
         )
         errorMessage = initialError
+        statusMessage = initialTimeBoundaryStatus
         recomputeSky()
         selectedStarHR = filteredNamedStars.first?.hr
         AppLog.ui.info(
@@ -787,17 +814,17 @@ final class SkyStore {
         observationDate = result.date
         switch result.reachedBoundary {
         case .minimum:
-            statusMessage = "対応期間の開始（1900年）に達しました。"
+            statusMessage = TimeBoundaryStatus.manualMinimum
         case .maximum:
-            statusMessage = "対応期間の終了（2100年）に達しました。"
+            statusMessage = TimeBoundaryStatus.manualMaximum
         case nil:
             break
         }
     }
 
-    func useCurrentTime() {
+    func useCurrentTime(_ now: Date = Date()) {
         pausePlayback()
-        observationDate = Date()
+        observationDate = now
     }
 
     func toggleSelectedStarTrajectory() {
@@ -1221,15 +1248,28 @@ final class SkyStore {
 
         switch reduction.event {
         case .reachedBoundary(.minimum):
-            statusMessage = "対応期間の開始（1900年）で時間再生を停止しました。"
+            statusMessage = TimeBoundaryStatus.playbackMinimum
         case .reachedBoundary(.maximum):
-            statusMessage = "対応期間の終了（2100年）で時間再生を停止しました。"
+            statusMessage = TimeBoundaryStatus.playbackMaximum
         case .blockedByStaticMode:
             statusMessage = "動きを減らす設定が有効なため、時間再生は利用できません。"
         case nil:
-            break
+            if !current.isPlaying,
+               reduction.state.isPlaying
+            {
+                clearStaleTimeBoundaryStatus()
+            }
         }
         synchronizePlaybackDriver()
+    }
+
+    private func clearStaleTimeBoundaryStatus() {
+        guard let statusMessage,
+              TimeBoundaryStatus.messages.contains(statusMessage)
+        else {
+            return
+        }
+        self.statusMessage = nil
     }
 
     private func synchronizePlaybackDriver() {

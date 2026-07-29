@@ -84,6 +84,17 @@ ASDF_NODEJS_VERSION=24.18.0 npm run deploy --workspace=@planetarium/web
 
 デプロイにはCloudflareのログインとアカウント側の権限が別途必要です。
 
+### アプリアイコンの検証
+
+Webの180/192/512px PNGとmacOSのICNSは同じ`favicon.svg`を原画にします。
+通常の品質ゲートでは固定hashを検査し、原画変更時はlibrsvg 2.62.3で
+byte単位の再現まで確認します。
+
+```sh
+ASDF_NODEJS_VERSION=24.18.0 npm run icons:check
+ASDF_NODEJS_VERSION=24.18.0 npm run icons:reproduce
+```
+
 ### Webフォントの再生成
 
 Web版はIBM Plex Sans JP 3.0.0のRegular/SemiBoldを、現在のUIと同梱星表で必要な文字へサブセットしたWOFF2を配布します。通常のビルドにはPythonは不要です。UIコピーまたは星表の表示名を変更した場合だけ、Python 3.12.3の隔離環境で再生成します。
@@ -118,7 +129,9 @@ SwiftPMの単体テストだけを実行する場合は `swift test`、アプリ
 ASDF_NODEJS_VERSION=24.18.0 npm run check
 ```
 
-このコマンドはデータ整合性、外部通信APIの静的検査、Webのlint・テスト・本番ビルド・転送量予算、Cloudflareデプロイのdry-run、Swiftテストを確認します。
+このコマンドはアプリアイコンのhash、データ整合性、外部通信APIの静的検査、
+Webのlint・テスト・本番ビルド・転送量予算、Cloudflareデプロイのdry-run、
+Swiftテストを確認します。
 
 ## 表示の意味
 

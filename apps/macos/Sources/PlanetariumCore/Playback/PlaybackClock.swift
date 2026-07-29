@@ -148,13 +148,13 @@ public struct PlaybackClock: Sendable {
         case let .seek(date):
             let result = clamped(date)
             next.date = result.date
-            event = result.boundary.map(PlaybackEvent.reachedBoundary)
-            if next.isPlaying,
-               let boundary = outboundBoundary(for: next) {
+            if let boundary = result.boundary {
                 next.isPlaying = false
-                if event == nil {
-                    event = .reachedBoundary(boundary)
-                }
+                event = .reachedBoundary(boundary)
+            } else if next.isPlaying,
+                      let boundary = outboundBoundary(for: next) {
+                next.isPlaying = false
+                event = .reachedBoundary(boundary)
             }
 
         case let .tick(realTimeDelta):
@@ -233,7 +233,11 @@ public struct PlaybackClock: Sendable {
     private func clamped(
         _ date: Date
     ) -> (date: Date, boundary: ObservationDateBoundary?) {
-        guard date.timeIntervalSinceReferenceDate.isFinite else {
+        let seconds = date.timeIntervalSinceReferenceDate
+        if seconds == .infinity {
+            return (supportedDateRange.upperBound, .maximum)
+        }
+        guard seconds.isFinite else {
             return (supportedDateRange.lowerBound, .minimum)
         }
         if date < supportedDateRange.lowerBound {

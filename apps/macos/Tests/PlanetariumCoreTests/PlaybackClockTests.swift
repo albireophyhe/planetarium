@@ -117,6 +117,37 @@ final class PlaybackClockTests: XCTestCase {
         )
     }
 
+    func testDefaultClockStopsAtExactFractionalMaximum() {
+        let clock = PlaybackClock(maximumFrameDelta: 1)
+        let state = PlaybackState(
+            date: ObservationConstraints.maximumDate
+                .addingTimeInterval(-0.05),
+            isPlaying: true,
+            direction: .forward,
+            speed: .realTime
+        )
+
+        let result = clock.reduce(
+            state,
+            action: .tick(realTimeDelta: 0.1)
+        )
+
+        XCTAssertEqual(
+            result.state.date,
+            ObservationConstraints.maximumDate
+        )
+        XCTAssertEqual(
+            result.state.date.timeIntervalSince1970,
+            4_133_980_799.999,
+            accuracy: 0.000_1
+        )
+        XCTAssertFalse(result.state.isPlaying)
+        XCTAssertEqual(
+            result.event,
+            .reachedBoundary(.maximum)
+        )
+    }
+
     func testPlaybackAtOutboundBoundaryWaitsForDirectionChange() {
         let clock = PlaybackClock(supportedDateRange: range)
         let state = PlaybackState(
@@ -162,7 +193,7 @@ final class PlaybackClockTests: XCTestCase {
         XCTAssertEqual(tick.appliedRealTimeDelta, 0)
     }
 
-    func testInvalidFrameDeltasAreIgnoredAndSeekIsClamped() {
+    func testInvalidFrameDeltasAreIgnored() {
         let clock = PlaybackClock(supportedDateRange: range)
         let playing = PlaybackState(
             date: Date(timeIntervalSince1970: 5_000),
@@ -178,24 +209,154 @@ final class PlaybackClockTests: XCTestCase {
             XCTAssertEqual(result.state.date, playing.date)
             XCTAssertEqual(result.appliedRealTimeDelta, 0)
         }
+    }
 
-        let seek = clock.reduce(
-            playing,
-            action: .seek(range.upperBound.addingTimeInterval(1))
-        )
-        XCTAssertEqual(seek.state.date, range.upperBound)
-        XCTAssertFalse(seek.state.isPlaying)
-        XCTAssertEqual(seek.event, .reachedBoundary(.maximum))
+    func testClampedSeekStopsPlaybackRegardlessOfDirection() {
+        let clock = PlaybackClock(supportedDateRange: range)
+        let testCases: [
+            (
+                date: Date,
+                direction: PlaybackDirection,
+                expectedDate: Date,
+                expectedBoundary: ObservationDateBoundary
+            )
+        ] = [
+            (
+                range.lowerBound.addingTimeInterval(-1),
+                .forward,
+                range.lowerBound,
+                .minimum
+            ),
+            (
+                range.upperBound.addingTimeInterval(1),
+                .backward,
+                range.upperBound,
+                .maximum
+            ),
+        ]
 
-        let exactBoundary = clock.reduce(
-            playing,
-            action: .seek(range.upperBound)
-        )
-        XCTAssertFalse(exactBoundary.state.isPlaying)
-        XCTAssertEqual(
-            exactBoundary.event,
-            .reachedBoundary(.maximum)
-        )
+        for testCase in testCases {
+            let playing = PlaybackState(
+                date: Date(timeIntervalSince1970: 5_000),
+                isPlaying: true,
+                direction: testCase.direction
+            )
+            let result = clock.reduce(
+                playing,
+                action: .seek(testCase.date)
+            )
+            XCTAssertEqual(result.state.date, testCase.expectedDate)
+            XCTAssertFalse(result.state.isPlaying)
+            XCTAssertEqual(
+                result.event,
+                .reachedBoundary(testCase.expectedBoundary)
+            )
+        }
+    }
+
+    func testNonFiniteSeekStopsPlaybackAndReportsBoundary() {
+        let clock = PlaybackClock(supportedDateRange: range)
+        let nonFiniteSeeks: [
+            (
+                date: Date,
+                expectedDate: Date,
+                expectedBoundary: ObservationDateBoundary
+            )
+        ] = [
+            (
+                Date(timeIntervalSince1970: .nan),
+                range.lowerBound,
+                .minimum
+            ),
+            (
+                Date(timeIntervalSince1970: -.infinity),
+                range.lowerBound,
+                .minimum
+            ),
+            (
+                Date(timeIntervalSince1970: .infinity),
+                range.upperBound,
+                .maximum
+            ),
+        ]
+
+        for direction in PlaybackDirection.allCases {
+            for testCase in nonFiniteSeeks {
+                let playing = PlaybackState(
+                    date: Date(timeIntervalSince1970: 5_000),
+                    isPlaying: true,
+                    direction: direction
+                )
+                let result = clock.reduce(
+                    playing,
+                    action: .seek(testCase.date)
+                )
+                XCTAssertEqual(
+                    result.state.date,
+                    testCase.expectedDate
+                )
+                XCTAssertFalse(result.state.isPlaying)
+                XCTAssertEqual(
+                    result.event,
+                    .reachedBoundary(testCase.expectedBoundary)
+                )
+            }
+        }
+    }
+
+    func testExactEndpointSeekOnlyStopsInOutboundDirection() {
+        let clock = PlaybackClock(supportedDateRange: range)
+        let testCases: [
+            (
+                date: Date,
+                direction: PlaybackDirection,
+                expectedIsPlaying: Bool,
+                expectedEvent: PlaybackEvent?
+            )
+        ] = [
+            (
+                range.lowerBound,
+                .backward,
+                false,
+                .reachedBoundary(.minimum)
+            ),
+            (
+                range.lowerBound,
+                .forward,
+                true,
+                nil
+            ),
+            (
+                range.upperBound,
+                .forward,
+                false,
+                .reachedBoundary(.maximum)
+            ),
+            (
+                range.upperBound,
+                .backward,
+                true,
+                nil
+            ),
+        ]
+
+        for testCase in testCases {
+            let playing = PlaybackState(
+                date: Date(timeIntervalSince1970: 5_000),
+                isPlaying: true,
+                direction: testCase.direction
+            )
+            let result = clock.reduce(
+                playing,
+                action: .seek(testCase.date)
+            )
+            XCTAssertEqual(result.state.date, testCase.date)
+            XCTAssertEqual(
+                result.state.isPlaying,
+                testCase.expectedIsPlaying
+            )
+            XCTAssertEqual(result.event, testCase.expectedEvent)
+        }
     }
 
     func testPresetRatesRemainExplicitAndStable() {

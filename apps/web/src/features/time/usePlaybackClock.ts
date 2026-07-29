@@ -39,7 +39,12 @@ export function usePlaybackClock({
   const [speed, setSpeed] = useState<PlaybackSpeed>(3_600);
   const dateRef = useRef(date);
   const directionRef = useRef(direction);
+  const isPlayingRef = useRef(isPlaying);
   const speedRef = useRef(speed);
+  const setPlaying = useCallback((nextPlaying: boolean) => {
+    isPlayingRef.current = nextPlaying;
+    setIsPlaying(nextPlaying);
+  }, []);
 
   useEffect(() => {
     dateRef.current = date;
@@ -57,17 +62,17 @@ export function usePlaybackClock({
     const handleChange = () => {
       setMotionRestricted(query.matches);
       if (query.matches) {
-        setIsPlaying(false);
+        setPlaying(false);
       }
     };
     query.addEventListener("change", handleChange);
     return () => query.removeEventListener("change", handleChange);
-  }, []);
+  }, [setPlaying]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        setIsPlaying(false);
+        setPlaying(false);
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -76,7 +81,7 @@ export function usePlaybackClock({
         "visibilitychange",
         handleVisibilityChange,
       );
-  }, []);
+  }, [setPlaying]);
 
   useEffect(() => {
     if (!isPlaying || motionRestricted) {
@@ -101,7 +106,7 @@ export function usePlaybackClock({
         onDateChange(advanced.date);
 
         if (advanced.boundary) {
-          setIsPlaying(false);
+          setPlaying(false);
           onBoundary(advanced.boundary);
           return;
         }
@@ -116,15 +121,16 @@ export function usePlaybackClock({
     motionRestricted,
     onBoundary,
     onDateChange,
+    setPlaying,
   ]);
 
-  const pause = useCallback(() => setIsPlaying(false), []);
+  const pause = useCallback(() => setPlaying(false), [setPlaying]);
   const setDirection = useCallback(
     (nextDirection: PlaybackDirection) => {
       directionRef.current = nextDirection;
       setDirectionState(nextDirection);
 
-      if (!isPlaying) {
+      if (!isPlayingRef.current) {
         return;
       }
 
@@ -133,11 +139,11 @@ export function usePlaybackClock({
         nextDirection,
       );
       if (boundary) {
-        setIsPlaying(false);
+        setPlaying(false);
         onBoundary(boundary);
       }
     },
-    [isPlaying, onBoundary],
+    [onBoundary, setPlaying],
   );
   const startPlayback = useCallback(() => {
     if (motionRestricted) {
@@ -149,22 +155,22 @@ export function usePlaybackClock({
       directionRef.current,
     );
     if (boundary) {
-      setIsPlaying(false);
+      setPlaying(false);
       onBoundary(boundary);
       return;
     }
 
-    setIsPlaying(true);
-  }, [motionRestricted, onBoundary]);
+    setPlaying(true);
+  }, [motionRestricted, onBoundary, setPlaying]);
   const play = startPlayback;
   const toggle = useCallback(() => {
-    if (isPlaying) {
-      setIsPlaying(false);
+    if (isPlayingRef.current) {
+      setPlaying(false);
       return;
     }
 
     startPlayback();
-  }, [isPlaying, startPlayback]);
+  }, [setPlaying, startPlayback]);
 
   return {
     direction,

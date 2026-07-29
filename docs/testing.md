@@ -5,22 +5,24 @@
 ルートの `npm run check` は、次を順に実行します。
 
 1. 固定したNode.jsツールチェーンの確認
-2. リポジトリ用Node.jsスクリプトのESLint
-3. 共有データのJSON Schemaと意味・参照・再現性
-4. 外部通信API、CSP、dependency install script allowlistの静的検査
-5. WebのESLint、Vitest、本番ビルド
-6. HTML/CSSから参照される初期アセット768 KiB gzip以下・12ファイル以下、
+2. Web PNGとmacOS ICNSの原画・生成物hash
+3. リポジトリ用Node.jsスクリプトのESLintとshell scriptの構文検査
+4. 共有データのJSON Schemaと意味・参照・再現性
+5. 外部通信API、CSP、dependency install script allowlistの静的検査
+6. WebのESLint、Vitest、本番ビルド
+7. HTML/CSSから参照される初期アセット768 KiB gzip以下・12ファイル以下、
    最大初期JavaScript 600 KiB raw以下、全JavaScript各720 KiB raw以下と
    配布ファイル別予算
-7. PWA成果物、Cloudflareの互換日付とSPA設定、認証なしのdeploy dry-run
-8. SwiftPMテスト
+8. PWA成果物、Cloudflareの互換日付とSPA設定、認証なしのdeploy dry-run
+9. SwiftPMテスト
 
-現行buildの基準値は初期11ファイル721.6 KiB gzip、最大初期JavaScriptの
+現行buildの基準値は初期12ファイル730.5 KiB gzip、最大初期JavaScriptの
 `catalog-v1`が523.0 KiB rawである。トップレベルと拡張子別の全予算値が
 正のsafe integerとして読めることも検査し、単一の巨大な起動chunkへ戻る
 設定退行を失敗にする。
 成果物検査はJavaScript無効時の`noscript`文言と同一originの再読み込みhrefも
-必須にし、route rootを安全に`index.html`へ解決する。
+必須にし、route rootを安全に`index.html`へ解決する。PWAの192/512px PNGと
+Apple touch iconは寸法、不透明RGB、manifest用途、source/dist一致を検査する。
 
 フォントのbyte再現は通常のWeb buildにPythonを要求しないため、ルートの
 `npm run check`とは分離する。CIとリリース候補ではPython 3.12.3と固定した

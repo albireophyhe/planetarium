@@ -111,7 +111,7 @@ WebGLが使えない場合は2Dへ戻る。自動回転は行わない。
    - 再生中の2D/3D、選択同期、地平線通過、地点・日時変更、失敗復旧を確認する。
    - Web全テスト、本番build、予算、privacy、Cloudflare dry-run、Swift全テスト、
      `.app`署名・resource・起動検証を通す。
-   - Web初期routeは11ファイル721.6KiB gzip以下を現行基準にし、
+   - Web初期routeは12ファイル730.5KiB gzip以下を現行基準にし、
      最大初期JavaScript 600KiB raw、全JavaScript各720KiB rawのgateで
      単一chunkへの再結合を防ぐ。
    - 観察、変更、検証、残るリスクを改善ログへ追記する。

@@ -23,6 +23,24 @@ final class ObservationConstraintsTests: XCTestCase {
             ObservationConstraints.clampedDate(maximum.addingTimeInterval(1)),
             maximum
         )
+        XCTAssertEqual(
+            ObservationConstraints.clampedDate(
+                Date(timeIntervalSince1970: .nan)
+            ),
+            minimum
+        )
+        XCTAssertEqual(
+            ObservationConstraints.clampedDate(
+                Date(timeIntervalSince1970: -.infinity)
+            ),
+            minimum
+        )
+        XCTAssertEqual(
+            ObservationConstraints.clampedDate(
+                Date(timeIntervalSince1970: .infinity)
+            ),
+            maximum
+        )
     }
 
     func testSteppedDatePreservesExactHourAwayFromBoundaries() {
@@ -63,6 +81,68 @@ final class ObservationConstraintsTests: XCTestCase {
 
         XCTAssertEqual(result.date, ObservationConstraints.maximumDate)
         XCTAssertNil(result.reachedBoundary)
+    }
+
+    func testSteppedDateCanonicalizesNonFiniteStartBeforeMoving() {
+        let minimum = ObservationConstraints.minimumDate
+        let maximum = ObservationConstraints.maximumDate
+        let testCases: [
+            (
+                date: Date,
+                hours: Int,
+                expectedDate: Date,
+                expectedBoundary: ObservationDateBoundary?
+            )
+        ] = [
+            (
+                Date(timeIntervalSince1970: .nan),
+                1,
+                minimum.addingTimeInterval(3_600),
+                nil
+            ),
+            (
+                Date(timeIntervalSince1970: .nan),
+                -1,
+                minimum,
+                .minimum
+            ),
+            (
+                Date(timeIntervalSince1970: -.infinity),
+                1,
+                minimum.addingTimeInterval(3_600),
+                nil
+            ),
+            (
+                Date(timeIntervalSince1970: -.infinity),
+                -1,
+                minimum,
+                .minimum
+            ),
+            (
+                Date(timeIntervalSince1970: .infinity),
+                -1,
+                maximum.addingTimeInterval(-3_600),
+                nil
+            ),
+            (
+                Date(timeIntervalSince1970: .infinity),
+                1,
+                maximum,
+                .maximum
+            ),
+        ]
+
+        for testCase in testCases {
+            let result = ObservationConstraints.steppedDate(
+                from: testCase.date,
+                hours: testCase.hours
+            )
+            XCTAssertEqual(result.date, testCase.expectedDate)
+            XCTAssertEqual(
+                result.reachedBoundary,
+                testCase.expectedBoundary
+            )
+        }
     }
 
     func testValidatedLocationNormalizesNameAndTimeZone() throws {

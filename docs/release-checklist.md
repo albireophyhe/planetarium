@@ -21,6 +21,7 @@ ASDF_PYTHON_VERSION=3.12.3 python3 --version
 ASDF_PYTHON_VERSION=3.12.3 python3 -m venv .venv-fonts
 .venv-fonts/bin/python -m pip install --requirement script/requirements-fonts.txt
 .venv-fonts/bin/python script/subset_fonts.py --check
+ASDF_NODEJS_VERSION=24.18.0 npm run icons:reproduce
 ASDF_NODEJS_VERSION=24.18.0 npm run check
 ./script/build_and_run.sh --verify
 git status --short
@@ -34,7 +35,8 @@ git diff --cached --check
 
 - [ ] 固定Python 3.12.3と固定requirementsで、同梱WOFF2をbyte単位に再現できる
 - [ ] `npm ci`が未審査install scriptをhard failし、IBM Plex telemetryを拒否し、固定版の`esbuild`・`workerd`・`fsevents`だけを許可する
-- [ ] Web lint、テスト、本番ビルド、gzip・raw予算。現行基準の初期11ファイル721.6KiB gzip、最大初期`catalog-v1` 523.0KiB rawから説明できない増加がない
+- [ ] Web lint、316テスト、本番ビルド、gzip・raw予算。現行基準の初期12ファイル730.5KiB gzip、最大初期`catalog-v1` 523.0KiB rawから説明できない増加がない
+- [ ] `npm run icons:check`と固定librsvgでの`npm run icons:reproduce`が、Web 180/192/512px PNGとmacOS ICNSをbyte単位で検証する
 - [ ] 最大初期JavaScript 600KiB raw、全JavaScript各720KiB rawを満たし、トップレベルと拡張子別の全予算値が正のsafe integerとして検査される
 - [ ] Webの2D/3Dが共通のdevice pixel ratio helperを使い、1–2倍へ制限し、非有限値、0、負値を1倍へ戻すテストが成功する
 - [ ] Cloudflare設定検査とdeploy dry-run
@@ -85,5 +87,7 @@ ASDF_NODEJS_VERSION=24.18.0 npm run web:bench:precision:soak
 ## 配布
 
 - [ ] Web応答ヘッダー、キャッシュ、SPA fallback、外部通信なしを公開URLで確認
-- [ ] macOS公開版はDeveloper ID署名、公証、staple、別ユーザーでGatekeeper確認
+- [ ] macOS公開版はDeveloper ID Application、Hardened Runtime、secure timestampで署名し、不要なentitlementと`get-task-allow`がない
+- [ ] `codesign --verify --deep --strict`、Developer ID・runtime flag・`Timestamp`の表示、公証ログ、`stapler validate`、`spctl --assess`が成功する
+- [ ] 公証済みticketをstapleした成果物を別ユーザー環境でGatekeeper確認
 - [ ] バージョン、変更点、既知の制約、ロールバック対象を記録

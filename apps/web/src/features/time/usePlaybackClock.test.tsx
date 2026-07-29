@@ -357,6 +357,80 @@ describe("usePlaybackClock", () => {
     },
   );
 
+  it("composes play then toggle as sequential actions in one act", () => {
+    const motion = createMotionPreference();
+    vi.stubGlobal("matchMedia", vi.fn(() => motion.query));
+    const frames = createAnimationFrames();
+    vi.stubGlobal("requestAnimationFrame", frames.requestAnimationFrame);
+    vi.stubGlobal("cancelAnimationFrame", frames.cancelAnimationFrame);
+    const { result } = renderHook(() =>
+      usePlaybackClock({
+        date: new Date("2026-07-29T00:00:00.000Z"),
+        onBoundary: vi.fn(),
+        onDateChange: vi.fn(),
+      }),
+    );
+
+    act(() => {
+      result.current.play();
+      result.current.toggle();
+    });
+
+    expect(result.current.isPlaying).toBe(false);
+    expect(frames.requestAnimationFrame).not.toHaveBeenCalled();
+  });
+
+  it("composes two toggles as sequential actions in one act", () => {
+    const motion = createMotionPreference();
+    vi.stubGlobal("matchMedia", vi.fn(() => motion.query));
+    const frames = createAnimationFrames();
+    vi.stubGlobal("requestAnimationFrame", frames.requestAnimationFrame);
+    vi.stubGlobal("cancelAnimationFrame", frames.cancelAnimationFrame);
+    const { result } = renderHook(() =>
+      usePlaybackClock({
+        date: new Date("2026-07-29T00:00:00.000Z"),
+        onBoundary: vi.fn(),
+        onDateChange: vi.fn(),
+      }),
+    );
+
+    act(() => {
+      result.current.toggle();
+      result.current.toggle();
+    });
+
+    expect(result.current.isPlaying).toBe(false);
+    expect(frames.requestAnimationFrame).not.toHaveBeenCalled();
+  });
+
+  it("stops an inward play turned outward in the same act", () => {
+    const motion = createMotionPreference();
+    vi.stubGlobal("matchMedia", vi.fn(() => motion.query));
+    const frames = createAnimationFrames();
+    vi.stubGlobal("requestAnimationFrame", frames.requestAnimationFrame);
+    vi.stubGlobal("cancelAnimationFrame", frames.cancelAnimationFrame);
+    const onBoundary = vi.fn();
+    const { result } = renderHook(() =>
+      usePlaybackClock({
+        date: new Date("2100-12-31T23:59:59.999Z"),
+        onBoundary,
+        onDateChange: vi.fn(),
+      }),
+    );
+
+    act(() => result.current.setDirection(-1));
+    act(() => {
+      result.current.play();
+      result.current.setDirection(1);
+    });
+
+    expect(result.current.direction).toBe(1);
+    expect(result.current.isPlaying).toBe(false);
+    expect(onBoundary).toHaveBeenCalledOnce();
+    expect(onBoundary).toHaveBeenCalledWith("maximum");
+    expect(frames.requestAnimationFrame).not.toHaveBeenCalled();
+  });
+
   it("pauses when the document becomes hidden", () => {
     const motion = createMotionPreference();
     vi.stubGlobal("matchMedia", vi.fn(() => motion.query));

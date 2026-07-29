@@ -72,15 +72,28 @@ describe("observation time UI safeguards", () => {
     });
   });
 
-  it("does not step across the maximum supported instant", () => {
-    const result = shiftObservationDate(
+  it.each([
+    [
+      new Date("1900-01-01T00:30:00.000Z"),
+      -1,
+      new Date("1900-01-01T00:00:00.000Z"),
+      "minimum",
+    ],
+    [
       new Date("2100-12-31T23:30:00.000Z"),
       1,
-    );
-    expect(result).toEqual({
-      date: null,
-      error: OBSERVATION_DATE_RANGE_ERROR,
-      ok: false,
-    });
-  });
+      new Date("2100-12-31T23:59:59.999Z"),
+      "maximum",
+    ],
+  ] as const)(
+    "clamps a manual step at the %s supported boundary",
+    (current, hours, expectedDate, reachedBoundary) => {
+      expect(shiftObservationDate(current, hours)).toEqual({
+        date: expectedDate,
+        error: null,
+        ok: true,
+        reachedBoundary,
+      });
+    },
+  );
 });

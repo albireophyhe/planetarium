@@ -44,27 +44,41 @@ public enum ObservationConstraints {
     public static let supportedDateRange = minimumDate...maximumDate
 
     public static func clampedDate(_ date: Date) -> Date {
-        min(max(date, minimumDate), maximumDate)
+        clampedDateAndBoundary(date).date
+    }
+
+    private static func clampedDateAndBoundary(
+        _ date: Date
+    ) -> (date: Date, boundary: ObservationDateBoundary?) {
+        let seconds = date.timeIntervalSinceReferenceDate
+        if seconds == .infinity {
+            return (maximumDate, .maximum)
+        }
+        guard seconds.isFinite else {
+            return (minimumDate, .minimum)
+        }
+        if date < minimumDate {
+            return (minimumDate, .minimum)
+        }
+        if date > maximumDate {
+            return (maximumDate, .maximum)
+        }
+        return (date, nil)
     }
 
     public static func steppedDate(
         from date: Date,
         hours: Int
     ) -> ObservationDateStepResult {
-        let proposed = date.addingTimeInterval(Double(hours) * 3_600)
-        if proposed < minimumDate {
-            return ObservationDateStepResult(
-                date: minimumDate,
-                reachedBoundary: .minimum
-            )
-        }
-        if proposed > maximumDate {
-            return ObservationDateStepResult(
-                date: maximumDate,
-                reachedBoundary: .maximum
-            )
-        }
-        return ObservationDateStepResult(date: proposed, reachedBoundary: nil)
+        let startingDate = clampedDate(date)
+        let proposed = startingDate.addingTimeInterval(
+            Double(hours) * 3_600
+        )
+        let result = clampedDateAndBoundary(proposed)
+        return ObservationDateStepResult(
+            date: result.date,
+            reachedBoundary: result.boundary
+        )
     }
 
     public static func validatedLocation(

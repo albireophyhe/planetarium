@@ -98,6 +98,9 @@ const STANDARD_REFRACTION_OPTIONS: ApparentPositionOptionsV2 =
     }),
   });
 
+const OBSERVATION_DATE_ADJUSTMENT_MESSAGE =
+  "対応期間は1900年から2100年です。最も近い日時へ調整しました。";
+
 const TWILIGHT_LABELS: Record<TwilightPhase, string> = {
   day: "昼",
   civil: "市民薄明",
@@ -212,9 +215,15 @@ function apparentPositionOptionsWithEarthOrientation(
 }
 
 export function App() {
-  const [date, setDate] = useState(() =>
-    clampObservationDate(new Date()),
-  );
+  const [initialClock] = useState(() => {
+    const requestedDate = new Date();
+    const date = clampObservationDate(requestedDate);
+    return {
+      adjusted: date.getTime() !== requestedDate.getTime(),
+      date,
+    };
+  });
+  const [date, setDate] = useState(initialClock.date);
   const [drawError, setDrawError] = useState<DrawError | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [layers, setLayers] = useState<LayerSettings>(DEFAULT_LAYERS);
@@ -227,33 +236,85 @@ export function App() {
     useState<ResolvedSelectedStarTrack | null>(null);
   const [selectionAnnouncement, setSelectionAnnouncement] = useState("");
   const [timeError, setTimeError] = useState<string | null>(null);
+  const [timeBoundaryNotice, setTimeBoundaryNotice] = useState<{
+    id: number;
+    message: string;
+  } | null>(() =>
+    initialClock.adjusted
+      ? {
+          id: 1,
+          message: OBSERVATION_DATE_ADJUSTMENT_MESSAGE,
+        }
+      : null,
+  );
+  const [timeBoundaryAnnouncement, setTimeBoundaryAnnouncement] =
+    useState("");
   const [visibleMode, setVisibleMode] = useState<"above" | "all">("above");
   const initialSelectionResolved = useRef(false);
+  const timeBoundaryNoticeSequence = useRef(
+    initialClock.adjusted ? 1 : 0,
+  );
   const {
     catalog: precisionCatalog,
     retry: retryPrecisionCatalog,
     status: precisionCatalogStatus,
   } = usePrecisionCatalog();
 
+  const clearTimeBoundaryNotice = useCallback(() => {
+    setTimeBoundaryNotice(null);
+    setTimeBoundaryAnnouncement("");
+  }, []);
+  const showTimeBoundaryNotice = useCallback((message: string) => {
+    timeBoundaryNoticeSequence.current += 1;
+    setTimeBoundaryAnnouncement("");
+    setTimeBoundaryNotice({
+      id: timeBoundaryNoticeSequence.current,
+      message,
+    });
+  }, []);
+  const announceTimeBoundary = useCallback(
+    (
+      boundary: "maximum" | "minimum",
+      source: "manual-step" | "playback",
+    ) => {
+      const endpoint =
+        boundary === "minimum"
+          ? "対応期間の開始（1900年）"
+          : "対応期間の終了（2100年）";
+      showTimeBoundaryNotice(
+        source === "playback"
+          ? `${endpoint}に達したため、時間の再生を停止しました。`
+          : `${endpoint}に達しました。`,
+      );
+    },
+    [showTimeBoundaryNotice],
+  );
   const handlePlaybackDateChange = useCallback((nextDate: Date) => {
     setDate(nextDate);
     setTimeError(null);
-  }, []);
+    clearTimeBoundaryNotice();
+  }, [clearTimeBoundaryNotice]);
   const handlePlaybackBoundary = useCallback(
     (boundary: "maximum" | "minimum") => {
-      setTimeError(
-        boundary === "minimum"
-          ? "対応期間の開始（1900年）に達したため、時間の再生を停止しました。"
-          : "対応期間の終了（2100年）に達したため、時間の再生を停止しました。",
-      );
+      announceTimeBoundary(boundary, "playback");
     },
-    [],
+    [announceTimeBoundary],
   );
   const playback = usePlaybackClock({
     date,
     onBoundary: handlePlaybackBoundary,
     onDateChange: handlePlaybackDateChange,
   });
+  useEffect(() => {
+    if (!timeBoundaryNotice) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setTimeBoundaryAnnouncement(timeBoundaryNotice.message);
+    }, 50);
+    return () => window.clearTimeout(timeout);
+  }, [timeBoundaryNotice]);
   const iersEarthOrientation = useIersEarthOrientation(date);
   const currentEarthOrientationEstimate =
     iersEarthOrientation.estimate;
@@ -664,6 +725,7 @@ export function App() {
 
   function handleDateTimeChange(value: string) {
     playback.pause();
+    clearTimeBoundaryNotice();
     const result = parseObservationDateInput(value, location.timeZone);
     if (!result.ok) {
       setTimeError(result.error);
@@ -817,6 +879,24 @@ export function App() {
               {timeError}
             </p>
           ) : null}
+          <p
+            aria-atomic="true"
+            aria-label="時間境界通知"
+            aria-live="polite"
+            className="sr-only"
+            role="status"
+          >
+            {timeBoundaryAnnouncement}
+          </p>
+          {timeBoundaryNotice ? (
+            <p
+              aria-hidden="true"
+              className="time-boundary-notice"
+              key={timeBoundaryNotice.id}
+            >
+              {timeBoundaryNotice.message}
+            </p>
+          ) : null}
           <TimeControls
             dateTimeMaximum={dateTimeRange.maximum}
             dateTimeMinimum={dateTimeRange.minimum}
@@ -826,15 +906,28 @@ export function App() {
             isPlaying={playback.isPlaying}
             motionRestricted={playback.motionRestricted}
             onDateTimeChange={handleDateTimeChange}
-            onDirectionChange={playback.setDirection}
+            onDirectionChange={(direction) => {
+              clearTimeBoundaryNotice();
+              playback.setDirection(direction);
+            }}
             onNow={() => {
               playback.pause();
-              setDate(clampObservationDate(new Date()));
+              const now = new Date();
+              const nextDate = clampObservationDate(now);
+              setDate(nextDate);
               setTimeError(null);
+              if (nextDate.getTime() !== now.getTime()) {
+                showTimeBoundaryNotice(
+                  OBSERVATION_DATE_ADJUSTMENT_MESSAGE,
+                );
+              } else {
+                clearTimeBoundaryNotice();
+              }
             }}
             onPlaybackSpeedChange={playback.setSpeed}
             onPlaybackToggle={() => {
               setTimeError(null);
+              clearTimeBoundaryNotice();
               playback.toggle();
             }}
             onResetView={resetView}
@@ -843,10 +936,19 @@ export function App() {
               const result = shiftObservationDate(date, hours);
               if (!result.ok) {
                 setTimeError(result.error);
+                clearTimeBoundaryNotice();
                 return;
               }
               setDate(result.date);
               setTimeError(null);
+              if (result.reachedBoundary) {
+                announceTimeBoundary(
+                  result.reachedBoundary,
+                  "manual-step",
+                );
+              } else {
+                clearTimeBoundaryNotice();
+              }
             }}
             playbackDateTime={date.toISOString()}
             playbackSpeed={playback.speed}
@@ -940,6 +1042,7 @@ export function App() {
             playback.pause();
             setLocation(nextLocation);
             setTimeError(null);
+            clearTimeBoundaryNotice();
           }}
           onClose={() => setLocationOpen(false)}
           open

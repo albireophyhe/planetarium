@@ -11,6 +11,12 @@
   ],
   "scripts": {
     "doctor": "node script/doctor.mjs",
+    "icons:web:check": "./script/build_web_icons.sh --check",
+    "icons:web:reproduce": "./script/build_web_icons.sh --reproduce",
+    "icons:mac:check": "./script/build_app_icon.sh --check",
+    "icons:mac:reproduce": "./script/build_app_icon.sh --reproduce",
+    "icons:check": "npm run icons:web:check && npm run icons:mac:check",
+    "icons:reproduce": "npm run icons:web:reproduce && npm run icons:mac:reproduce",
     "fonts:subset": "python3 script/subset_fonts.py",
     "fonts:check": "python3 script/subset_fonts.py --check",
     "data:fetch": "node script/fetch_catalog.mjs",
@@ -24,7 +30,7 @@
     "data:build:dut1": "npm run data:build:eop",
     "data:check:dut1": "npm run data:check:eop",
     "data:validate": "node script/validate_schemas.mjs && node script/validate_data.mjs && npm run data:test:eop && npm run data:check:eop",
-    "scripts:lint": "eslint script",
+    "scripts:lint": "eslint script && bash -n script/*.sh",
     "privacy:check": "node script/check_privacy.mjs",
     "web:dev": "npm run dev --workspace=@planetarium/web",
     "web:build": "npm run build --workspace=@planetarium/web",
@@ -36,11 +42,11 @@
     "web:artifacts": "node script/check_web_artifacts.mjs",
     "web:check": "npm run check --workspace=@planetarium/web",
     "web:deploy-check": "npm run deploy:check --workspace=@planetarium/web",
-    "cloudflare:check": "node script/check_cloudflare_config.mjs && npm run web:artifacts && npm run web:deploy-check",
+    "cloudflare:check": "npm run icons:web:check && node script/check_cloudflare_config.mjs && npm run web:artifacts && npm run web:deploy-check",
     "web:preview": "npm run preview --workspace=@planetarium/web",
     "mac:build": "swift build",
     "mac:test": "swift test",
-    "check": "npm run doctor && npm run scripts:lint && npm run data:validate && npm run privacy:check && npm run web:check && npm run web:budget && npm run cloudflare:check && npm run mac:test"
+    "check": "npm run doctor && npm run icons:check && npm run scripts:lint && npm run data:validate && npm run privacy:check && npm run web:check && npm run web:budget && npm run cloudflare:check && npm run mac:test"
   },
   "allowScripts": {
     "@ibm/plex-sans-jp": false,
