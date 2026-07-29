@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import XCTest
 
 @testable import Planetarium
@@ -190,6 +191,31 @@ final class SkyStoreEarthOrientationIntegrationTests:
         XCTAssertTrue(store.isPlaybackPlaying)
         XCTAssertNil(store.statusMessage)
         store.pausePlayback()
+    }
+
+    @MainActor
+    func testInactiveAndBackgroundStopPlaybackWithoutAutomaticResume()
+        throws
+    {
+        let store = try makeEmptyStore(
+            now: Date(timeIntervalSince1970: 1_774_953_600)
+        )
+
+        for phase in [ScenePhase.inactive, .background] {
+            store.togglePlayback()
+            XCTAssertTrue(store.isPlaybackPlaying)
+            XCTAssertTrue(store.isPlaybackDriverRunning)
+
+            store.handleScenePhase(phase)
+
+            XCTAssertFalse(store.isPlaybackPlaying)
+            XCTAssertFalse(store.isPlaybackDriverRunning)
+
+            store.handleScenePhase(.active)
+
+            XCTAssertFalse(store.isPlaybackPlaying)
+            XCTAssertFalse(store.isPlaybackDriverRunning)
+        }
     }
 
     @MainActor

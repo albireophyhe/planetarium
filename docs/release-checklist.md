@@ -66,7 +66,7 @@ ASDF_NODEJS_VERSION=24.18.0 npm run web:bench:precision:soak
 - [ ] 日本語名、英語名、別名検索と星図・一覧・詳細が同期する
 - [ ] 都市、手入力、明示的な現在地、拒否後の復旧が動く
 - [ ] 日時、DSTエラー、±1時間、「いま」、リセットが正しい
-- [ ] 再生・停止、順逆、全速度、reduced-motion、非表示停止、1900/2100境界が正しい
+- [ ] 再生・停止、順逆、全速度、reduced-motion、Web非表示／macOS inactive・background停止、1900/2100境界が正しい
 - [ ] Web再生中の太陽高度はlive region外にあり、低頻度の計算状態と時刻仮定だけが`aria-live="polite"`で通知される
 - [ ] Webの軌跡ON＋再生中に準備中／13点を`status`やlive regionで反復通知せず、checkbox状態、凡例、Canvasの`aria-describedby`は維持される
 - [ ] 2D/3D切替、3D回転・拡大縮小・リセット、WebGL失敗時の2D復旧が動く

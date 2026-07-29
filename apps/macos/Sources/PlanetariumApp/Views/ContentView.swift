@@ -2,6 +2,7 @@ import PlanetariumCore
 import SwiftUI
 
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @Bindable var store: SkyStore
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
@@ -50,6 +51,9 @@ struct ContentView: View {
             LocationEditorView(store: store)
         }
         .tint(store.nightMode ? Color(red: 0.88, green: 0.29, blue: 0.29) : .blue)
+        .onChange(of: scenePhase) { _, newPhase in
+            store.handleScenePhase(newPhase)
+        }
     }
 
     private var locationMenu: some View {

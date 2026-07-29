@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import PlanetariumCore
+import SwiftUI
 
 protocol IERSEarthOrientationProviding: AnyObject {
     var coverage: IERSEarthOrientationCoverageV1 { get }
@@ -198,6 +199,10 @@ final class SkyStore {
 
     @ObservationIgnored
     private var playbackTask: Task<Void, Never>?
+
+    var isPlaybackDriverRunning: Bool {
+        playbackTask != nil
+    }
 
     init(
         catalogLoader: @escaping () throws -> SkyCatalog = {
@@ -909,8 +914,18 @@ final class SkyStore {
     }
 
     func pausePlayback() {
-        guard isPlaybackPlaying else { return }
         applyPlaybackAction(.pause)
+    }
+
+    func handleScenePhase(_ phase: ScenePhase) {
+        switch phase {
+        case .active:
+            return
+        case .inactive, .background:
+            pausePlayback()
+        @unknown default:
+            pausePlayback()
+        }
     }
 
     func setPlaybackDirection(_ direction: PlaybackDirection) {
