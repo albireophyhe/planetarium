@@ -1,0 +1,5 @@
+# Reference font build environment. Keep these exact so WOFF2 output is
+# reproducible across regeneration runs.
+fonttools[woff]==4.59.0
+Brotli==1.2.0
+zopfli==0.4.3

@@ -1,0 +1,434 @@
+.sky-sphere3d {
+  --sky3d-control-bg: rgba(4, 18, 36, 0.78);
+  --sky3d-control-border: rgba(139, 200, 255, 0.34);
+  --sky3d-control-hover: rgba(18, 74, 125, 0.9);
+  --sky3d-focus: #9bd2ff;
+  --sky3d-inner: #06101f;
+  --sky3d-label: #f4f7fc;
+  --sky3d-muted: rgba(218, 230, 244, 0.78);
+  --sky3d-outer: #030914;
+  background:
+    radial-gradient(
+      circle at 50% 44%,
+      var(--sky3d-inner) 0%,
+      var(--sky3d-outer) 100%
+    );
+  border: 1px solid rgba(90, 153, 216, 0.2);
+  border-radius: 12px;
+  height: 100%;
+  isolation: isolate;
+  min-height: 280px;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.sky-sphere3d--twilight-day {
+  --sky3d-inner: #0a2542;
+  --sky3d-outer: #07182d;
+}
+
+.sky-sphere3d--twilight-civil {
+  --sky3d-inner: #101e38;
+  --sky3d-outer: #071528;
+}
+
+.sky-sphere3d--twilight-nautical {
+  --sky3d-inner: #0b172d;
+  --sky3d-outer: #051122;
+}
+
+.sky-sphere3d--twilight-astronomical {
+  --sky3d-inner: #071429;
+  --sky3d-outer: #041020;
+}
+
+.sky-sphere3d--twilight-night {
+  --sky3d-inner: #06101f;
+  --sky3d-outer: #030914;
+}
+
+.sky-sphere3d--night {
+  --sky3d-control-bg: rgba(36, 3, 3, 0.82);
+  --sky3d-control-border: rgba(225, 86, 77, 0.4);
+  --sky3d-control-hover: rgba(93, 15, 12, 0.94);
+  --sky3d-focus: #f18b83;
+  --sky3d-inner: #120303;
+  --sky3d-label: #f1a09a;
+  --sky3d-muted: rgba(224, 126, 118, 0.78);
+  --sky3d-outer: #050000;
+  border-color: rgba(212, 75, 67, 0.26);
+}
+
+.sky-sphere3d__canvas {
+  cursor: grab;
+  display: block;
+  height: 100%;
+  outline: none;
+  touch-action: pan-y;
+  width: 100%;
+}
+
+.sky-sphere3d__canvas:active {
+  cursor: grabbing;
+}
+
+.sky-sphere3d__canvas:focus-visible {
+  box-shadow: inset 0 0 0 3px var(--sky3d-focus);
+}
+
+.sky-sphere3d__controls {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 4;
+}
+
+.sky-sphere3d__direction-pad {
+  display: grid;
+  grid-template-areas:
+    ". up ."
+    "left reset right"
+    ". down .";
+  grid-template-columns: repeat(3, 34px);
+  grid-template-rows: repeat(3, 34px);
+}
+
+.sky-sphere3d__control {
+  align-items: center;
+  appearance: none;
+  background: var(--sky3d-control-bg);
+  border: 1px solid var(--sky3d-control-border);
+  color: var(--sky3d-label);
+  display: flex;
+  height: 34px;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  width: 34px;
+}
+
+.sky-sphere3d__control:hover {
+  background: var(--sky3d-control-hover);
+}
+
+.sky-sphere3d__control:focus-visible {
+  box-shadow: 0 0 0 2px var(--sky3d-focus);
+  outline: none;
+  position: relative;
+  z-index: 1;
+}
+
+.sky-sphere3d__control svg {
+  fill: none;
+  height: 18px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 18px;
+}
+
+.sky-sphere3d__control--rotate-up {
+  border-radius: 8px 8px 3px 3px;
+  grid-area: up;
+}
+
+.sky-sphere3d__control--rotate-left {
+  border-radius: 8px 3px 3px 8px;
+  grid-area: left;
+}
+
+.sky-sphere3d__control--reset {
+  border-radius: 4px;
+  grid-area: reset;
+}
+
+.sky-sphere3d__control--rotate-right {
+  border-radius: 3px 8px 8px 3px;
+  grid-area: right;
+}
+
+.sky-sphere3d__control--rotate-down {
+  border-radius: 3px 3px 8px 8px;
+  grid-area: down;
+}
+
+.sky-sphere3d__zoom-controls {
+  border-radius: 8px;
+  display: grid;
+  overflow: hidden;
+}
+
+.sky-sphere3d__zoom-controls .sky-sphere3d__control:first-child {
+  border-radius: 8px 8px 0 0;
+}
+
+.sky-sphere3d__zoom-controls .sky-sphere3d__control:last-child {
+  border-radius: 0 0 8px 8px;
+  border-top: 0;
+}
+
+.sky-sphere3d__cardinals {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 3;
+}
+
+.sky-sphere3d__cardinal {
+  color: var(--sky3d-label);
+  font-size: clamp(12px, 1.5vw, 18px);
+  font-weight: 600;
+  left: 0;
+  line-height: 1;
+  position: absolute;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.9),
+    0 0 8px rgba(3, 9, 20, 0.86);
+  top: 0;
+  transition: opacity 80ms linear;
+  will-change: transform;
+}
+
+.sky-sphere3d__star-labels {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 3;
+}
+
+.sky-sphere3d__star-label {
+  background: rgba(3, 9, 20, 0.68);
+  border: 1px solid rgba(139, 200, 255, 0.2);
+  border-radius: 5px;
+  color: var(--sky3d-label);
+  font-size: 11px;
+  font-weight: 600;
+  left: 0;
+  line-height: 1.2;
+  max-width: 132px;
+  overflow: hidden;
+  padding: 3px 5px;
+  position: absolute;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.88);
+  top: 0;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+.sky-sphere3d__star-label[data-horizon="below"],
+.sky-sphere3d__star-label[data-hemisphere="back"] {
+  opacity: 0.48;
+}
+
+.sky-sphere3d__star-label--selected {
+  border-color: var(--sky3d-focus);
+  box-shadow: 0 0 0 1px var(--sky3d-focus);
+  color: var(--sky3d-label);
+}
+
+.sky-sphere3d__solar-label {
+  color: #ffe5a4;
+  font-size: 11px;
+  font-weight: 600;
+  left: 0;
+  line-height: 1;
+  pointer-events: none;
+  position: absolute;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.92),
+    0 0 7px rgba(3, 9, 20, 0.88);
+  top: 0;
+  white-space: nowrap;
+  will-change: opacity, transform;
+  z-index: 3;
+}
+
+.sky-sphere3d--night .sky-sphere3d__solar-label {
+  color: #f1a09a;
+}
+
+.sky-sphere3d--night .sky-sphere3d__star-label {
+  background: rgba(20, 1, 1, 0.76);
+  border-color: rgba(225, 86, 77, 0.26);
+}
+
+.sky-sphere3d__instructions {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.sky-sphere3d__summary {
+  background: rgba(3, 9, 20, 0.68);
+  border: 1px solid rgba(139, 200, 255, 0.18);
+  border-radius: 7px;
+  bottom: 10px;
+  color: var(--sky3d-muted);
+  font-size: 11px;
+  left: 10px;
+  line-height: 1.4;
+  margin: 0;
+  max-width: min(185px, calc(100% - 20px));
+  padding: 5px 8px;
+  pointer-events: none;
+  position: absolute;
+  right: auto;
+  z-index: 4;
+}
+
+.sky-sphere3d--night .sky-sphere3d__summary {
+  background: rgba(20, 1, 1, 0.76);
+  border-color: rgba(225, 86, 77, 0.22);
+}
+
+@media (max-width: 860px) {
+  .sky-sphere3d {
+    aspect-ratio: 1;
+    height: auto;
+    min-height: 0;
+  }
+
+  .sky-sphere3d__controls {
+    right: 8px;
+    top: 8px;
+  }
+
+  .sky-sphere3d__direction-pad {
+    grid-template-columns: repeat(3, 32px);
+    grid-template-rows: repeat(3, 32px);
+  }
+
+  .sky-sphere3d__control {
+    height: 32px;
+    width: 32px;
+  }
+
+  .sky-sphere3d__summary {
+    bottom: 7px;
+    font-size: 10px;
+    left: 7px;
+    max-width: min(185px, calc(100% - 14px));
+    right: auto;
+  }
+}
+
+@media (max-width: 430px) {
+  .sky-sphere3d__controls {
+    gap: 6px;
+  }
+
+  .sky-sphere3d__direction-pad {
+    grid-template-columns: repeat(3, 30px);
+    grid-template-rows: repeat(3, 30px);
+  }
+
+  .sky-sphere3d__control {
+    height: 30px;
+    width: 30px;
+  }
+
+  .sky-sphere3d__star-label {
+    font-size: 10px;
+    max-width: 96px;
+    padding: 2px 4px;
+  }
+
+  .sky-sphere3d__summary {
+    left: auto;
+    max-width: 145px;
+    right: 7px;
+  }
+}
+
+@media (max-width: 300px) {
+  .sky-sphere3d__controls {
+    gap: 4px;
+    right: 6px;
+    top: 44px;
+  }
+
+  .sky-sphere3d__direction-pad {
+    grid-template-areas: "left up reset down right";
+    grid-template-columns: repeat(5, 30px);
+    grid-template-rows: 30px;
+  }
+
+  .sky-sphere3d__control {
+    height: 30px;
+    width: 30px;
+  }
+
+  .sky-sphere3d__zoom-controls {
+    grid-auto-flow: column;
+    grid-template-columns: repeat(2, 30px);
+  }
+
+  .sky-sphere3d__zoom-controls .sky-sphere3d__control:first-child {
+    border-radius: 8px 0 0 8px;
+  }
+
+  .sky-sphere3d__zoom-controls .sky-sphere3d__control:last-child {
+    border-left: 0;
+    border-radius: 0 8px 8px 0;
+    border-top: 1px solid var(--sky3d-control-border);
+  }
+}
+
+@media (max-width: 280px) {
+  .sky-sphere3d__solar-label {
+    display: none;
+  }
+
+  .sky-sphere3d__summary {
+    display: none;
+  }
+}
+
+@media (max-width: 260px) {
+  .sky-sphere3d__controls {
+    gap: 4px;
+    right: 5px;
+    top: 44px;
+  }
+
+  .sky-sphere3d__direction-pad {
+    grid-template-areas: "left up reset down right";
+    grid-template-columns: repeat(5, 28px);
+    grid-template-rows: 28px;
+  }
+
+  .sky-sphere3d__control {
+    height: 28px;
+    width: 28px;
+  }
+
+  .sky-sphere3d__control svg {
+    height: 16px;
+    width: 16px;
+  }
+
+  .sky-sphere3d__zoom-controls {
+    grid-template-columns: repeat(2, 28px);
+  }
+
+  .sky-sphere3d__summary {
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    padding: 0;
+    white-space: nowrap;
+    width: 1px;
+  }
+}

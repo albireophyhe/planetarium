@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "retrievedAt": "2026-07-29T09:10:13.165Z",
+  "sourceLastModified": "2026-07-23T17:46:35.000Z",
+  "sourceUrl": "https://maia.usno.navy.mil/ser7/finals2000A.all",
+  "sourceSha256": "f707ea5031a467f1a3b2f0645fac2f627095ed0cb41d34c515b495cb81a5a25d",
+  "officialSourceSha512": "b5e8afa4a628c395025c118f9f48102ead13bdca22c79b89ab74d03b10a34493169438b313ef427ac803edb6258b81772ee381d408a129bfc79c3fc488478ec5",
+  "formatUrl": "https://maia.usno.navy.mil/ser7/readme.finals2000A",
+  "formatSha256": "3efb2c610012360391aed5c057489ff74539b78494a66b7f9b342d1843db9254",
+  "checksumUrl": "https://maia.usno.navy.mil/ser7/checksums.sha512",
+  "checksumSha256": "e81dfb49a3680bea439fec55b338d81e6be63abbfc552ee8e238ac7de81d6cc5",
+  "productMetadataUrl": "https://datacenter.iers.org/versionMetadata.php?filename=latestVersionMeta%2F9_FINALS.ALL_IAU2000_V2013_019.txt",
+  "distributionUrl": "https://maia.usno.navy.mil/products/daily"
+}

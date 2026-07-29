@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "oracle": "IAU SOFA ANSI C 2023-10-11 unmodified ldsun/ld",
+  "releaseUrl": "https://www.iausofa.org/2023-10-11c",
+  "archiveUrl": "https://www.iausofa.org/s/sofa_c-20231011tar.gz",
+  "retrievedArchiveSha256": "d9c10833cae8b4d9361a0ffda31ec361fd1262362025bec4d4e51a880150ace2",
+  "officialTestProgramSha256": "87ec88eac0be306a7060f984af2f1506ade2148332ea9ec70922eb3bf39b382d",
+  "ldSourceSha256": "8d4c081851c780e359ba2a281e246b2a6bea0a68622a67f017bfd623ba49a5dd",
+  "ldsunSourceSha256": "99d4bea0f3059e8632d2d315e4d538718a756dd7d379d4e27c76420a85316d70",
+  "driver": "script/sofa_light_deflection_oracle.c",
+  "expectedVectors": "raw iauLdsun output; normalized by Planetarium tests before comparison",
+  "cases": [
+    {
+      "id": "official-t-sofa-c-ldsun",
+      "provenance": "official-t_sofa_c.c",
+      "naturalDirection": [
+        -0.76327625499999996,
+        -0.60863376700000005,
+        -0.216735543
+      ],
+      "sunToObserverUnitDirection": [
+        -0.97364402299999997,
+        -0.20925522999999999,
+        -0.090716955200000005
+      ],
+      "sunObserverDistanceAu": 0.999809214,
+      "expectedDeflectedDirection": [
+        -0.76327625807314126,
+        -0.60863376352626486,
+        -0.21673554193223213
+      ]
+    },
+    {
+      "id": "orthogonal-one-au",
+      "provenance": "independent-unmodified-iauLdsun-driver",
+      "naturalDirection": [0, 1, 0],
+      "sunToObserverUnitDirection": [1, 0, 0],
+      "sunObserverDistanceAu": 1,
+      "expectedDeflectedDirection": [
+        1.9741257433600001e-8,
+        1,
+        0
+      ]
+    },
+    {
+      "id": "exact-solar-center-one-au",
+      "provenance": "independent-unmodified-iauLdsun-driver",
+      "naturalDirection": [-1, 0, 0],
+      "sunToObserverUnitDirection": [1, 0, 0],
+      "sunObserverDistanceAu": 1,
+      "expectedDeflectedDirection": [-1, 0, 0]
+    },
+    {
+      "id": "below-limiter-one-au",
+      "provenance": "independent-unmodified-iauLdsun-driver",
+      "naturalDirection": [
+        -0.99999987500000265,
+        0.0004999999791666669,
+        0
+      ],
+      "sunToObserverUnitDirection": [1, 0, 0],
+      "sunObserverDistanceAu": 1,
+      "expectedDeflectedDirection": [
+        -0.99999987006468871,
+        0.00050987060623836219,
+        0
+      ]
+    },
+    {
+      "id": "above-limiter-one-au",
+      "provenance": "independent-unmodified-iauLdsun-driver",
+      "naturalDirection": [
+        -0.99999800000066663,
+        0.0019999986666669333,
+        0
+      ],
+      "sunToObserverUnitDirection": [1, 0, 0],
+      "sunObserverDistanceAu": 1,
+      "expectedDeflectedDirection": [
+        -0.99999796051819123,
+        0.0020197398780379722,
+        0
+      ]
+    },
+    {
+      "id": "below-limiter-ten-au",
+      "provenance": "independent-unmodified-iauLdsun-driver",
+      "naturalDirection": [
+        -0.99999999500000003,
+        0.000099999999833333343,
+        0
+      ],
+      "sunToObserverUnitDirection": [1, 0, 0],
+      "sunObserverDistanceAu": 10,
+      "expectedDeflectedDirection": [
+        -0.99999999302587428,
+        0.00011974125713532496,
+        0
+      ]
+    }
+  ]
+}

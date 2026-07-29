@@ -1,0 +1,344 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/iers-finals2000a-eop.v1.json",
+  "title": "Planetarium normalized IERS Bulletin A Earth orientation manifest",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "product",
+    "timeScale",
+    "units",
+    "source",
+    "statusCodes",
+    "encoding",
+    "coverage",
+    "chunks"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "product": {
+      "const": "IERS Bulletin A finals2000A Earth orientation"
+    },
+    "timeScale": { "const": "UTC" },
+    "units": {
+      "type": "object",
+      "required": [
+        "mjdUtc",
+        "dut1",
+        "dut1ReportedError",
+        "polarMotion",
+        "polarMotionReportedError"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "mjdUtc": { "const": "day" },
+        "dut1": { "const": "second" },
+        "dut1ReportedError": { "const": "second" },
+        "polarMotion": { "const": "arcsecond" },
+        "polarMotionReportedError": { "const": "arcsecond" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "title",
+        "url",
+        "formatUrl",
+        "checksumUrl",
+        "productMetadataUrl",
+        "retrievedAt",
+        "sourceLastModified",
+        "sourceSha256",
+        "officialSourceSha512",
+        "formatSha256",
+        "checksumSha256",
+        "attribution",
+        "distributionStatement",
+        "distributionUrl",
+        "rawSnapshot",
+        "formatSnapshot",
+        "checksumSnapshot",
+        "reportedErrorSemantics"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "const": "IERS Bulletin A finals2000A" },
+        "url": { "type": "string", "format": "uri" },
+        "formatUrl": { "type": "string", "format": "uri" },
+        "checksumUrl": { "type": "string", "format": "uri" },
+        "productMetadataUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "retrievedAt": { "type": "string", "format": "date-time" },
+        "sourceLastModified": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sourceSha256": { "$ref": "#/$defs/sha256" },
+        "officialSourceSha512": { "$ref": "#/$defs/sha512" },
+        "formatSha256": { "$ref": "#/$defs/sha256" },
+        "checksumSha256": { "$ref": "#/$defs/sha256" },
+        "attribution": { "type": "string", "minLength": 1 },
+        "distributionStatement": {
+          "const": "Distribution Statement A. Approved for public release: distribution unlimited."
+        },
+        "distributionUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "rawSnapshot": {
+          "const": "shared/eop/source/finals2000A.all"
+        },
+        "formatSnapshot": {
+          "const": "shared/eop/source/readme.finals2000A"
+        },
+        "checksumSnapshot": {
+          "const": "shared/eop/source/checksums.sha512"
+        },
+        "reportedErrorSemantics": {
+          "const": "The source labels these columns as error; no confidence level or covariance is asserted."
+        }
+      }
+    },
+    "statusCodes": {
+      "type": "object",
+      "required": ["I", "P"],
+      "additionalProperties": false,
+      "properties": {
+        "I": { "const": "iers" },
+        "P": { "const": "predicted" }
+      }
+    },
+    "encoding": {
+      "type": "object",
+      "required": [
+        "mjdUtc",
+        "numeric",
+        "dut1IntegerUnit",
+        "polarMotionIntegerUnit",
+        "quality",
+        "maximumDut1QuantizationErrorSeconds",
+        "maximumPolarMotionQuantizationErrorArcseconds",
+        "canonicalRecordColumns"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "mjdUtc": {
+          "const": "chunk.startMjdUtc + zero-based record index"
+        },
+        "numeric": {
+          "const": "each series stores its first absolute integer followed by signed daily deltas"
+        },
+        "dut1IntegerUnit": { "const": "microsecond" },
+        "polarMotionIntegerUnit": {
+          "const": "microarcsecond"
+        },
+        "quality": {
+          "const": "independent DUT1 and polar-motion ranges are [startOffset, endOffsetExclusive, I|P]"
+        },
+        "maximumDut1QuantizationErrorSeconds": {
+          "const": 0.0000005
+        },
+        "maximumPolarMotionQuantizationErrorArcseconds": {
+          "const": 0.0000005
+        },
+        "canonicalRecordColumns": {
+          "const": [
+            "mjdUtc",
+            "polarMotionStatus",
+            "xpMicroarcseconds",
+            "xpReportedErrorMicroarcseconds",
+            "ypMicroarcseconds",
+            "ypReportedErrorMicroarcseconds",
+            "dut1Status",
+            "dut1Microseconds",
+            "dut1ReportedErrorMicroseconds"
+          ]
+        }
+      }
+    },
+    "coverage": { "$ref": "#/$defs/coverage" },
+    "chunks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": { "$ref": "#/$defs/chunkDescriptor" }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sha512": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{128}$"
+    },
+    "qualityCoverage": {
+      "type": "object",
+      "required": [
+        "iersThroughMjdUtc",
+        "predictionStartsMjdUtc",
+        "iersCount",
+        "predictedCount",
+        "missingTailRows"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "iersThroughMjdUtc": { "type": "integer" },
+        "predictionStartsMjdUtc": { "type": "integer" },
+        "iersCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 22000
+        },
+        "predictedCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 22000
+        },
+        "missingTailRows": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 22000
+        }
+      }
+    },
+    "dut1Coverage": {
+      "type": "object",
+      "required": [
+        "iersThroughMjdUtc",
+        "predictionStartsMjdUtc",
+        "iersCount",
+        "predictedCount",
+        "missingTailRows",
+        "leapSecondBoundaryCount"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "iersThroughMjdUtc": { "type": "integer" },
+        "predictionStartsMjdUtc": { "type": "integer" },
+        "iersCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 22000
+        },
+        "predictedCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 22000
+        },
+        "missingTailRows": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 22000
+        },
+        "leapSecondBoundaryCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "required": [
+        "firstSampleMjdUtc",
+        "lastSampleMjdUtc",
+        "recordCount",
+        "sourceRowCount",
+        "polarMotion",
+        "dut1"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "firstSampleMjdUtc": { "type": "integer" },
+        "lastSampleMjdUtc": { "type": "integer" },
+        "recordCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 22000
+        },
+        "sourceRowCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 22000
+        },
+        "polarMotion": {
+          "$ref": "#/$defs/qualityCoverage"
+        },
+        "dut1": { "$ref": "#/$defs/dut1Coverage" }
+      }
+    },
+    "chunkDescriptor": {
+      "type": "object",
+      "required": [
+        "file",
+        "startMjdUtc",
+        "endMjdUtc",
+        "recordCount",
+        "polarMotionIersCount",
+        "polarMotionPredictedCount",
+        "dut1IersCount",
+        "dut1PredictedCount",
+        "rawBytes",
+        "gzipBytes",
+        "sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string",
+          "pattern": "^shared/eop/eop/[0-9]{5,6}\\.v1\\.json$"
+        },
+        "startMjdUtc": {
+          "type": "integer",
+          "minimum": 30000,
+          "maximum": 100000
+        },
+        "endMjdUtc": {
+          "type": "integer",
+          "minimum": 30000,
+          "maximum": 104095
+        },
+        "recordCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        "polarMotionIersCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4096
+        },
+        "polarMotionPredictedCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4096
+        },
+        "dut1IersCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4096
+        },
+        "dut1PredictedCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4096
+        },
+        "rawBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 262144
+        },
+        "gzipBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65536
+        },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

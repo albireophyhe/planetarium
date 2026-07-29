@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/sofa-solar-light-deflection.v1.json",
+  "title": "Independent SOFA solar-light-deflection oracle vectors",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "oracle",
+    "releaseUrl",
+    "archiveUrl",
+    "retrievedArchiveSha256",
+    "officialTestProgramSha256",
+    "ldSourceSha256",
+    "ldsunSourceSha256",
+    "driver",
+    "expectedVectors",
+    "cases"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "oracle": {
+      "const": "IAU SOFA ANSI C 2023-10-11 unmodified ldsun/ld"
+    },
+    "releaseUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "archiveUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "retrievedArchiveSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "officialTestProgramSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "ldSourceSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "ldsunSourceSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "driver": {
+      "const": "script/sofa_light_deflection_oracle.c"
+    },
+    "expectedVectors": {
+      "const": "raw iauLdsun output; normalized by Planetarium tests before comparison"
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 6,
+      "items": {
+        "$ref": "#/$defs/oracleCase"
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "vector3": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "minimum": -1.000001,
+          "maximum": 1.000001
+        },
+        {
+          "type": "number",
+          "minimum": -1.000001,
+          "maximum": 1.000001
+        },
+        {
+          "type": "number",
+          "minimum": -1.000001,
+          "maximum": 1.000001
+        }
+      ],
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "oracleCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "provenance",
+        "naturalDirection",
+        "sunToObserverUnitDirection",
+        "sunObserverDistanceAu",
+        "expectedDeflectedDirection"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "provenance": {
+          "enum": [
+            "official-t_sofa_c.c",
+            "independent-unmodified-iauLdsun-driver"
+          ]
+        },
+        "naturalDirection": {
+          "$ref": "#/$defs/vector3"
+        },
+        "sunToObserverUnitDirection": {
+          "$ref": "#/$defs/vector3"
+        },
+        "sunObserverDistanceAu": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "expectedDeflectedDirection": {
+          "$ref": "#/$defs/vector3"
+        }
+      }
+    }
+  }
+}

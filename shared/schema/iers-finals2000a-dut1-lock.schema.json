@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/iers-finals2000a-dut1-lock.v1.json",
+  "title": "Planetarium normalized IERS Bulletin A DUT1 reproducibility lock",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "artifact",
+    "canonicalization",
+    "algorithm",
+    "contentSha256",
+    "sourceSha256",
+    "sourceSnapshotSha256",
+    "recordCount",
+    "observedCount",
+    "predictedCount",
+    "firstMjdUtc",
+    "lastMjdUtc",
+    "chunkCount",
+    "normalizedBytes",
+    "normalizedGzipBytes"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "artifact": {
+      "const": "shared/eop/iers-finals2000a-dut1.v1.json"
+    },
+    "canonicalization": {
+      "const": "UTF-8 JSON.stringify(decoded quantized records)"
+    },
+    "algorithm": { "const": "sha256" },
+    "contentSha256": { "$ref": "#/$defs/sha256" },
+    "sourceSha256": { "$ref": "#/$defs/sha256" },
+    "sourceSnapshotSha256": { "$ref": "#/$defs/sha256" },
+    "recordCount": { "type": "integer", "minimum": 1 },
+    "observedCount": { "type": "integer", "minimum": 1 },
+    "predictedCount": { "type": "integer", "minimum": 1 },
+    "firstMjdUtc": { "type": "integer" },
+    "lastMjdUtc": { "type": "integer" },
+    "chunkCount": { "type": "integer", "minimum": 1, "maximum": 16 },
+    "normalizedBytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 900000
+    },
+    "normalizedGzipBytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 300000
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

@@ -1,0 +1,10 @@
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.icns binary
+*.woff2 binary
+shared/eop/source/finals2000A.all binary
+shared/eop/source/readme.finals2000A binary
+shared/eop/source/checksums.sha512 binary

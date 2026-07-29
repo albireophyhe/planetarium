@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "oracle": "IAU SOFA ANSI C 2023-10-11 unmodified apio/atioq",
+  "releaseUrl": "https://www.iausofa.org/2023-10-11c",
+  "archiveUrl": "https://www.iausofa.org/s/sofa_c-20231011tar.gz",
+  "retrievedArchiveSha256": "d9c10833cae8b4d9361a0ffda31ec361fd1262362025bec4d4e51a880150ace2",
+  "driver": "script/sofa_observer_effects_oracle.c --fixtures",
+  "assumptions": {
+    "inputFrame": "CIRS",
+    "horizontalAxes": "east,north,up",
+    "longitude": "east-positive geodetic radians",
+    "latitude": "WGS84 geodetic radians",
+    "polarMotionRadians": [0, 0],
+    "tioLocatorRadians": 0,
+    "refractionConstantsRadians": [0, 0]
+  },
+  "cases": [
+    {
+      "id": "tokyo-meridian-south-1900",
+      "dateUt1": "1900-01-01T0",
+      "longitudeDegrees": 139.7671,
+      "latitudeDegrees": 35.681199999999997,
+      "heightMeters": 0,
+      "hourAngleDegrees": 0,
+      "declinationDegrees": -9.3187999999999995,
+      "diurnalAberrationMagnitude": 1.2616091684816517e-06,
+      "geometricHorizontalEnu": [
+        8.6595605623549316e-17,
+        -0.70710678118654746,
+        0.70710678118654768
+      ],
+      "expectedHorizontalEnu": [
+        1.2616091684756462e-06,
+        -0.7071067811859848,
+        0.7071067811859848
+      ],
+      "separationArcseconds": 0.26022557067739693
+    },
+    {
+      "id": "tokyo-pole-j2000",
+      "dateUt1": "2000-01-01T0.5",
+      "longitudeDegrees": 139.7671,
+      "latitudeDegrees": 35.681199999999997,
+      "heightMeters": 0,
+      "hourAngleDegrees": 0,
+      "declinationDegrees": 90,
+      "diurnalAberrationMagnitude": 1.2616091684816517e-06,
+      "geometricHorizontalEnu": [
+        0,
+        0.81227495582293197,
+        0.58327471755841942
+      ],
+      "expectedHorizontalEnu": [
+        1.2616091684806477e-06,
+        0.81227495582228559,
+        0.58327471755795535
+      ],
+      "separationArcseconds": 0.26022557069629015
+    },
+    {
+      "id": "tokyo-east-velocity-aligned-2100",
+      "dateUt1": "2100-12-31T0.999988425926",
+      "longitudeDegrees": 139.7671,
+      "latitudeDegrees": 35.681199999999997,
+      "heightMeters": 0,
+      "hourAngleDegrees": -90,
+      "declinationDegrees": 0,
+      "diurnalAberrationMagnitude": 1.2616091684816519e-06,
+      "geometricHorizontalEnu": [
+        1,
+        6.123233995736766e-17,
+        6.123233995736766e-17
+      ],
+      "expectedHorizontalEnu": [
+        1,
+        6.123233995736766e-17,
+        6.123233995736766e-17
+      ],
+      "separationArcseconds": 3.1023030146009657e-44
+    },
+    {
+      "id": "equator-meridian-j2000",
+      "dateUt1": "2000-01-01T0.5",
+      "longitudeDegrees": 0,
+      "latitudeDegrees": 0,
+      "heightMeters": 0,
+      "hourAngleDegrees": 0,
+      "declinationDegrees": 0,
+      "diurnalAberrationMagnitude": 1.5514102568074683e-06,
+      "geometricHorizontalEnu": [
+        0,
+        0,
+        1
+      ],
+      "expectedHorizontalEnu": [
+        1.5514102568056014e-06,
+        9.4996480258067653e-23,
+        0.99999999999879663
+      ],
+      "separationArcseconds": 0.32000133602989372
+    },
+    {
+      "id": "latitude-75-meridian-2026",
+      "dateUt1": "2026-07-29T0.5",
+      "longitudeDegrees": 0,
+      "latitudeDegrees": 75,
+      "heightMeters": 0,
+      "hourAngleDegrees": 0,
+      "declinationDegrees": 30,
+      "diurnalAberrationMagnitude": 4.0279440676665769e-07,
+      "geometricHorizontalEnu": [
+        8.6595605623549353e-17,
+        -0.70710678118654768,
+        0.70710678118654735
+      ],
+      "expectedHorizontalEnu": [
+        4.0279440683737372e-07,
+        -0.70710678118649029,
+        0.70710678118649006
+      ],
+      "separationArcseconds": 0.083082310265865628
+    },
+    {
+      "id": "sydney-meridian-2026",
+      "dateUt1": "2026-07-29T0.5",
+      "longitudeDegrees": 151.20930000000001,
+      "latitudeDegrees": -33.8688,
+      "heightMeters": 0,
+      "hourAngleDegrees": 0,
+      "declinationDegrees": -60,
+      "diurnalAberrationMagnitude": 1.2895017755760248e-06,
+      "geometricHorizontalEnu": [
+        5.3936888617505764e-17,
+        -0.44042811898956274,
+        0.89778787695274409
+      ],
+      "expectedHorizontalEnu": [
+        1.2895017755138984e-06,
+        -0.44042811898919659,
+        0.89778787695199769
+      ],
+      "separationArcseconds": 0.26597883387060939
+    },
+    {
+      "id": "tokyo-height-1000m-2026",
+      "dateUt1": "2026-07-29T0.5",
+      "longitudeDegrees": 139.7671,
+      "latitudeDegrees": 35.681199999999997,
+      "heightMeters": 1000,
+      "hourAngleDegrees": 0,
+      "declinationDegrees": 0,
+      "diurnalAberrationMagnitude": 1.2618067452501991e-06,
+      "geometricHorizontalEnu": [
+        7.1430551588149488e-17,
+        -0.58327471755841942,
+        0.81227495582293197
+      ],
+      "expectedHorizontalEnu": [
+        1.2618067452160495e-06,
+        -0.58327471755795512,
+        0.81227495582228526
+      ],
+      "separationArcseconds": 0.26026632380860321
+    }
+  ]
+}

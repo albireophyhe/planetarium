@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/iers-finals2000a-eop-chunk.v1.json",
+  "title": "Planetarium normalized IERS Bulletin A EOP chunk",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "startMjdUtc",
+    "recordCount",
+    "dut1QualityRanges",
+    "polarMotionQualityRanges",
+    "dut1MicrosecondsDelta",
+    "dut1ReportedErrorMicrosecondsDelta",
+    "xpMicroarcsecondsDelta",
+    "xpReportedErrorMicroarcsecondsDelta",
+    "ypMicroarcsecondsDelta",
+    "ypReportedErrorMicroarcsecondsDelta"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "startMjdUtc": {
+      "type": "integer",
+      "minimum": 30000,
+      "maximum": 100000
+    },
+    "recordCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4096
+    },
+    "dut1QualityRanges": { "$ref": "#/$defs/qualityRanges" },
+    "polarMotionQualityRanges": {
+      "$ref": "#/$defs/qualityRanges"
+    },
+    "dut1MicrosecondsDelta": {
+      "$ref": "#/$defs/dut1DeltaSeries"
+    },
+    "dut1ReportedErrorMicrosecondsDelta": {
+      "$ref": "#/$defs/errorDeltaSeries"
+    },
+    "xpMicroarcsecondsDelta": {
+      "$ref": "#/$defs/polarMotionDeltaSeries"
+    },
+    "xpReportedErrorMicroarcsecondsDelta": {
+      "$ref": "#/$defs/errorDeltaSeries"
+    },
+    "ypMicroarcsecondsDelta": {
+      "$ref": "#/$defs/polarMotionDeltaSeries"
+    },
+    "ypReportedErrorMicroarcsecondsDelta": {
+      "$ref": "#/$defs/errorDeltaSeries"
+    }
+  },
+  "$defs": {
+    "qualityRanges": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4095
+          },
+          {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          { "enum": ["I", "P"] }
+        ],
+        "minItems": 3,
+        "maxItems": 3,
+        "items": false
+      }
+    },
+    "dut1DeltaSeries": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": {
+        "type": "integer",
+        "minimum": -2000000,
+        "maximum": 2000000
+      }
+    },
+    "polarMotionDeltaSeries": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": {
+        "type": "integer",
+        "minimum": -4000000,
+        "maximum": 4000000
+      }
+    },
+    "errorDeltaSeries": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": {
+        "type": "integer",
+        "minimum": -1000000,
+        "maximum": 1000000
+      }
+    }
+  }
+}

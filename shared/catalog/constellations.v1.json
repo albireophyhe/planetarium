@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "note": "このプロジェクト用に選んだ簡略線。IAU公式境界または公式線ではない。",
+  "graphModel": {
+    "edgeType": "undirected",
+    "crossingsConnect": false
+  },
+  "constellations": [
+    { "id": "UMa", "name": "Ursa Major", "nameJa": "おおぐま座", "componentCount": 1, "segments": [[4301, 4295], [4295, 4554], [4554, 4660], [4660, 4301], [4660, 4905], [4905, 5054], [5054, 5191]] },
+    { "id": "Cas", "name": "Cassiopeia", "nameJa": "カシオペヤ座", "componentCount": 1, "segments": [[21, 168], [168, 264], [264, 403], [403, 542]] },
+    { "id": "Ori", "name": "Orion", "nameJa": "オリオン座", "componentCount": 1, "segments": [[1790, 2061], [1790, 1852], [2061, 1948], [1852, 1903], [1903, 1948], [1948, 2004], [1852, 1713], [1713, 2004]] },
+    { "id": "Cyg", "name": "Cygnus", "nameJa": "はくちょう座", "componentCount": 1, "segments": [[7924, 7796], [7796, 7417], [7796, 7528], [7796, 7949]] },
+    { "id": "Lyr", "name": "Lyra", "nameJa": "こと座", "componentCount": 1, "segments": [[7001, 7106], [7106, 7178], [7178, 7001]] },
+    { "id": "Aql", "name": "Aquila", "nameJa": "わし座", "componentCount": 1, "segments": [[7525, 7557], [7557, 7602]] },
+    { "id": "Sco", "name": "Scorpius", "nameJa": "さそり座", "componentCount": 1, "segments": [[5984, 5953], [5953, 6134], [6134, 6241], [6241, 6553], [6553, 6527], [6527, 6508]] },
+    { "id": "Leo", "name": "Leo", "nameJa": "しし座", "componentCount": 1, "segments": [[3982, 4057], [4057, 4357], [4357, 4534], [4534, 3982]] },
+    { "id": "CMa", "name": "Canis Major", "nameJa": "おおいぬ座", "componentCount": 1, "segments": [[2294, 2491], [2491, 2618], [2618, 2693], [2693, 2491]] },
+    { "id": "Cru", "name": "Crux", "nameJa": "みなみじゅうじ座", "componentCount": 2, "segments": [[4763, 4656], [4730, 4853]] }
+  ]
+}

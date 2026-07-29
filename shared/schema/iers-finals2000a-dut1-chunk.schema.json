@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/iers-finals2000a-dut1-chunk.v1.json",
+  "title": "Planetarium normalized IERS Bulletin A DUT1 chunk",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "startMjdUtc",
+    "recordCount",
+    "qualityRanges",
+    "dut1MicrosecondsDelta",
+    "uncertaintyMicrosecondsDelta"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "startMjdUtc": { "type": "integer" },
+    "recordCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4096
+    },
+    "qualityRanges": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          { "type": "integer", "minimum": 0 },
+          { "type": "integer", "minimum": 1 },
+          { "enum": ["I", "P"] }
+        ],
+        "minItems": 3,
+        "maxItems": 3,
+        "items": false
+      }
+    },
+    "dut1MicrosecondsDelta": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": { "type": "integer" }
+    },
+    "uncertaintyMicrosecondsDelta": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": { "type": "integer" }
+    }
+  }
+}

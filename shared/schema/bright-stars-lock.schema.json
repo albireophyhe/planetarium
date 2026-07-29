@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/bright-stars-lock.v1.json",
+  "title": "Planetarium Bright Star Catalog Reproducibility Lock",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "artifact",
+    "canonicalization",
+    "algorithm",
+    "contentSha256",
+    "sourceSha256",
+    "starCount",
+    "firstHR",
+    "lastHR"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "artifact": { "const": "shared/catalog/bright-stars.v1.json" },
+    "canonicalization": {
+      "const": "UTF-8 JSON.stringify(catalog.stars)"
+    },
+    "algorithm": { "const": "sha256" },
+    "contentSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sourceSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "starCount": { "type": "integer", "minimum": 1 },
+    "firstHR": { "type": "integer", "minimum": 1 },
+    "lastHR": { "type": "integer", "minimum": 1 }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/star-names.v1.json",
+  "title": "Planetarium Curated Star Names",
+  "type": "object",
+  "required": ["schemaVersion", "source", "stars"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "source": {
+      "type": "object",
+      "required": ["title", "url", "note"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "format": "uri" },
+        "note": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "stars": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "hr",
+          "name",
+          "nameJa",
+          "aliases",
+          "constellation"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "hr": { "type": "integer", "minimum": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "nameJa": { "type": "string", "minLength": 1 },
+          "aliases": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "uniqueItems": true
+          },
+          "constellation": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Za-z]{2}$"
+          }
+        }
+      }
+    }
+  }
+}

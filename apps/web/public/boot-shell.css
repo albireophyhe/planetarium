@@ -1,0 +1,63 @@
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  background: #030914;
+  margin: 0;
+}
+
+[data-boot-shell] {
+  background:
+    radial-gradient(circle at 36% 38%, #10355e26, transparent 38%),
+    #030914;
+  color: #f4f7fc;
+  display: grid;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI",
+    sans-serif;
+  grid-template-rows: 58px 1fr;
+  min-height: 100vh;
+}
+
+[data-boot-shell] header {
+  align-items: center;
+  background: #040e1dea;
+  border-bottom: 1px solid #9cb8de38;
+  display: flex;
+  font-size: 21px;
+  font-weight: 600;
+  padding: 0 22px;
+}
+
+[data-boot-shell] section {
+  align-content: center;
+  display: grid;
+  justify-items: center;
+  padding: 24px;
+  text-align: center;
+}
+
+[data-boot-shell] p {
+  margin: 0;
+}
+
+[data-boot-shell] p + p {
+  color: #a9b7ca;
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+[data-boot-shell] .boot-shell__noscript {
+  color: #d9e4f2;
+  line-height: 1.7;
+  max-width: 34rem;
+}
+
+[data-boot-shell] .boot-shell__noscript a {
+  color: #c6dcfb;
+  font-weight: 600;
+  text-underline-offset: 0.2em;
+}

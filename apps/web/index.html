@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#06101f" />
+    <meta
+      name="description"
+      content="場所と日時を選んで、地平線上の恒星と星座を確認できるプラネタリウム"
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="stylesheet" href="/boot-shell.css" />
+    <title>Planetarium</title>
+  </head>
+  <body>
+    <div id="root">
+      <main
+        aria-label="Planetariumを準備中"
+        data-boot-shell
+      >
+        <header>Planetarium</header>
+        <section>
+          <p>場所と日時の星空を表示するアプリ</p>
+          <p aria-live="polite" role="status">
+            東京・現在時刻を準備中
+          </p>
+          <noscript>
+            <p class="boot-shell__noscript">
+              表示にはJavaScriptが必要です。ブラウザーの設定を確認して
+              <a href="/">再読み込み</a>してください。
+            </p>
+          </noscript>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "units": {
+    "latitude": "degree, north-positive",
+    "longitude": "degree, east-positive"
+  },
+  "source": {
+    "method": "curated approximate city-centre reference points",
+    "coordinatePrecisionDegrees": 0.0001,
+    "note": "観測地点プリセット用の概略座標であり、測量用途には使用しない。"
+  },
+  "cities": [
+    { "id": "tokyo", "name": "Tokyo", "nameJa": "東京", "latitude": 35.6812, "longitude": 139.7671, "timeZone": "Asia/Tokyo" },
+    { "id": "sapporo", "name": "Sapporo", "nameJa": "札幌", "latitude": 43.0618, "longitude": 141.3545, "timeZone": "Asia/Tokyo" },
+    { "id": "naha", "name": "Naha", "nameJa": "那覇", "latitude": 26.2124, "longitude": 127.6809, "timeZone": "Asia/Tokyo" },
+    { "id": "singapore", "name": "Singapore", "nameJa": "シンガポール", "latitude": 1.3521, "longitude": 103.8198, "timeZone": "Asia/Singapore" },
+    { "id": "sydney", "name": "Sydney", "nameJa": "シドニー", "latitude": -33.8688, "longitude": 151.2093, "timeZone": "Australia/Sydney" },
+    { "id": "cape-town", "name": "Cape Town", "nameJa": "ケープタウン", "latitude": -33.9249, "longitude": 18.4241, "timeZone": "Africa/Johannesburg" },
+    { "id": "london", "name": "London", "nameJa": "ロンドン", "latitude": 51.5074, "longitude": -0.1278, "timeZone": "Europe/London" },
+    { "id": "reykjavik", "name": "Reykjavík", "nameJa": "レイキャビク", "latitude": 64.1466, "longitude": -21.9426, "timeZone": "Atlantic/Reykjavik" },
+    { "id": "new-york", "name": "New York", "nameJa": "ニューヨーク", "latitude": 40.7128, "longitude": -74.006, "timeZone": "America/New_York" },
+    { "id": "honolulu", "name": "Honolulu", "nameJa": "ホノルル", "latitude": 21.3069, "longitude": -157.8583, "timeZone": "Pacific/Honolulu" }
+  ]
+}

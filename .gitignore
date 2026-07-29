@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+
+# Swift / Xcode
+.build/
+DerivedData/
+dist/
+*.xcuserstate
+xcuserdata/
+
+# Node / Vite
+node_modules/
+apps/web/dist/
+.wrangler/
+apps/web/.dev.vars*
+*.tsbuildinfo
+
+# Test and tooling output
+coverage/
+playwright-report/
+test-results/
+*.log
+.venv-fonts/
+__pycache__/
+*.py[cod]
+
+# Local environment
+.env
+.env.*
+!.env.example

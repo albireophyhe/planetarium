@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 1,
+  "angleUnit": "degree",
+  "reference": "docs/astronomy-model.md version 1 formulas; expected values are frozen regression values, not an external ephemeris",
+  "supportedDateRange": {
+    "minimum": "1900-01-01T00:00:00.000Z",
+    "maximum": "2100-12-31T23:59:59.999Z"
+  },
+  "units": {
+    "angles": "degree",
+    "catalogCoordinates": "radian",
+    "longitude": "degree, east-positive",
+    "azimuth": "degree, north-zero and eastward",
+    "julianDate": "day"
+  },
+  "tolerances": {
+    "basicAngleDegrees": 1e-8,
+    "projectionNormalized": 1e-12,
+    "realStarDegrees": 1e-7,
+    "precessionDegrees": 1e-7,
+    "angularDistanceDegrees": 1e-7,
+    "solarDegrees": 1e-7
+  },
+  "julianDates": [
+    { "id": "unix-epoch", "iso": "1970-01-01T00:00:00.000Z", "expected": 2440587.5 },
+    { "id": "j2000", "iso": "2000-01-01T12:00:00.000Z", "expected": 2451545.0 },
+    { "id": "leap-day", "iso": "2024-02-29T00:00:00.000Z", "expected": 2460369.5 }
+  ],
+  "siderealTimes": [
+    { "id": "j2000-gmst", "julianDate": 2451545.0, "longitude": 0, "expected": 280.46061837 }
+  ],
+  "horizontalCoordinates": [
+    { "id": "equator-zenith", "latitude": 0, "declination": 0, "hourAngle": 0, "altitude": 90, "azimuth": 0, "azimuthDefined": false },
+    { "id": "equator-east", "latitude": 0, "declination": 0, "hourAngle": -90, "altitude": 0, "azimuth": 90, "azimuthDefined": true },
+    { "id": "equator-west", "latitude": 0, "declination": 0, "hourAngle": 90, "altitude": 0, "azimuth": 270, "azimuthDefined": true },
+    { "id": "north-pole", "latitude": 90, "declination": 90, "hourAngle": 45, "altitude": 90, "azimuth": 0, "azimuthDefined": false },
+    { "id": "near-zenith", "latitude": 35, "declination": 35, "hourAngle": 0.001, "altitude": 89.99918084745462, "azimuth": 270.0002867882808, "azimuthDefined": true }
+  ],
+  "projections": [
+    { "id": "zenith", "altitude": 90, "azimuth": 0, "x": 0, "y": 0 },
+    { "id": "north-horizon", "altitude": 0, "azimuth": 0, "x": 0, "y": -1 },
+    { "id": "east-horizon", "altitude": 0, "azimuth": 90, "x": 1, "y": 0 },
+    { "id": "south-horizon", "altitude": 0, "azimuth": 180, "x": 0, "y": 1 },
+    { "id": "west-horizon", "altitude": 0, "azimuth": 270, "x": -1, "y": 0 },
+    { "id": "below-horizon-east", "altitude": -45, "azimuth": 90, "x": 1.5, "y": 0 },
+    { "id": "nadir", "altitude": -90, "azimuth": 0, "x": 0, "y": -2 }
+  ],
+  "realStarPositions": [
+    {
+      "id": "tokyo-sirius",
+      "star": { "hr": 2491, "name": "Sirius", "rightAscension": 101.28708333284403, "declination": -16.71611111007425 },
+      "iso": "2026-01-15T12:00:00.000Z",
+      "location": { "id": "tokyo", "latitude": 35.6812, "longitude": 139.7671, "timeZone": "Asia/Tokyo" },
+      "expected": { "altitude": 31.72738424005121, "azimuth": 149.4268684328481, "azimuthDefined": true }
+    },
+    {
+      "id": "greenwich-polaris",
+      "star": { "hr": 424, "name": "Polaris", "rightAscension": 37.95291666847925, "declination": 89.26416666768051 },
+      "iso": "2026-07-29T22:00:00.000Z",
+      "location": { "id": "greenwich", "latitude": 51.4769, "longitude": 0, "timeZone": "Europe/London" },
+      "expected": { "altitude": 51.07931107994947, "azimuth": 0.7732829851236316, "azimuthDefined": true }
+    },
+    {
+      "id": "sydney-sirius",
+      "star": { "hr": 2491, "name": "Sirius", "rightAscension": 101.28708333284403, "declination": -16.71611111007425 },
+      "iso": "2026-01-15T12:00:00.000Z",
+      "location": { "id": "sydney", "latitude": -33.8688, "longitude": 151.2093, "timeZone": "Australia/Sydney" },
+      "expected": { "altitude": 67.98152834074352, "azimuth": 42.76398484671064, "azimuthDefined": true }
+    },
+    {
+      "id": "equator-vega",
+      "star": { "hr": 7001, "name": "Vega", "rightAscension": 279.2345833332675, "declination": 38.78361111099966 },
+      "iso": "2026-07-01T00:00:00.000Z",
+      "location": { "id": "equator", "latitude": 0, "longitude": 0, "timeZone": "UTC" },
+      "expected": { "altitude": 51.19075012289011, "azimuth": 0.4899410919248571, "azimuthDefined": true }
+    },
+    {
+      "id": "tromso-arcturus",
+      "star": { "hr": 5340, "name": "Arcturus", "rightAscension": 213.9154166661575, "declination": 19.182500002073404 },
+      "iso": "2026-04-15T20:00:00.000Z",
+      "location": { "id": "tromso", "latitude": 69.6492, "longitude": 18.9553, "timeZone": "Europe/Oslo" },
+      "expected": { "altitude": 30.784146627967292, "azimuth": 120.86656237543632, "azimuthDefined": true }
+    },
+    {
+      "id": "tokyo-vega-near-transit",
+      "star": { "hr": 7001, "name": "Vega", "rightAscension": 279.2345833332675, "declination": 38.78361111099966 },
+      "iso": "2026-07-15T13:44:00.000Z",
+      "location": { "id": "tokyo", "latitude": 35.6812, "longitude": 139.7671, "timeZone": "Asia/Tokyo" },
+      "expected": { "altitude": 86.8665366219971, "azimuth": 3.7691727997491276, "azimuthDefined": true }
+    },
+    {
+      "id": "greenwich-arcturus",
+      "star": { "hr": 5340, "name": "Arcturus", "rightAscension": 213.9154166661575, "declination": 19.182500002073404 },
+      "iso": "2026-04-15T22:00:00.000Z",
+      "location": { "id": "greenwich", "latitude": 51.4769, "longitude": 0, "timeZone": "Europe/London" },
+      "expected": { "altitude": 44.86594844072671, "azimuth": 120.69437857988807, "azimuthDefined": true }
+    }
+  ],
+  "precessionVectors": [
+    {
+      "id": "iau1976-2050",
+      "rightAscension": 150,
+      "declination": 20,
+      "julianDate": 2469807.5,
+      "expected": { "rightAscension": 150.6905106802925, "declination": 19.758111459608365 }
+    },
+    {
+      "id": "ra-wrap-2100",
+      "rightAscension": 359.9,
+      "declination": 10,
+      "julianDate": 2488070,
+      "expected": { "rightAscension": 1.1825836579572824, "declination": 10.556598064475786 }
+    },
+    {
+      "id": "vega-1900",
+      "rightAscension": 279.23473479,
+      "declination": 38.78368896,
+      "julianDate": 2415021,
+      "expected": { "rightAscension": 278.3954145764493, "declination": 38.69835460011966 }
+    }
+  ],
+  "angularDistances": [
+    {
+      "id": "ra-wrap",
+      "coordinateSystem": "equatorial",
+      "first": { "longitude": 359.999, "latitude": 0 },
+      "second": { "longitude": 0.001, "latitude": 0 },
+      "expected": 0.0019999999999833758
+    },
+    {
+      "id": "near-zenith-opposite-azimuths",
+      "coordinateSystem": "horizontal",
+      "first": { "longitude": 0, "latitude": 89.999 },
+      "second": { "longitude": 180, "latitude": 89.999 },
+      "expected": 0.0020000000000018037
+    },
+    {
+      "id": "sirius-vega",
+      "coordinateSystem": "equatorial",
+      "first": { "longitude": 101.28708333284403, "latitude": -16.71611111007425 },
+      "second": { "longitude": 279.2345833332675, "latitude": 38.78361111099966 },
+      "expected": 157.859567596824
+    },
+    {
+      "id": "equatorial-antipodes",
+      "coordinateSystem": "equatorial",
+      "first": { "longitude": 0, "latitude": 0 },
+      "second": { "longitude": 180, "latitude": 0 },
+      "expected": 180
+    },
+    {
+      "id": "horizon-quarter-turn",
+      "coordinateSystem": "horizontal",
+      "first": { "longitude": 0, "latitude": 0 },
+      "second": { "longitude": 90, "latitude": 0 },
+      "expected": 90
+    }
+  ],
+  "solarPositions": [
+    {
+      "id": "equinox-equator-noon",
+      "iso": "2024-03-20T12:00:00.000Z",
+      "location": { "id": "equator", "latitude": 0, "longitude": 0, "timeZone": "UTC" },
+      "expected": { "rightAscension": 0.3415910991668498, "declination": 0.148069540635932, "altitude": 88.1640263172617, "azimuth": 85.37333735376505, "phase": "day" }
+    },
+    {
+      "id": "tokyo-summer-noon",
+      "iso": "2026-07-29T03:00:00.000Z",
+      "location": { "id": "tokyo", "latitude": 35.6812, "longitude": 139.7671, "timeZone": "Asia/Tokyo" },
+      "expected": { "rightAscension": 128.41351684718464, "declination": 18.759611787916263, "altitude": 72.85286296081726, "azimuth": 190.12554070434783, "phase": "day" }
+    },
+    {
+      "id": "tokyo-summer-midnight",
+      "iso": "2026-07-29T15:00:00.000Z",
+      "location": { "id": "tokyo", "latitude": 35.6812, "longitude": 139.7671, "timeZone": "Asia/Tokyo" },
+      "expected": { "rightAscension": 128.90230400424056, "declination": 18.640866578952583, "altitude": -35.59636819316594, "azimuth": 3.6619794685230156, "phase": "night" }
+    },
+    {
+      "id": "greenwich-winter-evening",
+      "iso": "2026-12-21T17:00:00.000Z",
+      "location": { "id": "greenwich", "latitude": 51.4769, "longitude": 0, "timeZone": "Europe/London" },
+      "expected": { "rightAscension": 269.8195253243511, "declination": -23.434955797927298, "altitude": -9.65235918759187, "azimuth": 244.27329080791856, "phase": "nautical" }
+    }
+  ],
+  "twilightPhases": [
+    { "id": "day-boundary", "altitude": 0, "expected": "day" },
+    { "id": "below-day-boundary", "altitude": -0.000001, "expected": "civil" },
+    { "id": "civil-boundary", "altitude": -6, "expected": "civil" },
+    { "id": "below-civil-boundary", "altitude": -6.000001, "expected": "nautical" },
+    { "id": "nautical-boundary", "altitude": -12, "expected": "nautical" },
+    { "id": "below-nautical-boundary", "altitude": -12.000001, "expected": "astronomical" },
+    { "id": "astronomical-boundary", "altitude": -18, "expected": "astronomical" },
+    { "id": "below-astronomical-boundary", "altitude": -18.000001, "expected": "night" }
+  ]
+}

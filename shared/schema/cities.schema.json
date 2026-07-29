@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/cities.v1.json",
+  "title": "Planetarium Observing Location Presets",
+  "type": "object",
+  "required": ["schemaVersion", "units", "source", "cities"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "units": {
+      "type": "object",
+      "required": ["latitude", "longitude"],
+      "additionalProperties": false,
+      "properties": {
+        "latitude": { "const": "degree, north-positive" },
+        "longitude": { "const": "degree, east-positive" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["method", "coordinatePrecisionDegrees", "note"],
+      "additionalProperties": false,
+      "properties": {
+        "method": { "type": "string", "minLength": 1 },
+        "coordinatePrecisionDegrees": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "note": { "type": "string", "minLength": 1 }
+      }
+    },
+    "cities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "nameJa",
+          "latitude",
+          "longitude",
+          "timeZone"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "name": { "type": "string", "minLength": 1 },
+          "nameJa": { "type": "string", "minLength": 1 },
+          "latitude": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "timeZone": {
+            "type": "string",
+            "pattern": "^[A-Za-z_+-]+(?:/[A-Za-z0-9_+-]+)+$"
+          }
+        }
+      }
+    }
+  }
+}

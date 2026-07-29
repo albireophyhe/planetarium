@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "artifact": "shared/eop/iers-finals2000a-dut1.v1.json",
+  "canonicalization": "UTF-8 JSON.stringify(decoded quantized records)",
+  "algorithm": "sha256",
+  "contentSha256": "fe9e2d9351002ba0c301aa242c91e6fe63a3b12b3189e9468fcc7a9c5d635e09",
+  "sourceSha256": "f707ea5031a467f1a3b2f0645fac2f627095ed0cb41d34c515b495cb81a5a25d",
+  "sourceSnapshotSha256": "84262e2e170a36cbde0c4bf20411ac31c721ff9af5af90681f674bc0ad0a71c1",
+  "recordCount": 19934,
+  "observedCount": 19561,
+  "predictedCount": 373,
+  "firstMjdUtc": 41684,
+  "lastMjdUtc": 61617,
+  "chunkCount": 5,
+  "normalizedBytes": 161209,
+  "normalizedGzipBytes": 56252
+}

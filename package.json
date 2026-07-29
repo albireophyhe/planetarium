@@ -1,0 +1,58 @@
+{
+  "name": "planetarium",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "24.18.0",
+    "npm": "11.16.0"
+  },
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "doctor": "node script/doctor.mjs",
+    "fonts:subset": "python3 script/subset_fonts.py",
+    "fonts:check": "python3 script/subset_fonts.py --check",
+    "data:fetch": "node script/fetch_catalog.mjs",
+    "data:fetch:v2": "node script/fetch_catalog_v2.mjs",
+    "data:fetch:eop": "node script/update_eop.mjs --fetch",
+    "data:build:eop": "node script/update_eop.mjs --build",
+    "data:build:ephemeris": "node script/build_earth_ephemeris.mjs",
+    "data:check:eop": "node script/update_eop.mjs --check",
+    "data:test:eop": "node script/validate_eop_defenses.mjs",
+    "data:fetch:dut1": "npm run data:fetch:eop",
+    "data:build:dut1": "npm run data:build:eop",
+    "data:check:dut1": "npm run data:check:eop",
+    "data:validate": "node script/validate_schemas.mjs && node script/validate_data.mjs && npm run data:test:eop && npm run data:check:eop",
+    "scripts:lint": "eslint script",
+    "privacy:check": "node script/check_privacy.mjs",
+    "web:dev": "npm run dev --workspace=@planetarium/web",
+    "web:build": "npm run build --workspace=@planetarium/web",
+    "web:bench:precision": "npm run bench:precision --workspace=@planetarium/web",
+    "web:bench:precision:soak": "npm run bench:precision:soak --workspace=@planetarium/web",
+    "web:test": "npm run test --workspace=@planetarium/web",
+    "web:lint": "npm run lint --workspace=@planetarium/web",
+    "web:budget": "node script/check_web_budget.mjs",
+    "web:artifacts": "node script/check_web_artifacts.mjs",
+    "web:check": "npm run check --workspace=@planetarium/web",
+    "web:deploy-check": "npm run deploy:check --workspace=@planetarium/web",
+    "cloudflare:check": "node script/check_cloudflare_config.mjs && npm run web:artifacts && npm run web:deploy-check",
+    "web:preview": "npm run preview --workspace=@planetarium/web",
+    "mac:build": "swift build",
+    "mac:test": "swift test",
+    "check": "npm run doctor && npm run scripts:lint && npm run data:validate && npm run privacy:check && npm run web:check && npm run web:budget && npm run cloudflare:check && npm run mac:test"
+  },
+  "allowScripts": {
+    "@ibm/plex-sans-jp": false,
+    "esbuild@0.28.1": true,
+    "fsevents@2.3.3": true,
+    "workerd@1.20260722.1": true
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "eslint": "10.8.0",
+    "globals": "17.8.0"
+  }
+}

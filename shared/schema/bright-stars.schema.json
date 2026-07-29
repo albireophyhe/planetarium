@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/bright-stars.v1.json",
+  "title": "Planetarium Bright Star Catalog",
+  "type": "object",
+  "required": ["schemaVersion", "epoch", "units", "columns", "stars", "source"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "epoch": { "const": "J2000.0" },
+    "units": {
+      "type": "object",
+      "required": ["ra", "dec", "vMagnitude", "bvColor"],
+      "properties": {
+        "ra": { "const": "radian" },
+        "dec": { "const": "radian" },
+        "vMagnitude": { "const": "mag" },
+        "bvColor": { "const": "mag" }
+      },
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "required": ["title", "url", "retrievedAt", "sourceSha256"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "format": "uri" },
+        "retrievedAt": { "type": "string", "format": "date-time" },
+        "sourceSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "columns": {
+      "type": "array",
+      "prefixItems": [
+        { "const": "hr" },
+        { "const": "hd" },
+        { "const": "raRad" },
+        { "const": "decRad" },
+        { "const": "vMagnitude" },
+        { "const": "bvColor" },
+        { "const": "catalogName" },
+        { "const": "spectralType" }
+      ],
+      "minItems": 8,
+      "maxItems": 8,
+      "items": false
+    },
+    "stars": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          { "type": "integer", "minimum": 1 },
+          {
+            "anyOf": [
+              { "type": "integer", "minimum": 1 },
+              { "type": "null" }
+            ]
+          },
+          {
+            "type": "number",
+            "minimum": 0,
+            "exclusiveMaximum": 6.283185307179586
+          },
+          {
+            "type": "number",
+            "minimum": -1.5707963267948966,
+            "maximum": 1.5707963267948966
+          },
+          { "type": "number", "minimum": -2, "maximum": 6.5 },
+          {
+            "anyOf": [
+              { "type": "number" },
+              { "type": "null" }
+            ]
+          },
+          {
+            "anyOf": [
+              { "type": "string", "minLength": 1 },
+              { "type": "null" }
+            ]
+          },
+          {
+            "anyOf": [
+              { "type": "string", "minLength": 1 },
+              { "type": "null" }
+            ]
+          }
+        ],
+        "minItems": 8,
+        "maxItems": 8,
+        "items": false
+      }
+    }
+  }
+}

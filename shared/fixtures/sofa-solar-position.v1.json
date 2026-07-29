@@ -1,0 +1,200 @@
+{
+  "schemaVersion": 1,
+  "oracle": "IAU SOFA ANSI C 2023-10-11 unmodified epv00/ab/pnm06a/c2i06a/pvtob/apio13/atioq",
+  "archiveUrl": "https://www.iausofa.org/s/sofa_c-20231011tar.gz",
+  "retrievedArchiveSha256": "d9c10833cae8b4d9361a0ffda31ec361fd1262362025bec4d4e51a880150ace2",
+  "driver": "script/sofa_solar_position_oracle.c",
+  "assumptions": {
+    "ephemerisTimeScale": "TT as TDB proxy",
+    "refraction": "disabled",
+    "horizontalOrigin": "WGS84 topocenter",
+    "futureTaiMinusUtcSeconds": 37,
+    "horizontalAxes": "east,north,up"
+  },
+  "cases": [
+    {
+      "id": "greenwich-march-equinox-j2000",
+      "observedAtIso": "2000-03-20T12:00:00Z",
+      "location": {
+        "longitudeDegrees": 0,
+        "latitudeDegrees": 0,
+        "heightMeters": 0
+      },
+      "earthOrientation": {
+        "dut1Seconds": 0,
+        "xpArcseconds": 0,
+        "ypArcseconds": 0
+      },
+      "expectedHeliocentricEarthPositionAu": [
+        -0.99600717590201404, -0.0030195849769374178, -0.0013105572854231339
+      ],
+      "expectedApparentEquatorialRadians": [
+        0.0029230158175006181, 0.0012685592331236691
+      ],
+      "expectedHorizontalEnu": [
+        0.032189444915400885, 0.0012686131054777474, 0.99948098043776046
+      ]
+    },
+    {
+      "id": "tokyo-iers-eop-2026-midnight",
+      "observedAtIso": "2026-07-29T00:00:00Z",
+      "location": {
+        "longitudeDegrees": 139.7671,
+        "latitudeDegrees": 35.6812,
+        "heightMeters": 0
+      },
+      "earthOrientation": {
+        "dut1Seconds": 0.0124136,
+        "xpArcseconds": 0.22015199999999999,
+        "ypArcseconds": 0.36519800000000002
+      },
+      "expectedHeliocentricEarthPositionAu": [
+        0.59035690703525734, -0.75788952225273998, -0.32853344964390968
+      ],
+      "expectedApparentEquatorialRadians": [
+        2.2391585244429444, 0.32795952174430826
+      ],
+      "expectedHorizontalEnu": [
+        0.6318117305908072, -0.14959317999028246, 0.76054968120974475
+      ]
+    },
+    {
+      "id": "tokyo-iers-eop-2026-noon",
+      "observedAtIso": "2026-07-29T12:00:00Z",
+      "location": {
+        "longitudeDegrees": 139.7671,
+        "latitudeDegrees": 35.6812,
+        "heightMeters": 0
+      },
+      "earthOrientation": {
+        "dut1Seconds": 0.0124136,
+        "xpArcseconds": 0.22015199999999999,
+        "ypArcseconds": 0.36519800000000002
+      },
+      "expectedHeliocentricEarthPositionAu": [
+        0.59719218524131623, -0.75330478509591092, -0.32654640209691455
+      ],
+      "expectedApparentEquatorialRadians": [
+        2.2476901740035244, 0.3258931391545733
+      ],
+      "expectedHorizontalEnu": [
+        -0.63217287791475507, 0.67159054057343825, -0.38642411705437513
+      ]
+    },
+    {
+      "id": "sydney-december-solstice-2050",
+      "observedAtIso": "2050-12-21T01:30:00Z",
+      "location": {
+        "longitudeDegrees": 151.2093,
+        "latitudeDegrees": -33.8688,
+        "heightMeters": 0
+      },
+      "earthOrientation": {
+        "dut1Seconds": 0,
+        "xpArcseconds": 0,
+        "ypArcseconds": 0
+      },
+      "expectedHeliocentricEarthPositionAu": [
+        0.023213065188189191, 0.90244446721244853, 0.39112995324220057
+      ],
+      "expectedApparentEquatorialRadians": [
+        4.7001647373972961, -0.40890954068080321
+      ],
+      "expectedHorizontalEnu": [
+        0.092108752857962939, 0.17863065224262678, 0.97959535917965868
+      ]
+    },
+    {
+      "id": "tromso-polar-night-2099",
+      "observedAtIso": "2099-12-21T10:00:00Z",
+      "location": {
+        "longitudeDegrees": 18.9553,
+        "latitudeDegrees": 69.6492,
+        "heightMeters": 0
+      },
+      "earthOrientation": {
+        "dut1Seconds": 0,
+        "xpArcseconds": 0,
+        "ypArcseconds": 0
+      },
+      "expectedHeliocentricEarthPositionAu": [
+        0.026882396687698543, 0.90242437880634274, 0.39100247495311807
+      ],
+      "expectedApparentEquatorialRadians": [
+        4.7090774933425816, -0.40890251319404808
+      ],
+      "expectedHorizontalEnu": [
+        0.16796208168485063, -0.98401890416441007, -0.059123052721973247
+      ]
+    },
+    {
+      "id": "greenwich-compact-ephemeris-maximum-2061",
+      "observedAtIso": "2061-05-12T02:48:24Z",
+      "location": {
+        "longitudeDegrees": 0,
+        "latitudeDegrees": 0,
+        "heightMeters": 0
+      },
+      "earthOrientation": {
+        "dut1Seconds": 0,
+        "xpArcseconds": 0,
+        "ypArcseconds": 0
+      },
+      "expectedHeliocentricEarthPositionAu": [
+        -0.63470902890355196, -0.72096834914354513, -0.31244802812695993
+      ],
+      "expectedApparentEquatorialRadians": [
+        0.86399876305130918, 0.31838934239096012
+      ],
+      "expectedHorizontalEnu": [
+        0.64778679488457769, 0.3130277687657147, -0.69454005237619265
+      ]
+    },
+    {
+      "id": "greenwich-truncated-ephemeris-maximum-2098",
+      "observedAtIso": "2098-02-20T11:08:41Z",
+      "location": {
+        "longitudeDegrees": 0,
+        "latitudeDegrees": 0,
+        "heightMeters": 0
+      },
+      "earthOrientation": {
+        "dut1Seconds": 0,
+        "xpArcseconds": 0,
+        "ypArcseconds": 0
+      },
+      "expectedHeliocentricEarthPositionAu": [
+        -0.8645470102349937, 0.43999030562425473, 0.19066392780136235
+      ],
+      "expectedApparentEquatorialRadians": [
+        5.8350668600808833, -0.1855932499512917
+      ],
+      "expectedHorizontalEnu": [
+        0.27421097521465548, -0.18453706053233596, 0.94379786732218918
+      ]
+    },
+    {
+      "id": "mauna-kea-high-altitude-sunrise-2026",
+      "observedAtIso": "2026-07-29T16:00:00Z",
+      "location": {
+        "longitudeDegrees": -155.4681,
+        "latitudeDegrees": 19.8206,
+        "heightMeters": 4205
+      },
+      "earthOrientation": {
+        "dut1Seconds": 0.0124136,
+        "xpArcseconds": 0.22015199999999999,
+        "ypArcseconds": 0.36519800000000002
+      },
+      "expectedHeliocentricEarthPositionAu": [
+        0.59946130054273583, -0.75176475312042434, -0.32587894746045915
+      ],
+      "expectedApparentEquatorialRadians": [
+        2.2505315925871883, 0.32519939405873283
+      ],
+      "expectedHorizontalEnu": [
+        0.94033521304337719, 0.34024473708257391, -0.0017905301664058752
+      ]
+    }
+  ]
+}

@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/iers-finals2000a-dut1.v1.json",
+  "title": "Planetarium normalized IERS Bulletin A DUT1 manifest",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "product",
+    "timeScale",
+    "units",
+    "source",
+    "statusCodes",
+    "encoding",
+    "coverage",
+    "chunks"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "product": { "const": "IERS Bulletin A finals2000A UT1-UTC" },
+    "timeScale": { "const": "UTC" },
+    "units": {
+      "type": "object",
+      "required": ["mjdUtc", "dut1", "uncertainty"],
+      "additionalProperties": false,
+      "properties": {
+        "mjdUtc": { "const": "day" },
+        "dut1": { "const": "second" },
+        "uncertainty": { "const": "second" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "title",
+        "url",
+        "formatUrl",
+        "checksumUrl",
+        "productMetadataUrl",
+        "retrievedAt",
+        "sourceLastModified",
+        "sourceSha256",
+        "officialSourceSha512",
+        "formatSha256",
+        "checksumSha256",
+        "attribution",
+        "distributionStatement",
+        "distributionUrl",
+        "rawSnapshot",
+        "formatSnapshot",
+        "checksumSnapshot"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "const": "IERS Bulletin A finals2000A" },
+        "url": { "type": "string", "format": "uri" },
+        "formatUrl": { "type": "string", "format": "uri" },
+        "checksumUrl": { "type": "string", "format": "uri" },
+        "productMetadataUrl": { "type": "string", "format": "uri" },
+        "retrievedAt": { "type": "string", "format": "date-time" },
+        "sourceLastModified": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sourceSha256": { "$ref": "#/$defs/sha256" },
+        "officialSourceSha512": { "$ref": "#/$defs/sha512" },
+        "formatSha256": { "$ref": "#/$defs/sha256" },
+        "checksumSha256": { "$ref": "#/$defs/sha256" },
+        "attribution": { "type": "string", "minLength": 1 },
+        "distributionStatement": {
+          "const": "Distribution Statement A. Approved for public release: distribution unlimited."
+        },
+        "distributionUrl": { "type": "string", "format": "uri" },
+        "rawSnapshot": {
+          "const": "shared/eop/source/finals2000A.all"
+        },
+        "formatSnapshot": {
+          "const": "shared/eop/source/readme.finals2000A"
+        },
+        "checksumSnapshot": {
+          "const": "shared/eop/source/checksums.sha512"
+        }
+      }
+    },
+    "statusCodes": {
+      "type": "object",
+      "required": ["I", "P"],
+      "additionalProperties": false,
+      "properties": {
+        "I": { "const": "observed" },
+        "P": { "const": "predicted" }
+      }
+    },
+    "encoding": {
+      "type": "object",
+      "required": [
+        "mjdUtc",
+        "numeric",
+        "quality",
+        "maximumQuantizationErrorSeconds"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "mjdUtc": {
+          "const": "chunk.startMjdUtc + zero-based record index"
+        },
+        "numeric": {
+          "const": "first absolute integer microseconds followed by signed daily deltas"
+        },
+        "quality": {
+          "const": "qualityRanges entries are [startOffset, endOffsetExclusive, I|P]"
+        },
+        "maximumQuantizationErrorSeconds": {
+          "const": 0.0000005
+        }
+      }
+    },
+    "coverage": { "$ref": "#/$defs/coverage" },
+    "chunks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "required": [
+          "file",
+          "startMjdUtc",
+          "endMjdUtc",
+          "recordCount",
+          "observedCount",
+          "predictedCount",
+          "rawBytes",
+          "gzipBytes",
+          "sha256"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "file": {
+            "type": "string",
+            "pattern": "^shared/eop/dut1/[0-9]+\\.v1\\.json$"
+          },
+          "startMjdUtc": { "type": "integer" },
+          "endMjdUtc": { "type": "integer" },
+          "recordCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "observedCount": { "type": "integer", "minimum": 0 },
+          "predictedCount": { "type": "integer", "minimum": 0 },
+          "rawBytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 262144
+          },
+          "gzipBytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65536
+          },
+          "sha256": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sha512": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{128}$"
+    },
+    "coverage": {
+      "type": "object",
+      "required": [
+        "firstMjdUtc",
+        "lastMjdUtc",
+        "observedThroughMjdUtc",
+        "predictionStartsMjdUtc",
+        "recordCount",
+        "observedCount",
+        "predictedCount",
+        "missingUt1TailRows",
+        "leapSecondBoundaryCount"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "firstMjdUtc": { "type": "integer" },
+        "lastMjdUtc": { "type": "integer" },
+        "observedThroughMjdUtc": { "type": "integer" },
+        "predictionStartsMjdUtc": { "type": "integer" },
+        "recordCount": { "type": "integer", "minimum": 1 },
+        "observedCount": { "type": "integer", "minimum": 1 },
+        "predictedCount": { "type": "integer", "minimum": 1 },
+        "missingUt1TailRows": { "type": "integer", "minimum": 0 },
+        "leapSecondBoundaryCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

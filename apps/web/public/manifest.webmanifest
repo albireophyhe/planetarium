@@ -1,0 +1,21 @@
+{
+  "name": "Planetarium",
+  "short_name": "Planetarium",
+  "description": "場所と日時から地平線上の恒星と星座を確認するプラネタリウム",
+  "lang": "ja",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#030914",
+  "theme_color": "#06101f",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

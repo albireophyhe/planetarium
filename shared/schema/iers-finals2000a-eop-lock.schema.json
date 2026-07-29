@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/iers-finals2000a-eop-lock.v1.json",
+  "title": "Planetarium normalized IERS Bulletin A EOP reproducibility lock",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "artifact",
+    "canonicalization",
+    "algorithm",
+    "contentSha256",
+    "sourceSha256",
+    "sourceSnapshotSha256",
+    "recordCount",
+    "polarMotionIersCount",
+    "polarMotionPredictedCount",
+    "dut1IersCount",
+    "dut1PredictedCount",
+    "missingPolarMotionTailRows",
+    "missingDut1TailRows",
+    "firstSampleMjdUtc",
+    "lastSampleMjdUtc",
+    "chunkCount",
+    "normalizedBytes",
+    "normalizedGzipBytes"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "artifact": {
+      "const": "shared/eop/iers-finals2000a-eop.v1.json"
+    },
+    "canonicalization": {
+      "const": "UTF-8 JSON.stringify(decoded quantized records)"
+    },
+    "algorithm": { "const": "sha256" },
+    "contentSha256": { "$ref": "#/$defs/sha256" },
+    "sourceSha256": { "$ref": "#/$defs/sha256" },
+    "sourceSnapshotSha256": { "$ref": "#/$defs/sha256" },
+    "recordCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 22000
+    },
+    "polarMotionIersCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 22000
+    },
+    "polarMotionPredictedCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 22000
+    },
+    "dut1IersCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 22000
+    },
+    "dut1PredictedCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 22000
+    },
+    "missingPolarMotionTailRows": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 22000
+    },
+    "missingDut1TailRows": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 22000
+    },
+    "firstSampleMjdUtc": { "type": "integer" },
+    "lastSampleMjdUtc": { "type": "integer" },
+    "chunkCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 16
+    },
+    "normalizedBytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 900000
+    },
+    "normalizedGzipBytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 300000
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

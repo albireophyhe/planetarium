@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 2,
+  "artifact": "shared/catalog/bright-stars.v2.json",
+  "canonicalization": "UTF-8 JSON.stringify(catalog.stars)",
+  "algorithm": "sha256",
+  "contentSha256": "4e1a2de053ce13bb60027b66588fb396eada244a219d19c824cad32278043856",
+  "sourceSha256": "a30e96d261ad5aea5d6f919828aa35bf08362fde0eca2062ea6e5ee3a796508b",
+  "starCount": 8404,
+  "firstHR": 2,
+  "lastHR": 9110
+}
