@@ -22,6 +22,7 @@ import type {
 import {
   applyVisualRefractionWithCoefficients,
   formatZonedDateTimeInput,
+  greenwichApparentSiderealTime2006B,
   refractionCoefficients,
 } from "../../domain";
 
@@ -48,6 +49,118 @@ export type AppliedPolarMotionSnapshot = Readonly<{
 export const STAR_POINTING_PROFILE_ID =
   "planetarium.precision-pointing.full-v1";
 export const STAR_POINTING_PROFILE_SCHEMA_VERSION = 1;
+
+const TWO_PI = 2 * Math.PI;
+const SECONDS_PER_SIDEREAL_DAY = 86_400;
+const SECONDS_PER_HOUR = 3_600;
+
+function normalizeSignedRadians(radians: number) {
+  return (
+    ((radians + Math.PI) % TWO_PI + TWO_PI) % TWO_PI -
+    Math.PI
+  );
+}
+
+function formatSignedHourAngle(
+  radians: number,
+  fractionDigits = 2,
+) {
+  if (
+    !Number.isFinite(radians) ||
+    !Number.isInteger(fractionDigits) ||
+    fractionDigits < 0 ||
+    fractionDigits > 6
+  ) {
+    return "—";
+  }
+
+  const normalized = normalizeSignedRadians(radians);
+  const scale = 10 ** fractionDigits;
+  const maximumUnits =
+    12 * SECONDS_PER_HOUR * scale;
+  const roundedUnits = Math.min(
+    maximumUnits,
+    Math.round(
+      (Math.abs(normalized) / TWO_PI) *
+        SECONDS_PER_SIDEREAL_DAY *
+        scale,
+    ),
+  );
+  const hours = Math.floor(
+    roundedUnits / (SECONDS_PER_HOUR * scale),
+  );
+  const afterHours =
+    roundedUnits - hours * SECONDS_PER_HOUR * scale;
+  const minutes = Math.floor(afterHours / (60 * scale));
+  const secondsUnits =
+    afterHours - minutes * 60 * scale;
+  const seconds = (secondsUnits / scale)
+    .toFixed(fractionDigits)
+    .padStart(
+      fractionDigits === 0
+        ? 2
+        : 3 + fractionDigits,
+      "0",
+    );
+  const roundedToNegativeTwelveHours =
+    roundedUnits === maximumUnits;
+  const sign =
+    roundedToNegativeTwelveHours ||
+    (normalized < 0 && roundedUnits > 0)
+      ? "−"
+      : "+";
+
+  return `${sign}${String(hours).padStart(2, "0")}h ${String(
+    minutes,
+  ).padStart(2, "0")}m ${seconds}s`;
+}
+
+function apparentSiderealLines(
+  star: StarViewModel,
+  timeScales: ResolvedTimeScales | null,
+  longitudeDegrees: number,
+) {
+  const unavailable =
+    star.calculationModel === "v2"
+      ? "利用不可（時刻尺度または見かけ赤経なし）"
+      : "利用不可（簡易モデル）";
+  if (
+    star.calculationModel !== "v2" ||
+    timeScales === null ||
+    !Number.isFinite(timeScales.ut1JulianDate) ||
+    !Number.isFinite(timeScales.ttJulianDate) ||
+    star.apparentRaRad === null ||
+    !Number.isFinite(star.apparentRaRad) ||
+    !Number.isFinite(longitudeDegrees)
+  ) {
+    return [
+      `地方見かけ恒星時（GAST＋入力東経、極運動前）: ${unavailable}`,
+      `地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: ${unavailable}`,
+    ];
+  }
+
+  const greenwichApparentSiderealTime =
+    greenwichApparentSiderealTime2006B(
+      timeScales.ut1JulianDate,
+      timeScales.ttJulianDate,
+    );
+  const localApparentSiderealTime =
+    greenwichApparentSiderealTime +
+    (longitudeDegrees * Math.PI) / 180;
+  const apparentHourAngle =
+    localApparentSiderealTime - star.apparentRaRad;
+
+  return [
+    `地方見かけ恒星時（GAST＋入力東経、極運動前）: ${formatRightAscension(
+      localApparentSiderealTime,
+      2,
+    )}`,
+    `地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: ${formatSignedHourAngle(
+      apparentHourAngle,
+      2,
+    )}`,
+  ];
+}
 
 function qualityLabel(
   earthOrientationEstimate: IersEarthOrientationEstimateV1 | null,
@@ -140,6 +253,11 @@ export function buildStarPointingPayload({
         `JD(TT): ${timeScales.ttJulianDate.toFixed(9)}`,
       ]
     : ["DUT1 / JD(UT1) / JD(TT): 利用不可（簡易モデル）"];
+  const siderealLines = apparentSiderealLines(
+    star,
+    timeScales,
+    location.longitude,
+  );
 
   return [
     "Planetarium 精密導入データ",
@@ -162,6 +280,7 @@ export function buildStarPointingPayload({
         : ""
     }`,
     `見かけ赤経・赤緯（観測日）: ${apparent}`,
+    ...siderealLines,
     `幾何高度・方位（真空）: ${horizontalLine(
       star.geometricAltitudeDeg,
       star.geometricAzimuthDeg,

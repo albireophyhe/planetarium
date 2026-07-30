@@ -375,40 +375,41 @@ final class SkyStore {
         }
         let precisionContext:
             StarPointingPrecisionContext?
-        switch profile {
-        case .readableText:
-            precisionContext = nil
-        case .precisionJSON:
-            guard
-                let frame =
-                    currentApparentPositionContext,
-                let position = try? Astronomy
-                    .calculateApparentStarPositionWithContextV2(
-                        star.catalog,
-                        context: frame
-                    ),
-                let resolved =
-                    StarPointingPrecisionContext(
-                        position: position,
-                        frame: frame,
-                        atmosphere:
-                            appliedAtmosphericRefraction?
-                                .atmosphere,
-                        atmosphereInputSource:
-                            appliedAtmosphericRefraction?
-                                .inputSource,
-                        earthOrientationEstimate:
-                            currentEarthOrientationEstimate,
-                        earthOrientationSourceIdentifier:
-                            currentEarthOrientationEstimate
-                                == nil
-                            ? nil
-                            : pointingEarthOrientationIdentifier
-                    )
-            else {
+        if
+            let frame =
+                currentApparentPositionContext,
+            let position = try? Astronomy
+                .calculateApparentStarPositionWithContextV2(
+                    star.catalog,
+                    context: frame
+                ),
+            star.apparentEquatorial
+                == position.apparentEquatorial,
+            let resolved =
+                StarPointingPrecisionContext(
+                    position: position,
+                    frame: frame,
+                    atmosphere:
+                        appliedAtmosphericRefraction?
+                            .atmosphere,
+                    atmosphereInputSource:
+                        appliedAtmosphericRefraction?
+                            .inputSource,
+                    earthOrientationEstimate:
+                        currentEarthOrientationEstimate,
+                    earthOrientationSourceIdentifier:
+                        currentEarthOrientationEstimate
+                            == nil
+                        ? nil
+                        : pointingEarthOrientationIdentifier
+                )
+        {
+            precisionContext = resolved
+        } else {
+            guard profile == .readableText else {
                 return nil
             }
-            precisionContext = resolved
+            precisionContext = nil
         }
         return StarPointingPayloadFormatter.payload(
             for: star,

@@ -4,7 +4,10 @@ import { describe, expect, it } from "vitest";
 import pointingProfileContract from "../../../../../shared/fixtures/star-pointing-profile-v1-contract.json";
 import pointingProfileSchema from "../../../../../shared/schema/star-pointing-profile-v1.schema.json";
 import type { ObserverLocation, StarViewModel } from "../../app/types";
-import type { ResolvedTimeScales } from "../../domain";
+import {
+  greenwichApparentSiderealTime2006B,
+  type ResolvedTimeScales,
+} from "../../domain";
 import {
   buildStarPointingJsonProfile,
   buildStarPointingPayload,
@@ -104,6 +107,116 @@ const POLAR_MOTION_SNAPSHOT = {
   ypRadians: -2e-6,
   ypReportedErrorRadians: 2e-9,
 };
+
+const TWO_PI = 2 * Math.PI;
+const SECONDS_PER_SIDEREAL_DAY = 86_400;
+
+function normalizedRadians(radians: number) {
+  return ((radians % TWO_PI) + TWO_PI) % TWO_PI;
+}
+
+function signedRadians(radians: number) {
+  return (
+    ((radians + Math.PI) % TWO_PI + TWO_PI) % TWO_PI -
+    Math.PI
+  );
+}
+
+function precisionInputWithSiderealAngles(
+  localSiderealSeconds: number,
+  hourAngleSeconds: number,
+) {
+  const localSiderealRadians =
+    (localSiderealSeconds / SECONDS_PER_SIDEREAL_DAY) *
+    TWO_PI;
+  const hourAngleRadians =
+    (hourAngleSeconds / SECONDS_PER_SIDEREAL_DAY) *
+    TWO_PI;
+  const greenwichApparentSiderealTime =
+    greenwichApparentSiderealTime2006B(
+      TIME_SCALES.ut1JulianDate,
+      TIME_SCALES.ttJulianDate,
+    );
+  const longitudeRadians = signedRadians(
+    localSiderealRadians -
+      greenwichApparentSiderealTime,
+  );
+
+  return precisionInput({
+    location: {
+      ...LOCATION,
+      longitude: (longitudeRadians * 180) / Math.PI,
+    },
+    star: {
+      ...STAR,
+      apparentRaRad: normalizedRadians(
+        localSiderealRadians - hourAngleRadians,
+      ),
+    },
+  });
+}
+
+function timeScalesWithGreenwichSiderealSeconds(
+  greenwichSiderealSeconds: number,
+): ResolvedTimeScales {
+  const target = normalizedRadians(
+    (greenwichSiderealSeconds /
+      SECONDS_PER_SIDEREAL_DAY) *
+      TWO_PI,
+  );
+  let ut1JulianDate = TIME_SCALES.ut1JulianDate;
+  let ttJulianDate = TIME_SCALES.ttJulianDate;
+  let utcJulianDate = TIME_SCALES.utcJulianDate;
+
+  for (let iteration = 0; iteration < 4; iteration += 1) {
+    const current = greenwichApparentSiderealTime2006B(
+      ut1JulianDate,
+      ttJulianDate,
+    );
+    const correctionDays =
+      signedRadians(target - current) /
+      (TWO_PI * 1.0027378119113546);
+    ut1JulianDate += correctionDays;
+    ttJulianDate += correctionDays;
+    utcJulianDate += correctionDays;
+  }
+
+  return {
+    ...TIME_SCALES,
+    ttJulianDate,
+    utcJulianDate,
+    ut1JulianDate,
+  };
+}
+
+function precisionInputAtGreenwichSiderealTime(
+  greenwichSiderealSeconds: number,
+  longitudeDegrees: number,
+  apparentRightAscensionSeconds: number,
+) {
+  return precisionInput({
+    location: { ...LOCATION, longitude: longitudeDegrees },
+    star: {
+      ...STAR,
+      apparentRaRad: normalizedRadians(
+        (apparentRightAscensionSeconds /
+          SECONDS_PER_SIDEREAL_DAY) *
+          TWO_PI,
+      ),
+    },
+    timeScales: timeScalesWithGreenwichSiderealSeconds(
+      greenwichSiderealSeconds,
+    ),
+  });
+}
+
+function siderealPayloadLines(payload: string) {
+  return payload.split("\n").filter(
+    (line) =>
+      line.startsWith("地方見かけ恒星時") ||
+      line.startsWith("地心見かけ時角"),
+  );
+}
 
 const pointingProfileAjv = new Ajv2020({
   allErrors: true,
@@ -234,6 +347,12 @@ describe("buildStarPointingPayload", () => {
     expect(payload).toContain(
       "観測高度・方位（大気差設定反映）: 高度 42.123457°",
     );
+    expect(payload).toContain(
+      "地方見かけ恒星時（GAST＋入力東経、極運動前）:",
+    );
+    expect(payload).toContain(
+      "地心見かけ時角（H = LAST − 見かけ赤経、西向き正）:",
+    );
     expect(payload).toContain("DUT1: 0.012345 s (iers-predicted)");
     expect(payload).toContain("EOP品質: IERS観測値・予測値の混在");
     expect(payload).toContain("表示桁は計算条件の再現用");
@@ -256,10 +375,249 @@ describe("buildStarPointingPayload", () => {
     });
 
     expect(payload).toContain("見かけ赤経・赤緯（観測日）: 利用不可");
+    expect(payload).toContain(
+      "地方見かけ恒星時（GAST＋入力東経、極運動前）: 利用不可（簡易モデル）",
+    );
+    expect(payload).toContain(
+      "地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: 利用不可（簡易モデル）",
+    );
     expect(payload).toContain("DUT1 / JD(UT1) / JD(TT): 利用不可");
     expect(payload).toContain(
       "EOP品質: 収録外または未取得（DUT1=0秒・xp/yp=0近似）",
     );
+  });
+
+  it.each([
+    {
+      input: precisionInput({ timeScales: null }),
+      label: "time scales are missing",
+    },
+    {
+      input: precisionInput({
+        star: { ...STAR, apparentRaRad: null },
+      }),
+      label: "apparent right ascension is missing",
+    },
+  ])(
+    "does not publish sidereal values when $label",
+    ({ input }) => {
+      const payload = buildStarPointingPayload(input);
+
+      expect(payload).toContain(
+        "地方見かけ恒星時（GAST＋入力東経、極運動前）: 利用不可（時刻尺度または見かけ赤経なし）",
+      );
+      expect(payload).toContain(
+        "地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: 利用不可（時刻尺度または見かけ赤経なし）",
+      );
+    },
+  );
+
+  it("formats LAST and signed west-positive apparent hour angle deterministically", () => {
+    const payload = buildStarPointingPayload(
+      precisionInputWithSiderealAngles(
+        5 * 3_600 + 6 * 60 + 7.891,
+        1 * 3_600 + 2 * 60 + 3.456,
+      ),
+    );
+
+    expect(payload).toContain(
+      "地方見かけ恒星時（GAST＋入力東経、極運動前）: 05h 06m 07.89s",
+    );
+    expect(payload).toContain(
+      "地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: +01h 02m 03.46s",
+    );
+  });
+
+  it("carries rounded LAST and both signed hour-angle boundaries", () => {
+    const roundedPositive = buildStarPointingPayload(
+      precisionInputWithSiderealAngles(
+        SECONDS_PER_SIDEREAL_DAY - 0.004,
+        12 * 3_600 - 0.004,
+      ),
+    );
+    const roundedNegative = buildStarPointingPayload(
+      precisionInputWithSiderealAngles(
+        0.004,
+        -(12 * 3_600 - 0.004),
+      ),
+    );
+
+    expect(roundedPositive).toContain(
+      "地方見かけ恒星時（GAST＋入力東経、極運動前）: 00h 00m 00.00s",
+    );
+    expect(roundedPositive).toContain(
+      "地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: −12h 00m 00.00s",
+    );
+    expect(roundedNegative).toContain(
+      "地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: −12h 00m 00.00s",
+    );
+  });
+
+  it("canonicalizes exact antipodes and a rounded negative zero", () => {
+    const exactPositivePi = buildStarPointingPayload(
+      precisionInputWithSiderealAngles(
+        18 * 3_600,
+        12 * 3_600,
+      ),
+    );
+    const exactNegativePi = buildStarPointingPayload(
+      precisionInputWithSiderealAngles(
+        6 * 3_600,
+        -12 * 3_600,
+      ),
+    );
+    const roundedNegativeZero = buildStarPointingPayload(
+      precisionInputWithSiderealAngles(
+        1 * 3_600,
+        -0.004,
+      ),
+    );
+
+    for (const payload of [exactPositivePi, exactNegativePi]) {
+      expect(payload).toContain(
+        "地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: −12h 00m 00.00s",
+      );
+    }
+    expect(roundedNegativeZero).toContain(
+      "地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: +00h 00m 00.00s",
+    );
+  });
+
+  it("adds east longitude across 24h and keeps the west-positive hour-angle sign", () => {
+    const eastLongitude = buildStarPointingPayload(
+      precisionInputAtGreenwichSiderealTime(
+        23 * 3_600,
+        30,
+        23 * 3_600,
+      ),
+    );
+    const reverseHourAngle = buildStarPointingPayload(
+      precisionInputAtGreenwichSiderealTime(
+        23 * 3_600,
+        0,
+        1 * 3_600,
+      ),
+    );
+
+    expect(siderealPayloadLines(eastLongitude)).toEqual([
+      "地方見かけ恒星時（GAST＋入力東経、極運動前）: 01h 00m 00.00s",
+      "地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: +02h 00m 00.00s",
+    ]);
+    expect(siderealPayloadLines(reverseHourAngle)).toEqual([
+      "地方見かけ恒星時（GAST＋入力東経、極運動前）: 23h 00m 00.00s",
+      "地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: −02h 00m 00.00s",
+    ]);
+  });
+
+  it("treats east +180 degrees and east -180 degrees as the same meridian", () => {
+    const positive = buildStarPointingPayload(
+      precisionInputAtGreenwichSiderealTime(
+        4 * 3_600,
+        180,
+        14 * 3_600,
+      ),
+    );
+    const negative = buildStarPointingPayload(
+      precisionInputAtGreenwichSiderealTime(
+        4 * 3_600,
+        -180,
+        14 * 3_600,
+      ),
+    );
+
+    expect(siderealPayloadLines(positive)).toEqual([
+      "地方見かけ恒星時（GAST＋入力東経、極運動前）: 16h 00m 00.00s",
+      "地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: +02h 00m 00.00s",
+    ]);
+    expect(siderealPayloadLines(negative)).toEqual(
+      siderealPayloadLines(positive),
+    );
+  });
+
+  it("advances LAST and hour angle by one hour per 15 degrees east", () => {
+    const atGreenwich = buildStarPointingPayload(
+      precisionInputAtGreenwichSiderealTime(
+        10 * 3_600,
+        0,
+        8 * 3_600,
+      ),
+    );
+    const fifteenDegreesEast = buildStarPointingPayload(
+      precisionInputAtGreenwichSiderealTime(
+        10 * 3_600,
+        15,
+        8 * 3_600,
+      ),
+    );
+
+    expect(siderealPayloadLines(atGreenwich)).toEqual([
+      "地方見かけ恒星時（GAST＋入力東経、極運動前）: 10h 00m 00.00s",
+      "地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: +02h 00m 00.00s",
+    ]);
+    expect(siderealPayloadLines(fifteenDegreesEast)).toEqual([
+      "地方見かけ恒星時（GAST＋入力東経、極運動前）: 11h 00m 00.00s",
+      "地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: +03h 00m 00.00s",
+    ]);
+  });
+
+  it("keeps scalar LAST and hour angle independent of non-longitude observer inputs", () => {
+    const base = precisionInputAtGreenwichSiderealTime(
+      10 * 3_600,
+      15,
+      8 * 3_600,
+    );
+    const expected = siderealPayloadLines(
+      buildStarPointingPayload(base),
+    );
+    const variants: StarPointingPayloadInput[] = [
+      {
+        ...base,
+        location: {
+          ...base.location,
+          heightMeters: 2_000,
+          latitude: -20,
+        },
+      },
+      {
+        ...base,
+        earthOrientationEstimate: {
+          ...EOP_ESTIMATE,
+          polarMotion: {
+            ...EOP_ESTIMATE.polarMotion,
+            xpRadians: -3e-6,
+            ypRadians: 4e-6,
+          },
+        },
+        polarMotionSnapshot: {
+          ...POLAR_MOTION_SNAPSHOT,
+          xpRadians: -3e-6,
+          ypRadians: 4e-6,
+        },
+      },
+      {
+        ...base,
+        refractionAtmosphere: {
+          minimumGeometricAltitudeDegrees: 3,
+          pressureHpa: 900,
+          relativeHumidity: 0.8,
+          temperatureCelsius: 20,
+          wavelengthMicrometers: 0.65,
+        },
+        refractionInputSource: "manual",
+      },
+    ];
+
+    expect(expected).toEqual([
+      "地方見かけ恒星時（GAST＋入力東経、極運動前）: 11h 00m 00.00s",
+      "地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: +03h 00m 00.00s",
+    ]);
+    for (const variant of variants) {
+      expect(
+        siderealPayloadLines(
+          buildStarPointingPayload(variant),
+        ),
+      ).toEqual(expected);
+    }
   });
 
   it("exports the cross-platform versioned precision JSON profile without presentation rounding", () => {

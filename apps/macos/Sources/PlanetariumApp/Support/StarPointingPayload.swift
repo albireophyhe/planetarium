@@ -230,6 +230,10 @@ enum StarPointingPayloadFormatter {
         context: StarPointingPayloadContext
     ) -> String {
         let apparent = star.apparentEquatorial
+        let precisionAngles =
+            localApparentSiderealTimeAndHourAngle(
+                context: context
+            )
         let hd =
             star.catalog.hd.map { "HD \($0)" } ?? "HD —"
         let name =
@@ -281,6 +285,16 @@ enum StarPointingPayloadFormatter {
             "見かけ赤緯（真赤道・分点、日時）: "
                 + apparent.map {
                     preciseDeclination($0.declination)
+                }.orDash,
+            "地方見かけ恒星時（GAST＋入力東経、極運動前）: "
+                + precisionAngles.map {
+                    preciseRightAscension(
+                        $0.localApparentSiderealTime
+                    )
+                }.orDash,
+            "地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: "
+                + precisionAngles.map {
+                    preciseSignedHourAngle($0.hourAngle)
                 }.orDash,
             "真空 topocentric 高度: "
                 + preciseDegrees(
@@ -351,6 +365,43 @@ enum StarPointingPayloadFormatter {
         )
     }
 
+    static func preciseSignedHourAngle(
+        _ radians: Double
+    ) -> String {
+        guard radians.isFinite else {
+            return "—"
+        }
+        let normalized =
+            normalizedSignedHourAngle(radians)
+        let scale = 100
+        let totalUnits = Int(
+            (
+                abs(normalized)
+                    * 12 / .pi
+                    * 60 * 60
+                    * Double(scale)
+            ).rounded()
+        )
+        let halfTurnUnits = 12 * 60 * 60 * scale
+        let sign =
+            totalUnits == halfTurnUnits
+                || normalized < 0 && totalUnits > 0
+            ? "−"
+            : "+"
+        let hours = totalUnits / (60 * 60 * scale)
+        let minutes = totalUnits / (60 * scale) % 60
+        let seconds =
+            Double(totalUnits % (60 * scale))
+            / Double(scale)
+        return String(
+            format: "%@%02dh %02dm %05.2fs",
+            sign,
+            hours,
+            minutes,
+            seconds
+        )
+    }
+
     static func preciseDegrees(_ radians: Double) -> String {
         AstronomicalFormatting.degrees(
             radians,
@@ -372,6 +423,51 @@ enum StarPointingPayloadFormatter {
             ),
             fractionDigits: 6
         ) + "°（北=0°・東回り）"
+    }
+
+    static func localApparentSiderealTimeAndHourAngle(
+        context: StarPointingPayloadContext
+    ) -> (
+        localApparentSiderealTime: Double,
+        hourAngle: Double
+    )? {
+        guard let precision = context.precisionContext else {
+            return nil
+        }
+        let localApparentSiderealTime =
+            Angles.normalizedRadians(
+                precision.frame
+                    .greenwichApparentSiderealTime
+                    + Angles.radians(
+                        fromDegrees:
+                            context.location.longitude
+                    )
+            )
+        let hourAngle =
+            normalizedSignedHourAngle(
+                localApparentSiderealTime
+                    - precision.position
+                    .apparentEquatorial
+                    .rightAscension
+            )
+        return (
+            localApparentSiderealTime,
+            hourAngle
+        )
+    }
+
+    private static func normalizedSignedHourAngle(
+        _ radians: Double
+    ) -> Double {
+        var normalized = radians.truncatingRemainder(
+            dividingBy: Angles.twoPi
+        )
+        if normalized >= .pi {
+            normalized -= Angles.twoPi
+        } else if normalized < -.pi {
+            normalized += Angles.twoPi
+        }
+        return normalized
     }
 
     private static func decimalDegrees(

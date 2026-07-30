@@ -186,6 +186,16 @@ final class StarPointingReadoutTests: XCTestCase {
         )
         XCTAssertTrue(
             payload.contains(
+                "地方見かけ恒星時（GAST＋入力東経、極運動前）: —"
+            )
+        )
+        XCTAssertTrue(
+            payload.contains(
+                "地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: —"
+            )
+        )
+        XCTAssertTrue(
+            payload.contains(
                 "真空 topocentric 高度: 20.123456°"
             )
         )
@@ -213,6 +223,188 @@ final class StarPointingReadoutTests: XCTestCase {
         )
     }
 
+    func testReadablePayloadUsesPrecisionLASTAndWestPositiveHourAngle()
+        throws
+    {
+        let frame = try pointingFrame(
+            earthOrientation:
+                EarthOrientationOptionsV2(
+                    polarMotion: .assumedZero
+                ),
+            refraction: .disabled
+        )
+        let source = precisionCatalogStar(
+            rightAscension:
+                Angles.normalizedRadians(
+                    overheadRightAscension(frame) - 0.3
+                ),
+            astrometry: nil
+        )
+        let position =
+            try Astronomy
+            .calculateApparentStarPositionWithContextV2(
+                source,
+                context: frame
+            )
+        let rendered = RenderedStar(
+            catalog: source,
+            name: nil,
+            horizontal: position.observedHorizontal,
+            projection: position.projection,
+            apparentEquatorial:
+                position.apparentEquatorial,
+            geometricHorizontal:
+                position.geometricHorizontal,
+            observedHorizontal:
+                position.observedHorizontal
+        )
+        let precision = try XCTUnwrap(
+            StarPointingPrecisionContext(
+                position: position,
+                frame: frame,
+                atmosphere: nil,
+                atmosphereInputSource: nil,
+                earthOrientationEstimate: nil,
+                earthOrientationSourceIdentifier: nil
+            )
+        )
+        let context = StarPointingPayloadContext(
+            observationDate: try XCTUnwrap(
+                ISO8601DateFormatter().date(
+                    from: "2026-07-31T12:00:00Z"
+                )
+            ),
+            location: pointingLocation,
+            timeScales: frame.timeScales,
+            earthOrientationIdentifier: "未適用",
+            refractionDescription: "なし",
+            precisionContext: precision
+        )
+        let angles = try XCTUnwrap(
+            StarPointingPayloadFormatter
+                .localApparentSiderealTimeAndHourAngle(
+                    context: context
+                )
+        )
+        let expectedLAST = Angles.normalizedRadians(
+            frame.greenwichApparentSiderealTime
+                + Angles.radians(
+                    fromDegrees:
+                        pointingLocation.longitude
+                )
+        )
+        let expectedHourAngle = atan2(
+            sin(
+                expectedLAST
+                    - position.apparentEquatorial
+                    .rightAscension
+            ),
+            cos(
+                expectedLAST
+                    - position.apparentEquatorial
+                    .rightAscension
+            )
+        )
+        let payload = StarPointingPayloadFormatter.payload(
+            for: rendered,
+            context: context
+        )
+
+        XCTAssertEqual(
+            angles.localApparentSiderealTime,
+            expectedLAST,
+            accuracy: 1e-15
+        )
+        XCTAssertEqual(
+            angles.hourAngle,
+            expectedHourAngle,
+            accuracy: 1e-15
+        )
+        XCTAssertGreaterThan(angles.hourAngle, 0)
+        XCTAssertEqual(
+            rendered.apparentEquatorial,
+            position.apparentEquatorial
+        )
+        XCTAssertTrue(
+            payload.contains(
+                "地方見かけ恒星時（GAST＋入力東経、極運動前）: "
+                    + AstronomicalFormatting
+                    .rightAscension(
+                        expectedLAST,
+                        fractionDigits: 2
+                    )
+            )
+        )
+        XCTAssertTrue(
+            payload.contains(
+                "地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: "
+                    + StarPointingPayloadFormatter
+                    .preciseSignedHourAngle(
+                        expectedHourAngle
+                    )
+            )
+        )
+    }
+
+    func testSignedHourAngleFormattingCarriesAndLocksBoundaries() {
+        let carryHours =
+            1 + 59.0 / 60 + 59.996 / 3_600
+        let nearlyZeroHours = 0.004 / 3_600
+        let roundedHalfTurnHours =
+            11 + 59.0 / 60 + 59.996 / 3_600
+
+        XCTAssertEqual(
+            StarPointingPayloadFormatter
+                .preciseSignedHourAngle(
+                    carryHours * .pi / 12
+                ),
+            "+02h 00m 00.00s"
+        )
+        XCTAssertEqual(
+            StarPointingPayloadFormatter
+                .preciseSignedHourAngle(
+                    -carryHours * .pi / 12
+                ),
+            "−02h 00m 00.00s"
+        )
+        XCTAssertEqual(
+            StarPointingPayloadFormatter
+                .preciseSignedHourAngle(
+                    -nearlyZeroHours * .pi / 12
+                ),
+            "+00h 00m 00.00s"
+        )
+        XCTAssertEqual(
+            StarPointingPayloadFormatter
+                .preciseSignedHourAngle(.pi),
+            "−12h 00m 00.00s"
+        )
+        XCTAssertEqual(
+            StarPointingPayloadFormatter
+                .preciseSignedHourAngle(-.pi),
+            "−12h 00m 00.00s"
+        )
+        XCTAssertEqual(
+            StarPointingPayloadFormatter
+                .preciseSignedHourAngle(
+                    roundedHalfTurnHours * .pi / 12
+                ),
+            "−12h 00m 00.00s"
+        )
+        XCTAssertEqual(
+            StarPointingPayloadFormatter
+                .preciseSignedHourAngle(
+                    13 * .pi / 12
+                ),
+            "−11h 00m 00.00s"
+        )
+        XCTAssertEqual(
+            StarPointingPayloadFormatter
+                .preciseSignedHourAngle(.nan),
+            "—"
+        )
+    }
+
     @MainActor
     func testSkyStoreBuildsCopyablePointingPayload() throws {
         let date = try XCTUnwrap(
@@ -229,6 +421,26 @@ final class StarPointingReadoutTests: XCTestCase {
         XCTAssertTrue(payload.contains("観測時刻 UTC:"))
         XCTAssertTrue(payload.contains("赤経（J2000）:"))
         XCTAssertTrue(payload.contains("見かけ赤経"))
+        XCTAssertTrue(
+            payload.contains(
+                "地方見かけ恒星時（GAST＋入力東経、極運動前）: "
+            )
+        )
+        XCTAssertFalse(
+            payload.contains(
+                "地方見かけ恒星時（GAST＋入力東経、極運動前）: —"
+            )
+        )
+        XCTAssertTrue(
+            payload.contains(
+                "地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: "
+            )
+        )
+        XCTAssertFalse(
+            payload.contains(
+                "地心見かけ時角（H = LAST − 見かけ赤経、西向き正）: —"
+            )
+        )
         XCTAssertTrue(payload.contains("真空 topocentric 高度:"))
         XCTAssertTrue(payload.contains("観測高度（大気差後）:"))
         XCTAssertTrue(payload.contains("JD UT1:"))
