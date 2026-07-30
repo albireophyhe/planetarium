@@ -1,0 +1,2465 @@
+{
+  "schemaVersion": 1,
+  "model": "de442s-mean-sphere-eclipse-candidates-v1",
+  "id": "2100-2101",
+  "coverage": {
+    "startYear": 2100,
+    "endYear": 2101,
+    "endIsExclusive": true,
+    "timeScale": "TDB"
+  },
+  "events": [
+    {
+      "id": "lo-21000104-hr5056",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488072.895983364,
+      "maximumIsoTdb": "2100-01-04T09:30:12.962 TDB",
+      "searchStartJulianDateTdb": 2488072.145983364,
+      "searchEndJulianDateTdb": 2488073.645983364,
+      "centerSeparationRadians": 0.01537364306,
+      "candidateLimitRadians": 0.02248104519,
+      "clearanceRadians": 0.00710740213,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5056,
+        "hd": 116658,
+        "label": "Spica",
+        "labelJa": "スピカ",
+        "vMagnitude": 0.98
+      }
+    },
+    {
+      "id": "lo-21000107-hr5944",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488075.682054348,
+      "maximumIsoTdb": "2100-01-07T04:22:09.495 TDB",
+      "searchStartJulianDateTdb": 2488074.932054348,
+      "searchEndJulianDateTdb": 2488076.432054348,
+      "centerSeparationRadians": 0.010541237059,
+      "candidateLimitRadians": 0.022291181653,
+      "clearanceRadians": 0.011749944595,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5944,
+        "hd": 143018,
+        "label": "6Pi Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000107-hr6084",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488076.028177132,
+      "maximumIsoTdb": "2100-01-07T12:40:34.504 TDB",
+      "searchStartJulianDateTdb": 2488075.278177132,
+      "searchEndJulianDateTdb": 2488076.778177132,
+      "centerSeparationRadians": 0.016202457466,
+      "candidateLimitRadians": 0.022249973741,
+      "clearanceRadians": 0.006047516275,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6084,
+        "hd": 147165,
+        "label": "20Sig Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000107-hr6134",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488076.169751457,
+      "maximumIsoTdb": "2100-01-07T16:04:26.525 TDB",
+      "searchStartJulianDateTdb": 2488075.419751457,
+      "searchEndJulianDateTdb": 2488076.919751457,
+      "centerSeparationRadians": 0.007397123813,
+      "candidateLimitRadians": 0.022231915527,
+      "clearanceRadians": 0.014834791714,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6134,
+        "hd": 148478,
+        "label": "Antares",
+        "labelJa": "アンタレス",
+        "vMagnitude": 0.96
+      }
+    },
+    {
+      "id": "lo-21000107-hr6165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488076.292815551,
+      "maximumIsoTdb": "2100-01-07T19:01:39.263 TDB",
+      "searchStartJulianDateTdb": 2488075.542815551,
+      "searchEndJulianDateTdb": 2488077.042815551,
+      "centerSeparationRadians": 0.019325889462,
+      "candidateLimitRadians": 0.022215650273,
+      "clearanceRadians": 0.002889760811,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6165,
+        "hd": 149438,
+        "label": "23Tau Sco",
+        "labelJa": null,
+        "vMagnitude": 2.82
+      }
+    },
+    {
+      "id": "lo-21000110-hr7121",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488078.554298771,
+      "maximumIsoTdb": "2100-01-10T01:18:11.413 TDB",
+      "searchStartJulianDateTdb": 2488077.804298771,
+      "searchEndJulianDateTdb": 2488079.304298771,
+      "centerSeparationRadians": 0.019928472621,
+      "candidateLimitRadians": 0.021828842814,
+      "clearanceRadians": 0.001900370193,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 7121,
+        "hd": 175191,
+        "label": "Nunki",
+        "labelJa": "ヌンキ",
+        "vMagnitude": 2.02
+      }
+    },
+    {
+      "id": "lo-21000113-hr8322",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488081.723768988,
+      "maximumIsoTdb": "2100-01-13T05:22:13.640 TDB",
+      "searchStartJulianDateTdb": 2488080.973768988,
+      "searchEndJulianDateTdb": 2488082.473768988,
+      "centerSeparationRadians": 0.009715055261,
+      "candidateLimitRadians": 0.02114436476,
+      "clearanceRadians": 0.011429309499,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 8322,
+        "hd": 207098,
+        "label": "49Del Cap",
+        "labelJa": null,
+        "vMagnitude": 2.87
+      }
+    },
+    {
+      "id": "lo-21000121-hr1165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488089.7451685,
+      "maximumIsoTdb": "2100-01-21T05:53:02.558 TDB",
+      "searchStartJulianDateTdb": 2488088.9951685,
+      "searchEndJulianDateTdb": 2488090.4951685,
+      "centerSeparationRadians": 0.014858795502,
+      "candidateLimitRadians": 0.021106126009,
+      "clearanceRadians": 0.006247330507,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1165,
+        "hd": 23630,
+        "label": "25Eta Tau",
+        "labelJa": null,
+        "vMagnitude": 2.87
+      }
+    },
+    {
+      "id": "lo-21000123-hr1791",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488091.519140306,
+      "maximumIsoTdb": "2100-01-23T00:27:33.722 TDB",
+      "searchStartJulianDateTdb": 2488090.769140306,
+      "searchEndJulianDateTdb": 2488092.269140306,
+      "centerSeparationRadians": 0.004855830981,
+      "candidateLimitRadians": 0.021568802216,
+      "clearanceRadians": 0.016712971236,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1791,
+        "hd": 35497,
+        "label": "Elnath",
+        "labelJa": "エルナト",
+        "vMagnitude": 1.65
+      }
+    },
+    {
+      "id": "lo-21000127-hr3982",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488096.379425566,
+      "maximumIsoTdb": "2100-01-27T21:06:22.368 TDB",
+      "searchStartJulianDateTdb": 2488095.629425566,
+      "searchEndJulianDateTdb": 2488097.129425566,
+      "centerSeparationRadians": 0.017712379189,
+      "candidateLimitRadians": 0.022676210796,
+      "clearanceRadians": 0.004963831607,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 3982,
+        "hd": 87901,
+        "label": "Regulus",
+        "labelJa": "レグルス",
+        "vMagnitude": 1.35
+      }
+    },
+    {
+      "id": "lo-21000131-hr5056",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488100.121404321,
+      "maximumIsoTdb": "2100-01-31T14:54:49.333 TDB",
+      "searchStartJulianDateTdb": 2488099.371404321,
+      "searchEndJulianDateTdb": 2488100.871404321,
+      "centerSeparationRadians": 0.019128914519,
+      "candidateLimitRadians": 0.022582017251,
+      "clearanceRadians": 0.003453102732,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5056,
+        "hd": 116658,
+        "label": "Spica",
+        "labelJa": "スピカ",
+        "vMagnitude": 0.98
+      }
+    },
+    {
+      "id": "lo-21000203-hr5944",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488102.919988222,
+      "maximumIsoTdb": "2100-02-03T10:04:46.982 TDB",
+      "searchStartJulianDateTdb": 2488102.169988222,
+      "searchEndJulianDateTdb": 2488103.669988222,
+      "centerSeparationRadians": 0.007489542612,
+      "candidateLimitRadians": 0.022156877678,
+      "clearanceRadians": 0.014667335066,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5944,
+        "hd": 143018,
+        "label": "6Pi Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000203-hr6084",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488103.272396157,
+      "maximumIsoTdb": "2100-02-03T18:32:15.027 TDB",
+      "searchStartJulianDateTdb": 2488102.522396157,
+      "searchEndJulianDateTdb": 2488104.022396157,
+      "centerSeparationRadians": 0.019078921651,
+      "candidateLimitRadians": 0.022096593114,
+      "clearanceRadians": 0.003017671462,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6084,
+        "hd": 147165,
+        "label": "20Sig Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000203-hr6134",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488103.416552989,
+      "maximumIsoTdb": "2100-02-03T21:59:50.178 TDB",
+      "searchStartJulianDateTdb": 2488102.666552989,
+      "searchEndJulianDateTdb": 2488104.166552989,
+      "centerSeparationRadians": 0.010197527515,
+      "candidateLimitRadians": 0.022071747176,
+      "clearanceRadians": 0.011874219661,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6134,
+        "hd": 148478,
+        "label": "Antares",
+        "labelJa": "アンタレス",
+        "vMagnitude": 0.96
+      }
+    },
+    {
+      "id": "lo-21000204-hr6165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488103.5417528,
+      "maximumIsoTdb": "2100-02-04T01:00:07.441 TDB",
+      "searchStartJulianDateTdb": 2488102.7917528,
+      "searchEndJulianDateTdb": 2488104.2917528,
+      "centerSeparationRadians": 0.016593514675,
+      "candidateLimitRadians": 0.022050092931,
+      "clearanceRadians": 0.005456578257,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6165,
+        "hd": 149438,
+        "label": "23Tau Sco",
+        "labelJa": null,
+        "vMagnitude": 2.82
+      }
+    },
+    {
+      "id": "lo-21000206-hr7121",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488105.85232381,
+      "maximumIsoTdb": "2100-02-06T08:27:20.777 TDB",
+      "searchStartJulianDateTdb": 2488105.10232381,
+      "searchEndJulianDateTdb": 2488106.60232381,
+      "centerSeparationRadians": 0.021176725081,
+      "candidateLimitRadians": 0.02164254022,
+      "clearanceRadians": 0.00046581514,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 7121,
+        "hd": 175191,
+        "label": "Nunki",
+        "labelJa": "ヌンキ",
+        "vMagnitude": 2.02
+      }
+    },
+    {
+      "id": "lo-21000209-hr8322",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488109.060166281,
+      "maximumIsoTdb": "2100-02-09T13:26:38.366 TDB",
+      "searchStartJulianDateTdb": 2488108.310166281,
+      "searchEndJulianDateTdb": 2488109.810166281,
+      "centerSeparationRadians": 0.01064386549,
+      "candidateLimitRadians": 0.021080449877,
+      "clearanceRadians": 0.010436584387,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 8322,
+        "hd": 207098,
+        "label": "49Del Cap",
+        "labelJa": null,
+        "vMagnitude": 2.87
+      }
+    },
+    {
+      "id": "lo-21000217-hr1165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488117.105563134,
+      "maximumIsoTdb": "2100-02-17T14:32:00.654 TDB",
+      "searchStartJulianDateTdb": 2488116.355563134,
+      "searchEndJulianDateTdb": 2488117.855563134,
+      "centerSeparationRadians": 0.017476186028,
+      "candidateLimitRadians": 0.020943936911,
+      "clearanceRadians": 0.003467750883,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1165,
+        "hd": 23630,
+        "label": "25Eta Tau",
+        "labelJa": null,
+        "vMagnitude": 2.87
+      }
+    },
+    {
+      "id": "lo-21000219-hr1791",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488118.916143153,
+      "maximumIsoTdb": "2100-02-19T09:59:14.768 TDB",
+      "searchStartJulianDateTdb": 2488118.166143153,
+      "searchEndJulianDateTdb": 2488119.666143153,
+      "centerSeparationRadians": 0.002742873743,
+      "candidateLimitRadians": 0.021404262461,
+      "clearanceRadians": 0.018661388718,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1791,
+        "hd": 35497,
+        "label": "Elnath",
+        "labelJa": "エルナト",
+        "vMagnitude": 1.65
+      }
+    },
+    {
+      "id": "lo-21000224-hr3982",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488123.798820668,
+      "maximumIsoTdb": "2100-02-24T07:10:18.105 TDB",
+      "searchStartJulianDateTdb": 2488123.048820668,
+      "searchEndJulianDateTdb": 2488124.548820668,
+      "centerSeparationRadians": 0.017459629799,
+      "candidateLimitRadians": 0.02288422323,
+      "clearanceRadians": 0.005424593431,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 3982,
+        "hd": 87901,
+        "label": "Regulus",
+        "labelJa": "レグルス",
+        "vMagnitude": 1.35
+      }
+    },
+    {
+      "id": "le-21000224",
+      "kind": "lunar-eclipse",
+      "classificationHint": "penumbral",
+      "maximumJulianDateTdb": 2488124.12901295,
+      "maximumIsoTdb": "2100-02-24T15:05:46.718 TDB",
+      "searchStartJulianDateTdb": 2488123.37901295,
+      "searchEndJulianDateTdb": 2488124.87901295,
+      "centerSeparationRadians": 0.01803347586,
+      "candidateLimitRadians": 0.027280697774,
+      "clearanceRadians": 0.009247221914
+    },
+    {
+      "id": "lo-21000227-hr5056",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488127.427336124,
+      "maximumIsoTdb": "2100-02-27T22:15:21.841 TDB",
+      "searchStartJulianDateTdb": 2488126.677336124,
+      "searchEndJulianDateTdb": 2488128.177336124,
+      "centerSeparationRadians": 0.020722942815,
+      "candidateLimitRadians": 0.022936308768,
+      "clearanceRadians": 0.002213365953,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5056,
+        "hd": 116658,
+        "label": "Spica",
+        "labelJa": "スピカ",
+        "vMagnitude": 0.98
+      }
+    },
+    {
+      "id": "lo-21000302-hr5944",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488130.154966708,
+      "maximumIsoTdb": "2100-03-02T15:43:09.123 TDB",
+      "searchStartJulianDateTdb": 2488129.404966708,
+      "searchEndJulianDateTdb": 2488130.904966708,
+      "centerSeparationRadians": 0.005800334848,
+      "candidateLimitRadians": 0.022325501724,
+      "clearanceRadians": 0.016525166877,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5944,
+        "hd": 143018,
+        "label": "6Pi Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000303-hr6084",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488130.503126048,
+      "maximumIsoTdb": "2100-03-03T00:04:30.090 TDB",
+      "searchStartJulianDateTdb": 2488129.753126048,
+      "searchEndJulianDateTdb": 2488131.253126048,
+      "centerSeparationRadians": 0.020730070296,
+      "candidateLimitRadians": 0.022234018603,
+      "clearanceRadians": 0.001503948307,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6084,
+        "hd": 147165,
+        "label": "20Sig Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000303-hr6134",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488130.645855972,
+      "maximumIsoTdb": "2100-03-03T03:30:01.955 TDB",
+      "searchStartJulianDateTdb": 2488129.895855972,
+      "searchEndJulianDateTdb": 2488131.395855972,
+      "centerSeparationRadians": 0.011830463979,
+      "candidateLimitRadians": 0.022196440109,
+      "clearanceRadians": 0.01036597613,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6134,
+        "hd": 148478,
+        "label": "Antares",
+        "labelJa": "アンタレス",
+        "vMagnitude": 0.96
+      }
+    },
+    {
+      "id": "lo-21000303-hr6165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488130.769926925,
+      "maximumIsoTdb": "2100-03-03T06:28:41.686 TDB",
+      "searchStartJulianDateTdb": 2488130.019926925,
+      "searchEndJulianDateTdb": 2488131.519926925,
+      "centerSeparationRadians": 0.01497757652,
+      "candidateLimitRadians": 0.022163796417,
+      "clearanceRadians": 0.007186219898,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6165,
+        "hd": 149438,
+        "label": "23Tau Sco",
+        "labelJa": null,
+        "vMagnitude": 2.82
+      }
+    },
+    {
+      "id": "lo-21000308-hr8322",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488136.334956554,
+      "maximumIsoTdb": "2100-03-08T20:02:20.246 TDB",
+      "searchStartJulianDateTdb": 2488135.584956554,
+      "searchEndJulianDateTdb": 2488137.084956554,
+      "centerSeparationRadians": 0.010304855931,
+      "candidateLimitRadians": 0.020979998592,
+      "clearanceRadians": 0.010675142661,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 8322,
+        "hd": 207098,
+        "label": "49Del Cap",
+        "labelJa": null,
+        "vMagnitude": 2.87
+      }
+    },
+    {
+      "id": "se-21000310",
+      "kind": "solar-eclipse",
+      "classificationHint": "annular",
+      "maximumJulianDateTdb": 2488138.436738389,
+      "maximumIsoTdb": "2100-03-10T22:28:54.196 TDB",
+      "searchStartJulianDateTdb": 2488137.686738389,
+      "searchEndJulianDateTdb": 2488139.186738389,
+      "centerSeparationRadians": 0.004866789001,
+      "centralityHint": "central",
+      "axisDistanceKilometers": 1966.581285,
+      "candidateLimitKilometers": 10013.286514,
+      "clearanceKilometers": 8046.705229
+    },
+    {
+      "id": "lo-21000316-hr1165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488144.412644223,
+      "maximumIsoTdb": "2100-03-16T21:54:12.460 TDB",
+      "searchStartJulianDateTdb": 2488143.662644223,
+      "searchEndJulianDateTdb": 2488145.162644223,
+      "centerSeparationRadians": 0.017796445456,
+      "candidateLimitRadians": 0.020785308571,
+      "clearanceRadians": 0.002988863114,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1165,
+        "hd": 23630,
+        "label": "25Eta Tau",
+        "labelJa": null,
+        "vMagnitude": 2.87
+      }
+    },
+    {
+      "id": "lo-21000318-hr1791",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488146.258507402,
+      "maximumIsoTdb": "2100-03-18T18:12:15.039 TDB",
+      "searchStartJulianDateTdb": 2488145.508507402,
+      "searchEndJulianDateTdb": 2488147.008507402,
+      "centerSeparationRadians": 0.002545815922,
+      "candidateLimitRadians": 0.021165583338,
+      "clearanceRadians": 0.018619767416,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1791,
+        "hd": 35497,
+        "label": "Elnath",
+        "labelJa": "エルナト",
+        "vMagnitude": 1.65
+      }
+    },
+    {
+      "id": "lo-21000323-hr3982",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488151.257897754,
+      "maximumIsoTdb": "2100-03-23T18:11:22.365 TDB",
+      "searchStartJulianDateTdb": 2488150.507897754,
+      "searchEndJulianDateTdb": 2488152.007897754,
+      "centerSeparationRadians": 0.017437243885,
+      "candidateLimitRadians": 0.022817222501,
+      "clearanceRadians": 0.005379978616,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 3982,
+        "hd": 87901,
+        "label": "Regulus",
+        "labelJa": "レグルス",
+        "vMagnitude": 1.35
+      }
+    },
+    {
+      "id": "lo-21000327-hr5056",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488154.842767772,
+      "maximumIsoTdb": "2100-03-27T08:13:35.135 TDB",
+      "searchStartJulianDateTdb": 2488154.092767772,
+      "searchEndJulianDateTdb": 2488155.592767772,
+      "centerSeparationRadians": 0.020436951891,
+      "candidateLimitRadians": 0.023257056726,
+      "clearanceRadians": 0.002820104835,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5056,
+        "hd": 116658,
+        "label": "Spica",
+        "labelJa": "スピカ",
+        "vMagnitude": 0.98
+      }
+    },
+    {
+      "id": "lo-21000329-hr5944",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488157.475074817,
+      "maximumIsoTdb": "2100-03-29T23:24:06.464 TDB",
+      "searchStartJulianDateTdb": 2488156.725074817,
+      "searchEndJulianDateTdb": 2488158.225074817,
+      "centerSeparationRadians": 0.006438167023,
+      "candidateLimitRadians": 0.02269414256,
+      "clearanceRadians": 0.016255975536,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5944,
+        "hd": 143018,
+        "label": "6Pi Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000330-hr6084",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488157.811416218,
+      "maximumIsoTdb": "2100-03-30T07:28:26.361 TDB",
+      "searchStartJulianDateTdb": 2488157.061416218,
+      "searchEndJulianDateTdb": 2488158.561416218,
+      "centerSeparationRadians": 0.020054560052,
+      "candidateLimitRadians": 0.022589284927,
+      "clearanceRadians": 0.002534724876,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6084,
+        "hd": 147165,
+        "label": "20Sig Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000330-hr6134",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488157.949426712,
+      "maximumIsoTdb": "2100-03-30T10:47:10.467 TDB",
+      "searchStartJulianDateTdb": 2488157.199426712,
+      "searchEndJulianDateTdb": 2488158.699426712,
+      "centerSeparationRadians": 0.011140411551,
+      "candidateLimitRadians": 0.022545216956,
+      "clearanceRadians": 0.011404805405,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6134,
+        "hd": 148478,
+        "label": "Antares",
+        "labelJa": "アンタレス",
+        "vMagnitude": 0.96
+      }
+    },
+    {
+      "id": "lo-21000330-hr6165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488158.069438668,
+      "maximumIsoTdb": "2100-03-30T13:39:59.500 TDB",
+      "searchStartJulianDateTdb": 2488157.319438668,
+      "searchEndJulianDateTdb": 2488158.819438668,
+      "centerSeparationRadians": 0.015679809508,
+      "candidateLimitRadians": 0.022506501145,
+      "clearanceRadians": 0.006826691637,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6165,
+        "hd": 149438,
+        "label": "23Tau Sco",
+        "labelJa": null,
+        "vMagnitude": 2.82
+      }
+    },
+    {
+      "id": "lo-21000401-hr7121",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488160.32974827,
+      "maximumIsoTdb": "2100-04-01T19:54:50.250 TDB",
+      "searchStartJulianDateTdb": 2488159.57974827,
+      "searchEndJulianDateTdb": 2488161.07974827,
+      "centerSeparationRadians": 0.021496280801,
+      "candidateLimitRadians": 0.021770418226,
+      "clearanceRadians": 0.000274137424,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 7121,
+        "hd": 175191,
+        "label": "Nunki",
+        "labelJa": "ヌンキ",
+        "vMagnitude": 2.02
+      }
+    },
+    {
+      "id": "lo-21000405-hr8322",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488163.571627866,
+      "maximumIsoTdb": "2100-04-05T01:43:08.647 TDB",
+      "searchStartJulianDateTdb": 2488162.821627866,
+      "searchEndJulianDateTdb": 2488164.321627866,
+      "centerSeparationRadians": 0.010904415006,
+      "candidateLimitRadians": 0.020968876455,
+      "clearanceRadians": 0.010064461449,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 8322,
+        "hd": 207098,
+        "label": "49Del Cap",
+        "labelJa": null,
+        "vMagnitude": 2.87
+      }
+    },
+    {
+      "id": "lo-21000413-hr1165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488171.670748101,
+      "maximumIsoTdb": "2100-04-13T04:05:52.635 TDB",
+      "searchStartJulianDateTdb": 2488170.920748101,
+      "searchEndJulianDateTdb": 2488172.420748101,
+      "centerSeparationRadians": 0.016196585162,
+      "candidateLimitRadians": 0.020710564875,
+      "clearanceRadians": 0.004513979713,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1165,
+        "hd": 23630,
+        "label": "25Eta Tau",
+        "labelJa": null,
+        "vMagnitude": 2.87
+      }
+    },
+    {
+      "id": "lo-21000415-hr1791",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488173.530256956,
+      "maximumIsoTdb": "2100-04-15T00:43:34.200 TDB",
+      "searchStartJulianDateTdb": 2488172.780256956,
+      "searchEndJulianDateTdb": 2488174.280256956,
+      "centerSeparationRadians": 0.004579549008,
+      "candidateLimitRadians": 0.020996987276,
+      "clearanceRadians": 0.016417438268,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1791,
+        "hd": 35497,
+        "label": "Elnath",
+        "labelJa": "エルナト",
+        "vMagnitude": 1.65
+      }
+    },
+    {
+      "id": "lo-21000420-hr3982",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488178.667292439,
+      "maximumIsoTdb": "2100-04-20T04:00:54.066 TDB",
+      "searchStartJulianDateTdb": 2488177.917292439,
+      "searchEndJulianDateTdb": 2488179.417292439,
+      "centerSeparationRadians": 0.015701165905,
+      "candidateLimitRadians": 0.022514417473,
+      "clearanceRadians": 0.006813251567,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 3982,
+        "hd": 87901,
+        "label": "Regulus",
+        "labelJa": "レグルス",
+        "vMagnitude": 1.35
+      }
+    },
+    {
+      "id": "lo-21000423-hr5056",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488182.307964457,
+      "maximumIsoTdb": "2100-04-23T19:23:28.129 TDB",
+      "searchStartJulianDateTdb": 2488181.557964457,
+      "searchEndJulianDateTdb": 2488183.057964457,
+      "centerSeparationRadians": 0.020174994287,
+      "candidateLimitRadians": 0.023309463455,
+      "clearanceRadians": 0.003134469168,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5056,
+        "hd": 116658,
+        "label": "Spica",
+        "labelJa": "スピカ",
+        "vMagnitude": 0.98
+      }
+    },
+    {
+      "id": "lo-21000426-hr5944",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488184.88981149,
+      "maximumIsoTdb": "2100-04-26T09:21:19.712 TDB",
+      "searchStartJulianDateTdb": 2488184.13981149,
+      "searchEndJulianDateTdb": 2488185.63981149,
+      "centerSeparationRadians": 0.008334248409,
+      "candidateLimitRadians": 0.023000720675,
+      "clearanceRadians": 0.014666472266,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5944,
+        "hd": 143018,
+        "label": "6Pi Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000426-hr6084",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488185.215941241,
+      "maximumIsoTdb": "2100-04-26T17:10:57.323 TDB",
+      "searchStartJulianDateTdb": 2488184.465941241,
+      "searchEndJulianDateTdb": 2488185.965941241,
+      "centerSeparationRadians": 0.01798805185,
+      "candidateLimitRadians": 0.022912538014,
+      "clearanceRadians": 0.004924486165,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6084,
+        "hd": 147165,
+        "label": "20Sig Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000426-hr6134",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488185.349454956,
+      "maximumIsoTdb": "2100-04-26T20:23:12.908 TDB",
+      "searchStartJulianDateTdb": 2488184.599454956,
+      "searchEndJulianDateTdb": 2488186.099454956,
+      "centerSeparationRadians": 0.009007615569,
+      "candidateLimitRadians": 0.022874123118,
+      "clearanceRadians": 0.013866507549,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6134,
+        "hd": 148478,
+        "label": "Antares",
+        "labelJa": "アンタレス",
+        "vMagnitude": 0.96
+      }
+    },
+    {
+      "id": "lo-21000426-hr6165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488185.465368549,
+      "maximumIsoTdb": "2100-04-26T23:10:07.842 TDB",
+      "searchStartJulianDateTdb": 2488184.715368549,
+      "searchEndJulianDateTdb": 2488186.215368549,
+      "centerSeparationRadians": 0.017868453622,
+      "candidateLimitRadians": 0.022839779191,
+      "clearanceRadians": 0.004971325568,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6165,
+        "hd": 149438,
+        "label": "23Tau Sco",
+        "labelJa": null,
+        "vMagnitude": 2.82
+      }
+    },
+    {
+      "id": "lo-21000429-hr7121",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488187.650674847,
+      "maximumIsoTdb": "2100-04-29T03:36:58.306 TDB",
+      "searchStartJulianDateTdb": 2488186.900674847,
+      "searchEndJulianDateTdb": 2488188.400674847,
+      "centerSeparationRadians": 0.01859223154,
+      "candidateLimitRadians": 0.022091881655,
+      "clearanceRadians": 0.003499650115,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 7121,
+        "hd": 175191,
+        "label": "Nunki",
+        "labelJa": "ヌンキ",
+        "vMagnitude": 2.02
+      }
+    },
+    {
+      "id": "lo-21000502-hr8322",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488190.825386401,
+      "maximumIsoTdb": "2100-05-02T07:48:33.385 TDB",
+      "searchStartJulianDateTdb": 2488190.075386401,
+      "searchEndJulianDateTdb": 2488191.575386401,
+      "centerSeparationRadians": 0.013678461423,
+      "candidateLimitRadians": 0.021105552462,
+      "clearanceRadians": 0.007427091039,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 8322,
+        "hd": 207098,
+        "label": "49Del Cap",
+        "labelJa": null,
+        "vMagnitude": 2.87
+      }
+    },
+    {
+      "id": "lo-21000510-hr1165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488198.914543173,
+      "maximumIsoTdb": "2100-05-10T09:56:56.530 TDB",
+      "searchStartJulianDateTdb": 2488198.164543173,
+      "searchEndJulianDateTdb": 2488199.664543173,
+      "centerSeparationRadians": 0.014593425,
+      "candidateLimitRadians": 0.020726026633,
+      "clearanceRadians": 0.006132601633,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1165,
+        "hd": 23630,
+        "label": "25Eta Tau",
+        "labelJa": null,
+        "vMagnitude": 2.87
+      }
+    },
+    {
+      "id": "lo-21000512-hr1791",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488200.765904883,
+      "maximumIsoTdb": "2100-05-12T06:22:54.181 TDB",
+      "searchStartJulianDateTdb": 2488200.015904883,
+      "searchEndJulianDateTdb": 2488201.515904883,
+      "centerSeparationRadians": 0.007287936525,
+      "candidateLimitRadians": 0.020966796826,
+      "clearanceRadians": 0.013678860301,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1791,
+        "hd": 35497,
+        "label": "Elnath",
+        "labelJa": "エルナト",
+        "vMagnitude": 1.65
+      }
+    },
+    {
+      "id": "lo-21000517-hr3982",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488205.978660282,
+      "maximumIsoTdb": "2100-05-17T11:29:16.248 TDB",
+      "searchStartJulianDateTdb": 2488205.228660282,
+      "searchEndJulianDateTdb": 2488206.728660282,
+      "centerSeparationRadians": 0.011956734498,
+      "candidateLimitRadians": 0.022181092107,
+      "clearanceRadians": 0.010224357609,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 3982,
+        "hd": 87901,
+        "label": "Regulus",
+        "labelJa": "レグルス",
+        "vMagnitude": 1.35
+      }
+    },
+    {
+      "id": "lo-21000521-hr5056",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488209.735511811,
+      "maximumIsoTdb": "2100-05-21T05:39:08.220 TDB",
+      "searchStartJulianDateTdb": 2488208.985511811,
+      "searchEndJulianDateTdb": 2488210.485511811,
+      "centerSeparationRadians": 0.02163788782,
+      "candidateLimitRadians": 0.023077533483,
+      "clearanceRadians": 0.001439645663,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5056,
+        "hd": 116658,
+        "label": "Spica",
+        "labelJa": "スピカ",
+        "vMagnitude": 0.98
+      }
+    },
+    {
+      "id": "lo-21000523-hr5944",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488212.33785605,
+      "maximumIsoTdb": "2100-05-23T20:06:30.762 TDB",
+      "searchStartJulianDateTdb": 2488211.58785605,
+      "searchEndJulianDateTdb": 2488213.08785605,
+      "centerSeparationRadians": 0.009465171513,
+      "candidateLimitRadians": 0.023053631906,
+      "clearanceRadians": 0.013588460392,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5944,
+        "hd": 143018,
+        "label": "6Pi Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000524-hr6084",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488212.661608213,
+      "maximumIsoTdb": "2100-05-24T03:52:42.949 TDB",
+      "searchStartJulianDateTdb": 2488211.911608213,
+      "searchEndJulianDateTdb": 2488213.411608213,
+      "centerSeparationRadians": 0.016541458294,
+      "candidateLimitRadians": 0.02299992719,
+      "clearanceRadians": 0.006458468896,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6084,
+        "hd": 147165,
+        "label": "20Sig Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000524-hr6134",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488212.793542376,
+      "maximumIsoTdb": "2100-05-24T07:02:42.061 TDB",
+      "searchStartJulianDateTdb": 2488212.043542376,
+      "searchEndJulianDateTdb": 2488213.543542376,
+      "centerSeparationRadians": 0.007434885867,
+      "candidateLimitRadians": 0.022975094875,
+      "clearanceRadians": 0.015540209008,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6134,
+        "hd": 148478,
+        "label": "Antares",
+        "labelJa": "アンタレス",
+        "vMagnitude": 0.96
+      }
+    },
+    {
+      "id": "lo-21000524-hr6165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488212.907679019,
+      "maximumIsoTdb": "2100-05-24T09:47:03.467 TDB",
+      "searchStartJulianDateTdb": 2488212.157679019,
+      "searchEndJulianDateTdb": 2488213.657679019,
+      "centerSeparationRadians": 0.019549018913,
+      "candidateLimitRadians": 0.022952290524,
+      "clearanceRadians": 0.003403271611,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6165,
+        "hd": 149438,
+        "label": "23Tau Sco",
+        "labelJa": null,
+        "vMagnitude": 2.82
+      }
+    },
+    {
+      "id": "lo-21000526-hr7121",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488215.047144367,
+      "maximumIsoTdb": "2100-05-26T13:07:53.273 TDB",
+      "searchStartJulianDateTdb": 2488214.297144367,
+      "searchEndJulianDateTdb": 2488215.797144367,
+      "centerSeparationRadians": 0.015234056188,
+      "candidateLimitRadians": 0.022349780545,
+      "clearanceRadians": 0.007115724358,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 7121,
+        "hd": 175191,
+        "label": "Nunki",
+        "labelJa": "ヌンキ",
+        "vMagnitude": 2.02
+      }
+    },
+    {
+      "id": "lo-21000529-hr8322",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488218.137202241,
+      "maximumIsoTdb": "2100-05-29T15:17:34.273 TDB",
+      "searchStartJulianDateTdb": 2488217.387202241,
+      "searchEndJulianDateTdb": 2488218.887202241,
+      "centerSeparationRadians": 0.017971370575,
+      "candidateLimitRadians": 0.021329139301,
+      "clearanceRadians": 0.003357768726,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 8322,
+        "hd": 207098,
+        "label": "49Del Cap",
+        "labelJa": null,
+        "vMagnitude": 2.87
+      }
+    },
+    {
+      "id": "lo-21000606-hr1165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488226.180501538,
+      "maximumIsoTdb": "2100-06-06T16:19:55.332 TDB",
+      "searchStartJulianDateTdb": 2488225.430501538,
+      "searchEndJulianDateTdb": 2488226.930501538,
+      "centerSeparationRadians": 0.014694490542,
+      "candidateLimitRadians": 0.020783890266,
+      "clearanceRadians": 0.006089399724,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1165,
+        "hd": 23630,
+        "label": "25Eta Tau",
+        "labelJa": null,
+        "vMagnitude": 2.87
+      }
+    },
+    {
+      "id": "lo-21000608-hr1791",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488228.016854359,
+      "maximumIsoTdb": "2100-06-08T12:24:16.216 TDB",
+      "searchStartJulianDateTdb": 2488227.266854359,
+      "searchEndJulianDateTdb": 2488228.766854359,
+      "centerSeparationRadians": 0.008746804838,
+      "candidateLimitRadians": 0.021039210642,
+      "clearanceRadians": 0.012292405804,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1791,
+        "hd": 35497,
+        "label": "Elnath",
+        "labelJa": "エルナト",
+        "vMagnitude": 1.65
+      }
+    },
+    {
+      "id": "lo-21000613-hr3982",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488233.213758356,
+      "maximumIsoTdb": "2100-06-13T17:07:48.721 TDB",
+      "searchStartJulianDateTdb": 2488232.463758356,
+      "searchEndJulianDateTdb": 2488233.963758356,
+      "centerSeparationRadians": 0.007590384405,
+      "candidateLimitRadians": 0.022019801795,
+      "clearanceRadians": 0.01442941739,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 3982,
+        "hd": 87901,
+        "label": "Regulus",
+        "labelJa": "レグルス",
+        "vMagnitude": 1.35
+      }
+    },
+    {
+      "id": "lo-21000620-hr5944",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488239.742845597,
+      "maximumIsoTdb": "2100-06-20T05:49:41.859 TDB",
+      "searchStartJulianDateTdb": 2488238.992845597,
+      "searchEndJulianDateTdb": 2488240.492845597,
+      "centerSeparationRadians": 0.008639743228,
+      "candidateLimitRadians": 0.022854992093,
+      "clearanceRadians": 0.014215248865,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5944,
+        "hd": 143018,
+        "label": "6Pi Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000620-hr6084",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488240.072420797,
+      "maximumIsoTdb": "2100-06-20T13:44:17.156 TDB",
+      "searchStartJulianDateTdb": 2488239.322420797,
+      "searchEndJulianDateTdb": 2488240.822420797,
+      "centerSeparationRadians": 0.017018963567,
+      "candidateLimitRadians": 0.022830770742,
+      "clearanceRadians": 0.005811807174,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6084,
+        "hd": 147165,
+        "label": "20Sig Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000620-hr6134",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488240.206117796,
+      "maximumIsoTdb": "2100-06-20T16:56:48.577 TDB",
+      "searchStartJulianDateTdb": 2488239.456117796,
+      "searchEndJulianDateTdb": 2488240.956117796,
+      "centerSeparationRadians": 0.007770340239,
+      "candidateLimitRadians": 0.022818354368,
+      "clearanceRadians": 0.015048014128,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6134,
+        "hd": 148478,
+        "label": "Antares",
+        "labelJa": "アンタレス",
+        "vMagnitude": 0.96
+      }
+    },
+    {
+      "id": "lo-21000620-hr6165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488240.321321091,
+      "maximumIsoTdb": "2100-06-20T19:42:42.142 TDB",
+      "searchStartJulianDateTdb": 2488239.571321091,
+      "searchEndJulianDateTdb": 2488241.071321091,
+      "centerSeparationRadians": 0.019336279409,
+      "candidateLimitRadians": 0.022806462814,
+      "clearanceRadians": 0.003470183405,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6165,
+        "hd": 149438,
+        "label": "23Tau Sco",
+        "labelJa": null,
+        "vMagnitude": 2.82
+      }
+    },
+    {
+      "id": "lo-21000622-hr7121",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488242.465488138,
+      "maximumIsoTdb": "2100-06-22T23:10:18.175 TDB",
+      "searchStartJulianDateTdb": 2488241.715488138,
+      "searchEndJulianDateTdb": 2488243.215488138,
+      "centerSeparationRadians": 0.013277189037,
+      "candidateLimitRadians": 0.022402425784,
+      "clearanceRadians": 0.009125236747,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 7121,
+        "hd": 175191,
+        "label": "Nunki",
+        "labelJa": "ヌンキ",
+        "vMagnitude": 2.02
+      }
+    },
+    {
+      "id": "lo-21000703-hr1165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488253.485964916,
+      "maximumIsoTdb": "2100-07-03T23:39:47.368 TDB",
+      "searchStartJulianDateTdb": 2488252.735964916,
+      "searchEndJulianDateTdb": 2488254.235964916,
+      "centerSeparationRadians": 0.016708171054,
+      "candidateLimitRadians": 0.020824036272,
+      "clearanceRadians": 0.004115865219,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1165,
+        "hd": 23630,
+        "label": "25Eta Tau",
+        "labelJa": null,
+        "vMagnitude": 2.87
+      }
+    },
+    {
+      "id": "lo-21000705-hr1791",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488255.31591931,
+      "maximumIsoTdb": "2100-07-05T19:34:55.428 TDB",
+      "searchStartJulianDateTdb": 2488254.56591931,
+      "searchEndJulianDateTdb": 2488256.06591931,
+      "centerSeparationRadians": 0.008174515091,
+      "candidateLimitRadians": 0.021122906997,
+      "clearanceRadians": 0.012948391906,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1791,
+        "hd": 35497,
+        "label": "Elnath",
+        "labelJa": "エルナト",
+        "vMagnitude": 1.65
+      }
+    },
+    {
+      "id": "lo-21000710-hr3982",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488260.444164947,
+      "maximumIsoTdb": "2100-07-10T22:39:35.851 TDB",
+      "searchStartJulianDateTdb": 2488259.694164947,
+      "searchEndJulianDateTdb": 2488261.194164947,
+      "centerSeparationRadians": 0.004379672502,
+      "candidateLimitRadians": 0.022093998457,
+      "clearanceRadians": 0.017714325954,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 3982,
+        "hd": 87901,
+        "label": "Regulus",
+        "labelJa": "レグルス",
+        "vMagnitude": 1.35
+      }
+    },
+    {
+      "id": "lo-21000717-hr5944",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488267.059723391,
+      "maximumIsoTdb": "2100-07-17T13:26:00.100 TDB",
+      "searchStartJulianDateTdb": 2488266.309723391,
+      "searchEndJulianDateTdb": 2488267.809723391,
+      "centerSeparationRadians": 0.006358039672,
+      "candidateLimitRadians": 0.022571621913,
+      "clearanceRadians": 0.016213582241,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5944,
+        "hd": 143018,
+        "label": "6Pi Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000717-hr6084",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488267.398825477,
+      "maximumIsoTdb": "2100-07-17T21:34:18.521 TDB",
+      "searchStartJulianDateTdb": 2488266.648825477,
+      "searchEndJulianDateTdb": 2488268.148825477,
+      "centerSeparationRadians": 0.019054100448,
+      "candidateLimitRadians": 0.022554118741,
+      "clearanceRadians": 0.003500018293,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6084,
+        "hd": 147165,
+        "label": "20Sig Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000718-hr6134",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488267.536064672,
+      "maximumIsoTdb": "2100-07-18T00:51:55.987 TDB",
+      "searchStartJulianDateTdb": 2488266.786064672,
+      "searchEndJulianDateTdb": 2488268.286064672,
+      "centerSeparationRadians": 0.009702323409,
+      "candidateLimitRadians": 0.022545419021,
+      "clearanceRadians": 0.012843095611,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6134,
+        "hd": 148478,
+        "label": "Antares",
+        "labelJa": "アンタレス",
+        "vMagnitude": 0.96
+      }
+    },
+    {
+      "id": "lo-21000718-hr6165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488267.654027447,
+      "maximumIsoTdb": "2100-07-18T03:41:47.971 TDB",
+      "searchStartJulianDateTdb": 2488266.904027447,
+      "searchEndJulianDateTdb": 2488268.404027447,
+      "centerSeparationRadians": 0.017494425506,
+      "candidateLimitRadians": 0.0225371851,
+      "clearanceRadians": 0.005042759594,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6165,
+        "hd": 149438,
+        "label": "23Tau Sco",
+        "labelJa": null,
+        "vMagnitude": 2.82
+      }
+    },
+    {
+      "id": "lo-21000720-hr7121",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488269.842580587,
+      "maximumIsoTdb": "2100-07-20T08:13:18.962 TDB",
+      "searchStartJulianDateTdb": 2488269.092580587,
+      "searchEndJulianDateTdb": 2488270.592580587,
+      "centerSeparationRadians": 0.013325553093,
+      "candidateLimitRadians": 0.022256242897,
+      "clearanceRadians": 0.008930689804,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 7121,
+        "hd": 175191,
+        "label": "Nunki",
+        "labelJa": "ヌンキ",
+        "vMagnitude": 2.02
+      }
+    },
+    {
+      "id": "lo-21000731-hr1165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488280.822453851,
+      "maximumIsoTdb": "2100-07-31T07:44:20.012 TDB",
+      "searchStartJulianDateTdb": 2488280.072453851,
+      "searchEndJulianDateTdb": 2488281.572453851,
+      "centerSeparationRadians": 0.019304723771,
+      "candidateLimitRadians": 0.020805874699,
+      "clearanceRadians": 0.001501150928,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1165,
+        "hd": 23630,
+        "label": "25Eta Tau",
+        "labelJa": null,
+        "vMagnitude": 2.87
+      }
+    },
+    {
+      "id": "lo-21000802-hr1791",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488282.662014147,
+      "maximumIsoTdb": "2100-08-02T03:53:18.022 TDB",
+      "searchStartJulianDateTdb": 2488281.912014147,
+      "searchEndJulianDateTdb": 2488283.412014147,
+      "centerSeparationRadians": 0.006428711067,
+      "candidateLimitRadians": 0.021132261979,
+      "clearanceRadians": 0.014703550912,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1791,
+        "hd": 35497,
+        "label": "Elnath",
+        "labelJa": "エルナト",
+        "vMagnitude": 1.65
+      }
+    },
+    {
+      "id": "lo-21000807-hr3982",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488287.738403505,
+      "maximumIsoTdb": "2100-08-07T05:43:18.062 TDB",
+      "searchStartJulianDateTdb": 2488286.988403505,
+      "searchEndJulianDateTdb": 2488288.488403505,
+      "centerSeparationRadians": 0.00315665836,
+      "candidateLimitRadians": 0.022305105325,
+      "clearanceRadians": 0.019148446966,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 3982,
+        "hd": 87901,
+        "label": "Regulus",
+        "labelJa": "レグルス",
+        "vMagnitude": 1.35
+      }
+    },
+    {
+      "id": "lo-21000813-hr5944",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488294.300136711,
+      "maximumIsoTdb": "2100-08-13T19:12:11.811 TDB",
+      "searchStartJulianDateTdb": 2488293.550136711,
+      "searchEndJulianDateTdb": 2488295.050136711,
+      "centerSeparationRadians": 0.004274253796,
+      "candidateLimitRadians": 0.022422229882,
+      "clearanceRadians": 0.018147976086,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5944,
+        "hd": 143018,
+        "label": "6Pi Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000814-hr6084",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488294.645246324,
+      "maximumIsoTdb": "2100-08-14T03:29:09.282 TDB",
+      "searchStartJulianDateTdb": 2488293.895246324,
+      "searchEndJulianDateTdb": 2488295.395246324,
+      "centerSeparationRadians": 0.02103972557,
+      "candidateLimitRadians": 0.02238610451,
+      "clearanceRadians": 0.001346378939,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6084,
+        "hd": 147165,
+        "label": "20Sig Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000814-hr6134",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488294.785008234,
+      "maximumIsoTdb": "2100-08-14T06:50:24.711 TDB",
+      "searchStartJulianDateTdb": 2488294.035008234,
+      "searchEndJulianDateTdb": 2488295.535008234,
+      "centerSeparationRadians": 0.011645142638,
+      "candidateLimitRadians": 0.022370689802,
+      "clearanceRadians": 0.010725547164,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6134,
+        "hd": 148478,
+        "label": "Antares",
+        "labelJa": "アンタレス",
+        "vMagnitude": 0.96
+      }
+    },
+    {
+      "id": "lo-21000814-hr6165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488294.905113038,
+      "maximumIsoTdb": "2100-08-14T09:43:21.766 TDB",
+      "searchStartJulianDateTdb": 2488294.155113038,
+      "searchEndJulianDateTdb": 2488295.655113038,
+      "centerSeparationRadians": 0.01558973416,
+      "candidateLimitRadians": 0.022357089266,
+      "clearanceRadians": 0.006767355106,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6165,
+        "hd": 149438,
+        "label": "23Tau Sco",
+        "labelJa": null,
+        "vMagnitude": 2.82
+      }
+    },
+    {
+      "id": "lo-21000816-hr7121",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488297.142284622,
+      "maximumIsoTdb": "2100-08-16T15:24:53.391 TDB",
+      "searchStartJulianDateTdb": 2488296.392284622,
+      "searchEndJulianDateTdb": 2488297.892284622,
+      "centerSeparationRadians": 0.014354061433,
+      "candidateLimitRadians": 0.02204734458,
+      "clearanceRadians": 0.007693283147,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 7121,
+        "hd": 175191,
+        "label": "Nunki",
+        "labelJa": "ヌンキ",
+        "vMagnitude": 2.02
+      }
+    },
+    {
+      "id": "le-21000819",
+      "kind": "lunar-eclipse",
+      "classificationHint": "penumbral",
+      "maximumJulianDateTdb": 2488300.406695582,
+      "maximumIsoTdb": "2100-08-19T21:45:38.498 TDB",
+      "searchStartJulianDateTdb": 2488299.656695582,
+      "searchEndJulianDateTdb": 2488301.156695582,
+      "centerSeparationRadians": 0.017867619574,
+      "candidateLimitRadians": 0.025658979359,
+      "clearanceRadians": 0.007791359786
+    },
+    {
+      "id": "lo-21000827-hr1165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488308.16187413,
+      "maximumIsoTdb": "2100-08-27T15:53:05.924 TDB",
+      "searchStartJulianDateTdb": 2488307.41187413,
+      "searchEndJulianDateTdb": 2488308.91187413,
+      "centerSeparationRadians": 0.020654336401,
+      "candidateLimitRadians": 0.020729030068,
+      "clearanceRadians": 0.000074693667,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1165,
+        "hd": 23630,
+        "label": "25Eta Tau",
+        "labelJa": null,
+        "vMagnitude": 2.87
+      }
+    },
+    {
+      "id": "lo-21000829-hr1791",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488310.023782209,
+      "maximumIsoTdb": "2100-08-29T12:34:14.782 TDB",
+      "searchStartJulianDateTdb": 2488309.273782209,
+      "searchEndJulianDateTdb": 2488310.773782209,
+      "centerSeparationRadians": 0.005337512832,
+      "candidateLimitRadians": 0.021034347449,
+      "clearanceRadians": 0.015696834617,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1791,
+        "hd": 35497,
+        "label": "Elnath",
+        "labelJa": "エルナト",
+        "vMagnitude": 1.65
+      }
+    },
+    {
+      "id": "lo-21000903-hr3982",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488315.118362397,
+      "maximumIsoTdb": "2100-09-03T14:50:26.511 TDB",
+      "searchStartJulianDateTdb": 2488314.368362397,
+      "searchEndJulianDateTdb": 2488315.868362397,
+      "centerSeparationRadians": 0.003203114553,
+      "candidateLimitRadians": 0.022467043215,
+      "clearanceRadians": 0.019263928662,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 3982,
+        "hd": 87901,
+        "label": "Regulus",
+        "labelJa": "レグルス",
+        "vMagnitude": 1.35
+      }
+    },
+    {
+      "id": "se-21000904",
+      "kind": "solar-eclipse",
+      "classificationHint": "total",
+      "maximumJulianDateTdb": 2488315.867996774,
+      "maximumIsoTdb": "2100-09-04T08:49:54.921 TDB",
+      "searchStartJulianDateTdb": 2488315.117996774,
+      "searchEndJulianDateTdb": 2488316.617996774,
+      "centerSeparationRadians": 0.005860347725,
+      "centralityHint": "central",
+      "axisDistanceKilometers": 2161.858742,
+      "candidateLimitKilometers": 9820.890291,
+      "clearanceKilometers": 7659.031549
+    },
+    {
+      "id": "lo-21000910-hr5944",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488321.531076629,
+      "maximumIsoTdb": "2100-09-10T00:44:45.020 TDB",
+      "searchStartJulianDateTdb": 2488320.781076629,
+      "searchEndJulianDateTdb": 2488322.281076629,
+      "centerSeparationRadians": 0.003920632896,
+      "candidateLimitRadians": 0.022541693937,
+      "clearanceRadians": 0.018621061041,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5944,
+        "hd": 143018,
+        "label": "6Pi Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000910-hr6084",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488321.873210424,
+      "maximumIsoTdb": "2100-09-10T08:57:25.380 TDB",
+      "searchStartJulianDateTdb": 2488321.123210424,
+      "searchEndJulianDateTdb": 2488322.623210424,
+      "centerSeparationRadians": 0.021374568083,
+      "candidateLimitRadians": 0.022477266924,
+      "clearanceRadians": 0.001102698842,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6084,
+        "hd": 147165,
+        "label": "20Sig Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21000910-hr6134",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488322.012049599,
+      "maximumIsoTdb": "2100-09-10T12:17:21.085 TDB",
+      "searchStartJulianDateTdb": 2488321.262049599,
+      "searchEndJulianDateTdb": 2488322.762049599,
+      "centerSeparationRadians": 0.011971862997,
+      "candidateLimitRadians": 0.022450344648,
+      "clearanceRadians": 0.010478481651,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6134,
+        "hd": 148478,
+        "label": "Antares",
+        "labelJa": "アンタレス",
+        "vMagnitude": 0.96
+      }
+    },
+    {
+      "id": "lo-21000910-hr6165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488322.13148106,
+      "maximumIsoTdb": "2100-09-10T15:09:19.963 TDB",
+      "searchStartJulianDateTdb": 2488321.38148106,
+      "searchEndJulianDateTdb": 2488322.88148106,
+      "centerSeparationRadians": 0.015270196909,
+      "candidateLimitRadians": 0.022426876229,
+      "clearanceRadians": 0.00715667932,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6165,
+        "hd": 149438,
+        "label": "23Tau Sco",
+        "labelJa": null,
+        "vMagnitude": 2.82
+      }
+    },
+    {
+      "id": "lo-21000912-hr7121",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488324.378305431,
+      "maximumIsoTdb": "2100-09-12T21:04:45.589 TDB",
+      "searchStartJulianDateTdb": 2488323.628305431,
+      "searchEndJulianDateTdb": 2488325.128305431,
+      "centerSeparationRadians": 0.014530104441,
+      "candidateLimitRadians": 0.021960800803,
+      "clearanceRadians": 0.007430696363,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 7121,
+        "hd": 175191,
+        "label": "Nunki",
+        "labelJa": "ヌンキ",
+        "vMagnitude": 2.02
+      }
+    },
+    {
+      "id": "lo-21000923-hr1165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488335.474104914,
+      "maximumIsoTdb": "2100-09-23T23:22:42.664 TDB",
+      "searchStartJulianDateTdb": 2488334.724104914,
+      "searchEndJulianDateTdb": 2488336.224104914,
+      "centerSeparationRadians": 0.019826526777,
+      "candidateLimitRadians": 0.020634880918,
+      "clearanceRadians": 0.000808354141,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1165,
+        "hd": 23630,
+        "label": "25Eta Tau",
+        "labelJa": null,
+        "vMagnitude": 2.87
+      }
+    },
+    {
+      "id": "lo-21000925-hr1791",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488337.358388721,
+      "maximumIsoTdb": "2100-09-25T20:36:04.785 TDB",
+      "searchStartJulianDateTdb": 2488336.608388721,
+      "searchEndJulianDateTdb": 2488338.108388721,
+      "centerSeparationRadians": 0.006320303499,
+      "candidateLimitRadians": 0.020872081734,
+      "clearanceRadians": 0.014551778235,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1791,
+        "hd": 35497,
+        "label": "Elnath",
+        "labelJa": "エルナト",
+        "vMagnitude": 1.65
+      }
+    },
+    {
+      "id": "lo-21001001-hr3982",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488342.548563473,
+      "maximumIsoTdb": "2100-10-01T01:09:55.884 TDB",
+      "searchStartJulianDateTdb": 2488341.798563473,
+      "searchEndJulianDateTdb": 2488343.298563473,
+      "centerSeparationRadians": 0.002687592683,
+      "candidateLimitRadians": 0.022421881396,
+      "clearanceRadians": 0.019734288713,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 3982,
+        "hd": 87901,
+        "label": "Regulus",
+        "labelJa": "レグルス",
+        "vMagnitude": 1.35
+      }
+    },
+    {
+      "id": "lo-21001007-hr5944",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488348.834044034,
+      "maximumIsoTdb": "2100-10-07T08:01:01.404 TDB",
+      "searchStartJulianDateTdb": 2488348.084044034,
+      "searchEndJulianDateTdb": 2488349.584044034,
+      "centerSeparationRadians": 0.00554854913,
+      "candidateLimitRadians": 0.022878591548,
+      "clearanceRadians": 0.017330042417,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5944,
+        "hd": 143018,
+        "label": "6Pi Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21001007-hr6084",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488349.165626353,
+      "maximumIsoTdb": "2100-10-07T15:58:30.116 TDB",
+      "searchStartJulianDateTdb": 2488348.415626353,
+      "searchEndJulianDateTdb": 2488349.915626353,
+      "centerSeparationRadians": 0.019670969246,
+      "candidateLimitRadians": 0.022801196043,
+      "clearanceRadians": 0.003130226796,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6084,
+        "hd": 147165,
+        "label": "20Sig Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21001007-hr6134",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488349.300260201,
+      "maximumIsoTdb": "2100-10-07T19:12:22.481 TDB",
+      "searchStartJulianDateTdb": 2488348.550260201,
+      "searchEndJulianDateTdb": 2488350.050260201,
+      "centerSeparationRadians": 0.010240297103,
+      "candidateLimitRadians": 0.022768046104,
+      "clearanceRadians": 0.012527749001,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6134,
+        "hd": 148478,
+        "label": "Antares",
+        "labelJa": "アンタレス",
+        "vMagnitude": 0.96
+      }
+    },
+    {
+      "id": "lo-21001007-hr6165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488349.416099885,
+      "maximumIsoTdb": "2100-10-07T21:59:11.030 TDB",
+      "searchStartJulianDateTdb": 2488348.666099885,
+      "searchEndJulianDateTdb": 2488350.166099885,
+      "centerSeparationRadians": 0.017024513429,
+      "candidateLimitRadians": 0.02273880991,
+      "clearanceRadians": 0.005714296481,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6165,
+        "hd": 149438,
+        "label": "23Tau Sco",
+        "labelJa": null,
+        "vMagnitude": 2.82
+      }
+    },
+    {
+      "id": "lo-21001010-hr7121",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488351.615213509,
+      "maximumIsoTdb": "2100-10-10T02:45:54.447 TDB",
+      "searchStartJulianDateTdb": 2488350.865213509,
+      "searchEndJulianDateTdb": 2488352.365213509,
+      "centerSeparationRadians": 0.012590876318,
+      "candidateLimitRadians": 0.022116065587,
+      "clearanceRadians": 0.009525189269,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 7121,
+        "hd": 175191,
+        "label": "Nunki",
+        "labelJa": "ヌンキ",
+        "vMagnitude": 2.02
+      }
+    },
+    {
+      "id": "lo-21001021-hr1165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488362.748160844,
+      "maximumIsoTdb": "2100-10-21T05:57:21.096 TDB",
+      "searchStartJulianDateTdb": 2488361.998160844,
+      "searchEndJulianDateTdb": 2488363.498160844,
+      "centerSeparationRadians": 0.017618489673,
+      "candidateLimitRadians": 0.020576298506,
+      "clearanceRadians": 0.002957808833,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1165,
+        "hd": 23630,
+        "label": "25Eta Tau",
+        "labelJa": null,
+        "vMagnitude": 2.87
+      }
+    },
+    {
+      "id": "lo-21001023-hr1791",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488364.641141649,
+      "maximumIsoTdb": "2100-10-23T03:23:14.638 TDB",
+      "searchStartJulianDateTdb": 2488363.891141649,
+      "searchEndJulianDateTdb": 2488365.391141649,
+      "centerSeparationRadians": 0.009188140879,
+      "candidateLimitRadians": 0.020739632809,
+      "clearanceRadians": 0.01155149193,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1791,
+        "hd": 35497,
+        "label": "Elnath",
+        "labelJa": "エルナト",
+        "vMagnitude": 1.65
+      }
+    },
+    {
+      "id": "lo-21001028-hr3982",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488369.955951039,
+      "maximumIsoTdb": "2100-10-28T10:56:34.169 TDB",
+      "searchStartJulianDateTdb": 2488369.205951039,
+      "searchEndJulianDateTdb": 2488370.705951039,
+      "centerSeparationRadians": 0.000065660785,
+      "candidateLimitRadians": 0.022151080516,
+      "clearanceRadians": 0.022085419731,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 3982,
+        "hd": 87901,
+        "label": "Regulus",
+        "labelJa": "レグルス",
+        "vMagnitude": 1.35
+      }
+    },
+    {
+      "id": "lo-21001103-hr5944",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488376.243135845,
+      "maximumIsoTdb": "2100-11-03T17:50:06.936 TDB",
+      "searchStartJulianDateTdb": 2488375.493135845,
+      "searchEndJulianDateTdb": 2488376.993135845,
+      "centerSeparationRadians": 0.007774642294,
+      "candidateLimitRadians": 0.023204361723,
+      "clearanceRadians": 0.015429719429,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5944,
+        "hd": 143018,
+        "label": "6Pi Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21001104-hr6084",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488376.5643665,
+      "maximumIsoTdb": "2100-11-04T01:32:41.265 TDB",
+      "searchStartJulianDateTdb": 2488375.8143665,
+      "searchEndJulianDateTdb": 2488377.3143665,
+      "centerSeparationRadians": 0.017206936488,
+      "candidateLimitRadians": 0.023144517789,
+      "clearanceRadians": 0.005937581301,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6084,
+        "hd": 147165,
+        "label": "20Sig Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21001104-hr6134",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488376.694434766,
+      "maximumIsoTdb": "2100-11-04T04:39:59.163 TDB",
+      "searchStartJulianDateTdb": 2488375.944434766,
+      "searchEndJulianDateTdb": 2488377.444434766,
+      "centerSeparationRadians": 0.007684113435,
+      "candidateLimitRadians": 0.023117309605,
+      "clearanceRadians": 0.015433196171,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6134,
+        "hd": 148478,
+        "label": "Antares",
+        "labelJa": "アンタレス",
+        "vMagnitude": 0.96
+      }
+    },
+    {
+      "id": "lo-21001104-hr6165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488376.806100972,
+      "maximumIsoTdb": "2100-11-04T07:20:47.123 TDB",
+      "searchStartJulianDateTdb": 2488376.056100972,
+      "searchEndJulianDateTdb": 2488377.556100972,
+      "centerSeparationRadians": 0.019657791634,
+      "candidateLimitRadians": 0.023092656965,
+      "clearanceRadians": 0.003434865331,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6165,
+        "hd": 149438,
+        "label": "23Tau Sco",
+        "labelJa": null,
+        "vMagnitude": 2.82
+      }
+    },
+    {
+      "id": "lo-21001106-hr7121",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488378.929212235,
+      "maximumIsoTdb": "2100-11-06T10:18:03.937 TDB",
+      "searchStartJulianDateTdb": 2488378.179212235,
+      "searchEndJulianDateTdb": 2488379.679212235,
+      "centerSeparationRadians": 0.008915767406,
+      "candidateLimitRadians": 0.022460102436,
+      "clearanceRadians": 0.01354433503,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 7121,
+        "hd": 175191,
+        "label": "Nunki",
+        "labelJa": "ヌンキ",
+        "vMagnitude": 2.02
+      }
+    },
+    {
+      "id": "lo-21001117-hr1165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488390.001179929,
+      "maximumIsoTdb": "2100-11-17T12:01:41.945 TDB",
+      "searchStartJulianDateTdb": 2488389.251179929,
+      "searchEndJulianDateTdb": 2488390.751179929,
+      "centerSeparationRadians": 0.016060607707,
+      "candidateLimitRadians": 0.020574210797,
+      "clearanceRadians": 0.004513603091,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1165,
+        "hd": 23630,
+        "label": "25Eta Tau",
+        "labelJa": null,
+        "vMagnitude": 2.87
+      }
+    },
+    {
+      "id": "lo-21001119-hr1791",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488391.887482274,
+      "maximumIsoTdb": "2100-11-19T09:17:58.468 TDB",
+      "searchStartJulianDateTdb": 2488391.137482274,
+      "searchEndJulianDateTdb": 2488392.637482274,
+      "centerSeparationRadians": 0.012129070882,
+      "candidateLimitRadians": 0.020706837612,
+      "clearanceRadians": 0.00857776673,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1791,
+        "hd": 35497,
+        "label": "Elnath",
+        "labelJa": "エルナト",
+        "vMagnitude": 1.65
+      }
+    },
+    {
+      "id": "lo-21001124-hr3982",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488397.27713722,
+      "maximumIsoTdb": "2100-11-24T18:39:04.655 TDB",
+      "searchStartJulianDateTdb": 2488396.52713722,
+      "searchEndJulianDateTdb": 2488398.02713722,
+      "centerSeparationRadians": 0.004470607942,
+      "candidateLimitRadians": 0.021815971076,
+      "clearanceRadians": 0.017345363134,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 3982,
+        "hd": 87901,
+        "label": "Regulus",
+        "labelJa": "レグルス",
+        "vMagnitude": 1.35
+      }
+    },
+    {
+      "id": "lo-21001201-hr5944",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488403.714209049,
+      "maximumIsoTdb": "2100-12-01T05:08:27.661 TDB",
+      "searchStartJulianDateTdb": 2488402.964209049,
+      "searchEndJulianDateTdb": 2488404.464209049,
+      "centerSeparationRadians": 0.008564695567,
+      "candidateLimitRadians": 0.023269823363,
+      "clearanceRadians": 0.014705127795,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5944,
+        "hd": 143018,
+        "label": "6Pi Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21001201-hr6084",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488404.032965365,
+      "maximumIsoTdb": "2100-12-01T12:47:28.207 TDB",
+      "searchStartJulianDateTdb": 2488403.282965365,
+      "searchEndJulianDateTdb": 2488404.782965365,
+      "centerSeparationRadians": 0.016043940371,
+      "candidateLimitRadians": 0.023249528099,
+      "clearanceRadians": 0.007205587728,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6084,
+        "hd": 147165,
+        "label": "20Sig Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21001201-hr6134",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488404.161351019,
+      "maximumIsoTdb": "2100-12-01T15:52:20.728 TDB",
+      "searchStartJulianDateTdb": 2488403.411351019,
+      "searchEndJulianDateTdb": 2488404.911351019,
+      "centerSeparationRadians": 0.006372743621,
+      "candidateLimitRadians": 0.023237839887,
+      "clearanceRadians": 0.016865096266,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6134,
+        "hd": 148478,
+        "label": "Antares",
+        "labelJa": "アンタレス",
+        "vMagnitude": 0.96
+      }
+    },
+    {
+      "id": "lo-21001201-hr6165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488404.271102952,
+      "maximumIsoTdb": "2100-12-01T18:30:23.295 TDB",
+      "searchStartJulianDateTdb": 2488403.521102952,
+      "searchEndJulianDateTdb": 2488405.021102952,
+      "centerSeparationRadians": 0.021095036677,
+      "candidateLimitRadians": 0.023226271153,
+      "clearanceRadians": 0.002131234476,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6165,
+        "hd": 149438,
+        "label": "23Tau Sco",
+        "labelJa": null,
+        "vMagnitude": 2.82
+      }
+    },
+    {
+      "id": "lo-21001203-hr7121",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488406.344073603,
+      "maximumIsoTdb": "2100-12-03T20:15:27.959 TDB",
+      "searchStartJulianDateTdb": 2488405.594073603,
+      "searchEndJulianDateTdb": 2488407.094073603,
+      "centerSeparationRadians": 0.005432309204,
+      "candidateLimitRadians": 0.022769983045,
+      "clearanceRadians": 0.017337673841,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 7121,
+        "hd": 175191,
+        "label": "Nunki",
+        "labelJa": "ヌンキ",
+        "vMagnitude": 2.02
+      }
+    },
+    {
+      "id": "lo-21001214-hr1165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488417.265521788,
+      "maximumIsoTdb": "2100-12-14T18:22:21.082 TDB",
+      "searchStartJulianDateTdb": 2488416.515521788,
+      "searchEndJulianDateTdb": 2488418.015521788,
+      "centerSeparationRadians": 0.016709615863,
+      "candidateLimitRadians": 0.020606817991,
+      "clearanceRadians": 0.003897202129,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1165,
+        "hd": 23630,
+        "label": "25Eta Tau",
+        "labelJa": null,
+        "vMagnitude": 2.87
+      }
+    },
+    {
+      "id": "lo-21001216-hr1791",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488419.142010902,
+      "maximumIsoTdb": "2100-12-16T15:24:29.741 TDB",
+      "searchStartJulianDateTdb": 2488418.392010902,
+      "searchEndJulianDateTdb": 2488419.892010902,
+      "centerSeparationRadians": 0.013180283742,
+      "candidateLimitRadians": 0.02075836029,
+      "clearanceRadians": 0.007578076547,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 1791,
+        "hd": 35497,
+        "label": "Elnath",
+        "labelJa": "エルナト",
+        "vMagnitude": 1.65
+      }
+    },
+    {
+      "id": "lo-21001222-hr3982",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488424.516244711,
+      "maximumIsoTdb": "2100-12-22T00:23:23.543 TDB",
+      "searchStartJulianDateTdb": 2488423.766244711,
+      "searchEndJulianDateTdb": 2488425.266244711,
+      "centerSeparationRadians": 0.008969635029,
+      "candidateLimitRadians": 0.021645073686,
+      "clearanceRadians": 0.012675438657,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 3982,
+        "hd": 87901,
+        "label": "Regulus",
+        "labelJa": "レグルス",
+        "vMagnitude": 1.35
+      }
+    },
+    {
+      "id": "lo-21001228-hr5944",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488431.152324406,
+      "maximumIsoTdb": "2100-12-28T15:39:20.828 TDB",
+      "searchStartJulianDateTdb": 2488430.402324406,
+      "searchEndJulianDateTdb": 2488431.902324406,
+      "centerSeparationRadians": 0.007140520302,
+      "candidateLimitRadians": 0.023017027039,
+      "clearanceRadians": 0.015876506737,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 5944,
+        "hd": 143018,
+        "label": "6Pi Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21001228-hr6084",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488431.47853048,
+      "maximumIsoTdb": "2100-12-28T23:29:05.033 TDB",
+      "searchStartJulianDateTdb": 2488430.72853048,
+      "searchEndJulianDateTdb": 2488432.22853048,
+      "centerSeparationRadians": 0.017118533736,
+      "candidateLimitRadians": 0.023030617629,
+      "clearanceRadians": 0.005912083893,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6084,
+        "hd": 147165,
+        "label": "20Sig Sco",
+        "labelJa": null,
+        "vMagnitude": 2.89
+      }
+    },
+    {
+      "id": "lo-21001229-hr6134",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488431.609282303,
+      "maximumIsoTdb": "2100-12-29T02:37:21.990 TDB",
+      "searchStartJulianDateTdb": 2488430.859282303,
+      "searchEndJulianDateTdb": 2488432.359282303,
+      "centerSeparationRadians": 0.007305159209,
+      "candidateLimitRadians": 0.023033204036,
+      "clearanceRadians": 0.015728044827,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6134,
+        "hd": 148478,
+        "label": "Antares",
+        "labelJa": "アンタレス",
+        "vMagnitude": 0.96
+      }
+    },
+    {
+      "id": "lo-21001229-hr6165",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488431.720589458,
+      "maximumIsoTdb": "2100-12-29T05:17:38.929 TDB",
+      "searchStartJulianDateTdb": 2488430.970589458,
+      "searchEndJulianDateTdb": 2488432.470589458,
+      "centerSeparationRadians": 0.020284480292,
+      "candidateLimitRadians": 0.023034086956,
+      "clearanceRadians": 0.002749606664,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 6165,
+        "hd": 149438,
+        "label": "23Tau Sco",
+        "labelJa": null,
+        "vMagnitude": 2.82
+      }
+    },
+    {
+      "id": "lo-21001231-hr7121",
+      "kind": "lunar-occultation",
+      "classificationHint": "occultation",
+      "maximumJulianDateTdb": 2488433.803971567,
+      "maximumIsoTdb": "2100-12-31T07:17:43.143 TDB",
+      "searchStartJulianDateTdb": 2488433.053971567,
+      "searchEndJulianDateTdb": 2488434.553971567,
+      "centerSeparationRadians": 0.003995490127,
+      "candidateLimitRadians": 0.022822977316,
+      "clearanceRadians": 0.018827487189,
+      "target": {
+        "catalog": "BSC5P",
+        "hr": 7121,
+        "hd": 175191,
+        "label": "Nunki",
+        "labelJa": "ヌンキ",
+        "vMagnitude": 2.02
+      }
+    }
+  ]
+}

@@ -71,6 +71,46 @@ describe("lunar-eclipse geometry", () => {
     expect(result?.umbralMagnitude).toBeGreaterThan(1);
   });
 
+  it("brackets totality shorter than the configured scan step", () => {
+    const candidate = Date.UTC(2030, 5, 15, 19);
+    const physicalCenter = candidate + 90_000;
+    const centered = lunarShadowSample(
+      physicalCenter,
+      body("sun", [1, 0, 0], 149_600_000, 0.004_65),
+      body("moon", [-1, 0, 0], 384_400, 0.004_52),
+    );
+    const impact =
+      centered.umbralRadiusRadians -
+      centered.moon.angularRadiusRadians -
+      1e-8;
+    const sampleAt = (instantMilliseconds: number) => {
+      const seconds =
+        (instantMilliseconds - physicalCenter) / 1_000;
+      return lunarShadowSample(
+        instantMilliseconds,
+        body("sun", [1, 0, 0], 149_600_000, 0.004_65),
+        body(
+          "moon",
+          [-1, impact, seconds * 0.000_001],
+          384_400,
+          0.004_52,
+        ),
+      );
+    };
+
+    const result = solveLunarEclipseGeometry(candidate, sampleAt, {
+      halfWindowMilliseconds: 8 * 60 * 60 * 1_000,
+      scanStepMilliseconds: 3 * 60 * 1_000,
+    });
+
+    expect(result?.classification).toBe("total");
+    expect(result?.totalContacts).toHaveLength(2);
+    expect(
+      result!.totalContacts[1]!.instantMilliseconds -
+        result!.totalContacts[0]!.instantMilliseconds,
+    ).toBeLessThan(3 * 60 * 1_000);
+  });
+
   it("returns null when the Moon misses the penumbra", () => {
     const center = Date.UTC(2025, 0, 1);
     expect(

@@ -99,7 +99,7 @@ describe("useIersEarthOrientation", () => {
     expect(result.current.estimate).toBeNull();
   });
 
-  it("reports errors, retries, and keeps auxiliary lookups fail-safe", async () => {
+  it("reports errors, retries, and propagates auxiliary integrity failures", async () => {
     const lookup = vi
       .fn<
         (
@@ -107,6 +107,7 @@ describe("useIersEarthOrientation", () => {
         ) => Promise<IersEarthOrientationEstimateV1 | null>
       >()
       .mockRejectedValueOnce(new Error("chunk unavailable"))
+      .mockRejectedValueOnce(new Error("chunk digest mismatch"))
       .mockResolvedValue(OBSERVED);
     const date = new Date("2026-07-29T00:00:00.000Z");
     const { result } = renderHook(() =>
@@ -118,7 +119,7 @@ describe("useIersEarthOrientation", () => {
       result.current.lookupAt(
         new Date("2026-07-29T03:00:00.000Z")
       )
-    ).resolves.toEqual(OBSERVED);
+    ).rejects.toThrow("chunk digest mismatch");
     act(() => result.current.retry());
     await waitFor(() => expect(result.current.status).toBe("ready"));
     expect(result.current.estimate).toEqual(OBSERVED);

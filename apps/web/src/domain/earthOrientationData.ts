@@ -1,6 +1,6 @@
 import manifestJson from "../../../../shared/eop/iers-finals2000a-eop.v1.json";
 import {
-  createChunkedEarthOrientationLookup,
+  createChunkedEarthOrientationAccess,
   type EarthOrientationChunkDescriptorV1,
   type EncodedEarthOrientationChunkV1,
   type IersEarthOrientationServiceV1
@@ -19,7 +19,7 @@ const chunkModules = import.meta.glob<{
   default: EncodedEarthOrientationChunkV1;
 }>("../../../../shared/eop/eop/*.v1.json");
 
-const lookup = createChunkedEarthOrientationLookup(
+const access = createChunkedEarthOrientationAccess(
   manifest.chunks,
   async (descriptor) => {
     const modulePath = `../../../../${descriptor.file}`;
@@ -49,5 +49,6 @@ export const iersEarthOrientationService: IersEarthOrientationServiceV1 =
       sourceLastModified: manifest.source.sourceLastModified,
       sourceSha256: manifest.source.sourceSha256
     }),
-    lookup
+    lookup: access.lookup,
+    loadSnapshot: access.loadSnapshot
   });

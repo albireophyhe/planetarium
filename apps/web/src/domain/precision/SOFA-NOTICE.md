@@ -6,7 +6,7 @@ or endorsed by SOFA.
 
 `earthEphemeris.ts` evaluates a project-specific truncation of SOFA `epv00`.
 The canonical coefficient artifact is
-`shared/ephemeris/truncated-earth-heliocentric.v1.json`; it retains 100 of
+`shared/ephemeris/truncated-earth-heliocentric.v1.json`; it retains 200 of
 1,323 Sun-to-Earth position terms, selected by the documented century-wide
 contribution bound. `script/build_earth_ephemeris.mjs` regenerates that
 artifact only from the pinned official `epv00.c` whose SHA-256 is

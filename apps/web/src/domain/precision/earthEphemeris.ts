@@ -5,7 +5,7 @@
  *
  * Differences from the original routine:
  * - only the heliocentric Sun-to-Earth position is evaluated;
- * - 100 of 1,323 position terms are retained using the documented
+ * - 200 of 1,323 position terms are retained using the documented
  *   century-wide contribution rule in the shared canonical artifact;
  * - TT is used as a TDB proxy;
  * - the implementation and identifiers are native TypeScript.

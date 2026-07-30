@@ -12,7 +12,7 @@ const sourceFileSha256 =
   "939d57fb2556dcd065370e090df962a7d459a89d972e7fe1b9b250306fe73c8a";
 const archiveSha256 =
   "d9c10833cae8b4d9361a0ffda31ec361fd1262362025bec4d4e51a880150ace2";
-const retainedTermCount = 100;
+const retainedTermCount = 200;
 const referenceSpanJulianYears = 100;
 const groupNames = [
   "e0x",

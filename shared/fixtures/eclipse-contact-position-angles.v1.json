@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "convention": {
+    "frame": "CIRS tangent plane (north from CIP)",
+    "referenceDirection": "celestial-north",
+    "positiveDirection": "eastward",
+    "rangeDegrees": "[0, 360)"
+  },
+  "toleranceDegrees": 1e-9,
+  "cases": [
+    {
+      "id": "north-near-side",
+      "referenceCenterDirection": [1, 0, 0],
+      "otherCenterDirection": [1, 0, 0.1],
+      "radialDirection": "toward-other-center",
+      "expectedDegrees": 0
+    },
+    {
+      "id": "east-near-side",
+      "referenceCenterDirection": [1, 0, 0],
+      "otherCenterDirection": [1, 0.1, 0],
+      "radialDirection": "toward-other-center",
+      "expectedDegrees": 90
+    },
+    {
+      "id": "south-near-side",
+      "referenceCenterDirection": [1, 0, 0],
+      "otherCenterDirection": [1, 0, -0.1],
+      "radialDirection": "toward-other-center",
+      "expectedDegrees": 180
+    },
+    {
+      "id": "west-near-side",
+      "referenceCenterDirection": [1, 0, 0],
+      "otherCenterDirection": [1, -0.1, 0],
+      "radialDirection": "toward-other-center",
+      "expectedDegrees": 270
+    },
+    {
+      "id": "oblique-near-side",
+      "referenceCenterDirection": [
+        -0.4330127018922192,
+        0.7500000000000001,
+        0.49999999999999994
+      ],
+      "otherCenterDirection": [
+        -0.44377182408016974,
+        0.73856034166189,
+        0.5075383629607041
+      ],
+      "radialDirection": "toward-other-center",
+      "expectedDegrees": 59.685960106382026
+    },
+    {
+      "id": "oblique-far-side",
+      "referenceCenterDirection": [
+        -0.4330127018922192,
+        0.7500000000000001,
+        0.49999999999999994
+      ],
+      "otherCenterDirection": [
+        -0.44377182408016974,
+        0.73856034166189,
+        0.5075383629607041
+      ],
+      "radialDirection": "away-from-other-center",
+      "expectedDegrees": 239.68596010638203
+    },
+    {
+      "id": "coincident-directions",
+      "referenceCenterDirection": [1, 0, 0],
+      "otherCenterDirection": [2, 0, 0],
+      "radialDirection": "toward-other-center",
+      "expectedDegrees": null
+    },
+    {
+      "id": "reference-at-pole",
+      "referenceCenterDirection": [0, 0, 1],
+      "otherCenterDirection": [0.1, 0, 1],
+      "radialDirection": "toward-other-center",
+      "expectedDegrees": null
+    },
+    {
+      "id": "zero-reference-direction",
+      "referenceCenterDirection": [0, 0, 0],
+      "otherCenterDirection": [1, 0, 0],
+      "radialDirection": "toward-other-center",
+      "expectedDegrees": null
+    },
+    {
+      "id": "zero-other-direction",
+      "referenceCenterDirection": [1, 0, 0],
+      "otherCenterDirection": [0, 0, 0],
+      "radialDirection": "toward-other-center",
+      "expectedDegrees": null
+    }
+  ]
+}

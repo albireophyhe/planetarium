@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Independent completeness, classification, and coarse seed-time oracle for bundled global solar-eclipse candidates. It does not validate local circumstances.",
+  "source": {
+    "title": "Solar Eclipses: 2021 - 2030",
+    "url": "https://eclipse.gsfc.nasa.gov/SEdecade/SEdecade2021.html",
+    "retrievedAt": "2026-07-30",
+    "timeScale": "TD (approximately TT)",
+    "attribution": "Eclipse Predictions by Fred Espenak, NASA's GSFC"
+  },
+  "tolerances": {
+    "candidateMaximumTdbVsGreatestEclipseTdSeconds": 90
+  },
+  "events": [
+    {
+      "id": "se-20210610",
+      "greatestEclipseTd": "2021-06-10T10:43:06",
+      "classification": "annular"
+    },
+    {
+      "id": "se-20211204",
+      "greatestEclipseTd": "2021-12-04T07:34:38",
+      "classification": "total"
+    },
+    {
+      "id": "se-20220430",
+      "greatestEclipseTd": "2022-04-30T20:42:36",
+      "classification": "partial"
+    },
+    {
+      "id": "se-20221025",
+      "greatestEclipseTd": "2022-10-25T11:01:19",
+      "classification": "partial"
+    },
+    {
+      "id": "se-20230420",
+      "greatestEclipseTd": "2023-04-20T04:17:55",
+      "classification": "hybrid"
+    },
+    {
+      "id": "se-20231014",
+      "greatestEclipseTd": "2023-10-14T18:00:40",
+      "classification": "annular"
+    },
+    {
+      "id": "se-20240408",
+      "greatestEclipseTd": "2024-04-08T18:18:29",
+      "classification": "total"
+    },
+    {
+      "id": "se-20241002",
+      "greatestEclipseTd": "2024-10-02T18:46:13",
+      "classification": "annular"
+    },
+    {
+      "id": "se-20250329",
+      "greatestEclipseTd": "2025-03-29T10:48:36",
+      "classification": "partial"
+    },
+    {
+      "id": "se-20250921",
+      "greatestEclipseTd": "2025-09-21T19:43:04",
+      "classification": "partial"
+    },
+    {
+      "id": "se-20260217",
+      "greatestEclipseTd": "2026-02-17T12:13:05",
+      "classification": "annular"
+    },
+    {
+      "id": "se-20260812",
+      "greatestEclipseTd": "2026-08-12T17:47:05",
+      "classification": "total"
+    },
+    {
+      "id": "se-20270206",
+      "greatestEclipseTd": "2027-02-06T16:00:47",
+      "classification": "annular"
+    },
+    {
+      "id": "se-20270802",
+      "greatestEclipseTd": "2027-08-02T10:07:49",
+      "classification": "total"
+    },
+    {
+      "id": "se-20280126",
+      "greatestEclipseTd": "2028-01-26T15:08:58",
+      "classification": "annular"
+    },
+    {
+      "id": "se-20280722",
+      "greatestEclipseTd": "2028-07-22T02:56:39",
+      "classification": "total"
+    },
+    {
+      "id": "se-20290114",
+      "greatestEclipseTd": "2029-01-14T17:13:47",
+      "classification": "partial"
+    },
+    {
+      "id": "se-20290612",
+      "greatestEclipseTd": "2029-06-12T04:06:13",
+      "classification": "partial"
+    },
+    {
+      "id": "se-20290711",
+      "greatestEclipseTd": "2029-07-11T15:37:18",
+      "classification": "partial"
+    },
+    {
+      "id": "se-20291205",
+      "greatestEclipseTd": "2029-12-05T15:03:57",
+      "classification": "partial"
+    },
+    {
+      "id": "se-20300601",
+      "greatestEclipseTd": "2030-06-01T06:29:13",
+      "classification": "annular"
+    },
+    {
+      "id": "se-20301125",
+      "greatestEclipseTd": "2030-11-25T06:51:37",
+      "classification": "total"
+    }
+  ]
+}

@@ -82,11 +82,12 @@ public enum TAIMinusUTCSourceV2: String, Codable, Hashable, Sendable {
 }
 
 public struct EarthOrientationOptionsV2: Hashable, Sendable {
-    /// UT1−UTC in seconds. When omitted, zero is used and reported as an approximation.
+    /// UT1−UTC in seconds, through ±3600 s for continuous-UTC scenarios.
+    /// When omitted, zero is used and reported as an approximation.
     public let dut1Seconds: Double?
     /// Provenance attached to an explicitly supplied DUT1 value.
     public let dut1Source: DUT1SourceV2?
-    /// Uncertainty or source-reported error of DUT1 in seconds.
+    /// Uncertainty or source-reported error of DUT1 in seconds, through 3600 s.
     public let dut1UncertaintySeconds: Double?
     /// Celestial Intermediate Pole coordinates in the terrestrial frame.
     public let polarMotion: PolarMotionOptionsV2?
@@ -271,13 +272,13 @@ public enum DiurnalAberrationConfigurationV2: Hashable, Sendable {
 public struct ApparentPositionOptionsV2: Hashable, Sendable {
     public let earthOrientation: EarthOrientationOptionsV2
     /**
-     Defaults to the shared 100-term VSOP2000 heliocentric Earth
+     Defaults to the shared 200-term VSOP2000 heliocentric Earth
      approximation. Disable it explicitly or provide an SSB-to-site BCRS
      observer position in AU.
      */
     public let annualParallax: AnnualParallaxConfigurationV2
     /**
-     Defaults to solar geometry from the shared 100-term VSOP2000
+     Defaults to solar geometry from the shared 200-term VSOP2000
      heliocentric Earth approximation. Disable it explicitly or provide a
      Sun-to-observer unit direction and distance.
      */
@@ -878,9 +879,9 @@ public enum PrecisionModelError: LocalizedError, Equatable, Sendable {
         case .dut1MetadataWithoutValue:
             "DUT1の出典と不確かさはDUT1値と一緒に指定してください。"
         case .dut1OutOfRange:
-            "DUT1は−1秒から+1秒の範囲で指定してください。"
+            "DUT1は−3600秒から+3600秒の範囲で指定してください。"
         case .dut1UncertaintyOutOfRange:
-            "DUT1の不確かさは0秒から1秒の範囲で指定してください。"
+            "DUT1の不確かさは0秒から3600秒の範囲で指定してください。"
         case .taiMinusUTCOutOfRange:
             "TAI−UTCは−100秒から+200秒の範囲で指定してください。"
         case .invalidLocation:

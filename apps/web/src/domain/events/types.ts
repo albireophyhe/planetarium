@@ -20,6 +20,11 @@ export type LunarEclipseClassification =
   | "partial"
   | "total";
 
+export type EventClassification =
+  | SolarEclipseClassification
+  | LunarEclipseClassification
+  | "occultation";
+
 export type EventCalculationTier =
   | "normal"
   | "uncertain"
@@ -29,8 +34,7 @@ export type EventVisibility =
   | "fully-visible"
   | "partly-visible"
   | "below-horizon"
-  | "not-local"
-  | "boundary-uncertain";
+  | "not-local";
 
 export type EventContactPhase =
   | "solar-c1"
@@ -52,10 +56,7 @@ export interface EventSummary {
   readonly kind: EventKind;
   readonly title: string;
   readonly canonicalEpochUtc: Date;
-  readonly globalClassification:
-    | SolarEclipseClassification
-    | LunarEclipseClassification
-    | "occultation";
+  readonly globalClassification: EventClassification;
   readonly targetStarHR: number | null;
   readonly dataVersion: string;
 }
@@ -101,6 +102,13 @@ export interface EventContact {
     Partial<Record<"sun" | "moon" | "target", EventBodyPosition>>
   >;
   readonly aboveHorizon: boolean;
+  /**
+   * Contact point around the reference disc, in radians [0, 2π), measured
+   * eastward from CIP-defined celestial north in the CIRS tangent plane.
+   * `null` at maximum and for degenerate directions. The reference disc
+   * is the Sun for solar eclipses and the Moon for lunar
+   * eclipses/occultations.
+   */
   readonly positionAngleRadians: number | null;
 }
 
@@ -112,7 +120,31 @@ export interface ForecastUncertainty {
   readonly dominantContributors: readonly string[];
 }
 
-export interface EventProvenance {
+export type EventEarthOrientationQuality =
+  | "observed"
+  | "predicted"
+  | "mixed"
+  | "outside-coverage";
+
+export interface EventEarthOrientationProvenance {
+  readonly eopSourceSha256: string | null;
+  readonly eopRetrievedAt: string | null;
+  readonly dut1Quality: EventEarthOrientationQuality;
+  readonly polarMotionQuality: EventEarthOrientationQuality;
+}
+
+export interface EventEarthOrientationProvenanceOptions {
+  readonly eopSourceSha256?: string | null;
+  readonly eopRetrievedAt?: string | null;
+  readonly dut1Quality?: EventEarthOrientationQuality;
+  readonly polarMotionQuality?: EventEarthOrientationQuality;
+  readonly earthOrientationProvenanceAt?: (
+    date: Date,
+  ) => EventEarthOrientationProvenance | undefined;
+}
+
+export interface EventProvenance
+  extends EventEarthOrientationProvenance {
   readonly algorithmVersion: string;
   readonly ephemerisId: string;
   readonly ephemerisSourceSha256: string;
@@ -122,9 +154,33 @@ export interface EventProvenance {
   readonly limbProfileId: null;
 }
 
+export type EventBoundaryUncertaintyReason =
+  | "solar-occurrence"
+  | "solar-central-classification"
+  | "occultation-occurrence";
+
 export interface LocalCircumstances {
   readonly event: EventSummary;
+  /** Classification recomputed for this observer and event geometry. */
+  readonly localClassification: EventClassification;
   readonly observer: EventObserverContext;
+  /**
+   * True when the local occurrence/classification lies inside the
+   * conservative physical boundary band. This is independent of whether
+   * the evaluated phenomenon is above or below the geometric horizon.
+   */
+  readonly boundaryUncertain: boolean;
+  /**
+   * The observer-facing meaning of the physical boundary band.
+   *
+   * `solar-central-classification` means a local solar eclipse is certain,
+   * while its central classification and C2/C3 are not. The occurrence
+   * reasons mean even the local phenomenon itself is not yet established.
+   * This is null exactly when `boundaryUncertain` is false.
+   */
+  readonly boundaryUncertaintyReason:
+    | EventBoundaryUncertaintyReason
+    | null;
   readonly visibility: EventVisibility;
   readonly contacts: readonly EventContact[];
   readonly maximum: EventContact;
@@ -149,8 +205,25 @@ export interface GeocentricEphemerisState {
   readonly tdbJulianDate: number;
 }
 
+export interface EventEphemerisStateCoverage {
+  readonly startJulianDateTdb: number;
+  readonly endJulianDateTdb: number;
+  readonly endIsIncluded: true;
+}
+
+export interface EventSearchBounds {
+  readonly startUtcMilliseconds: number;
+  readonly endUtcMilliseconds: number;
+}
+
+export interface EventEphemerisSearchOptions {
+  readonly searchBounds?: EventSearchBounds;
+}
+
 export interface EventEphemerisProvider {
   readonly id: string;
   readonly sourceSha256: string;
+  /** Closed TDB interval backed by the chunks loaded in this provider. */
+  readonly stateCoverage: EventEphemerisStateCoverage;
   state(tdbJulianDate: number): GeocentricEphemerisState;
 }

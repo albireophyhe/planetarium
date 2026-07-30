@@ -35,10 +35,10 @@ Webでは偽のmacOSウインドウボタンを描きません。コンセプト
 
 ## タイポグラフィ
 
-- Web: `IBM Plex Sans JP 3.0.0`のRegular 400／SemiBold 600から、Webソースと同梱星表に現れる文字をサブセットし、OFLのReserved Font Name条件に従って`Planetarium Sans JP`へ改名した自己ホスト書体。読み込み前、利用者入力、原書体に未収録の`U+1D45 MODIFIER LETTER SMALL ALPHA`と`U+2212 MINUS SIGN`は端末書体へフォールバックする。外部フォントサービスへ通信しない。
+- Web: `IBM Plex Sans JP 3.0.0`のRegular 400／SemiBold 600から、初期UI・同梱星表用のbase、遅延表示する天文現象用のevent supplement、ヘルプ用のhelp supplementを生成する。baseと各supplementは重複しない正確な`unicode-range`を持ち、supplementは対応する機能のCSSと一緒にだけ読み込む。event/helpを単独で開けるよう、両方だけで使う文字は各supplementに収録する。OFLのReserved Font Name条件に従って`Planetarium Sans JP`へ改名した自己ホスト書体であり、読み込み前、利用者入力、原書体に未収録の`U+1D45 MODIFIER LETTER SMALL ALPHA`と`U+2212 MINUS SIGN`は端末書体へフォールバックする。外部フォントサービスへ通信しない。
 - Webの時刻・座標: `SFMono-Regular`等の端末内等幅書体を優先し、`tabular-nums`を併用する。
 - macOS: SwiftUIのネイティブ書体を基礎に、ブランド／見出しはrounded design、時刻・座標はmonospaced digits、本文は標準designへ役割分担する。
-- 原書体IBM Plex Sans JPはSIL Open Font License 1.1。Python 3.12.3と`script/requirements-fonts.txt`の固定依存で`script/subset_fonts.py`を実行し、`--check`で同じバイト列、文字カバレッジ、name table、ライセンスレコード、weight class、WOFF2予算を検証する。配布上の通知は`THIRD_PARTY_NOTICES.md`へ記録する。
+- 原書体IBM Plex Sans JPはSIL Open Font License 1.1。Python 3.12.3と`script/requirements-fonts.txt`の固定依存で`script/subset_fonts.py`を実行し、`--check`で6個のWOFF2の同一バイト列、baseと各supplementの非重複文字カバレッジ、生成CSS、name table、ライセンスレコード、weight class、WOFF2予算を検証する。配布上の通知は`THIRD_PARTY_NOTICES.md`へ記録する。
 - アプリ名: 20–24px相当、semibold
 - 選択天体: 28–34px相当、bold
 - 主要値: 30–38px相当、regularまたはmedium、tabular digits

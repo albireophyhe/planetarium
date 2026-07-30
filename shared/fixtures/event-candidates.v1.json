@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "model": "de442s-mean-sphere-eclipse-candidates-v1",
+  "oracle": "NASA Five Millennium Catalog century totals and published greatest-eclipse TD instants; IOTA observed bright-star graze",
+  "manifestSha256": "b8d63467652b55ff569eb50ad210eab5f41b7260fd6c537d9db76604f48ae143",
+  "sourceSha256": "54d97562a5b094d298b1b8eafa5a2e17e3e010ce85e1a366d07f003ad159323c",
+  "knownCases": [
+    {
+      "id": "solar-2026-08-12",
+      "candidateId": "se-20260812",
+      "expectedKind": "solar-eclipse",
+      "expectedClassificationHint": "total",
+      "nasaMaximumJulianDateTd": 2461265.241032,
+      "maximumDifferenceToleranceSeconds": 600,
+      "sourceUrl": "https://eclipse.gsfc.nasa.gov/SEbeselm/SEbeselm2001/SE2026Aug12Tbeselm.html",
+      "actualMaximumJulianDateTdb": 2461265.241438,
+      "actualMaximumIsoTdb": "2026-08-12T17:47:40.243 TDB",
+      "maximumDifferenceSeconds": 35.078
+    },
+    {
+      "id": "solar-2024-04-08",
+      "candidateId": "se-20240408",
+      "expectedKind": "solar-eclipse",
+      "expectedClassificationHint": "total",
+      "nasaMaximumJulianDateTd": 2460409.263,
+      "maximumDifferenceToleranceSeconds": 600,
+      "sourceUrl": "https://eclipse.gsfc.nasa.gov/SEsearch/SEdata.php?Ecl=20240408",
+      "actualMaximumJulianDateTdb": 2460409.263227458,
+      "actualMaximumIsoTdb": "2024-04-08T18:19:02.852 TDB",
+      "maximumDifferenceSeconds": 19.652
+    }
+  ],
+  "knownOccultationCases": [
+    {
+      "id": "aldebaran-graze-2017-03-05",
+      "candidateId": "lo-20170305-hr1457",
+      "targetHr": 1457,
+      "expectedUtcDate": "2017-03-05",
+      "sourceUrl": "https://occultations.org/publications/rasc/2025/nam25grz.htm",
+      "actualMaximumJulianDateTdb": 2457817.625193499,
+      "actualMaximumIsoTdb": "2017-03-05T03:00:16.718 TDB",
+      "targetLabel": "Aldebaran"
+    }
+  ],
+  "centuryCounts": [
+    {
+      "kind": "solar-eclipse",
+      "startYear": 1901,
+      "endYear": 2000,
+      "expectedCount": 228,
+      "actualCount": 228,
+      "sourceUrl": "https://eclipse.gsfc.nasa.gov/SEcat5/SE1901-2000.html"
+    },
+    {
+      "kind": "solar-eclipse",
+      "startYear": 2001,
+      "endYear": 2100,
+      "expectedCount": 224,
+      "actualCount": 224,
+      "sourceUrl": "https://eclipse.gsfc.nasa.gov/SEcat5/SE2001-2100.html"
+    },
+    {
+      "kind": "lunar-eclipse",
+      "startYear": 1901,
+      "endYear": 2000,
+      "expectedCount": 229,
+      "actualCount": 229,
+      "sourceUrl": "https://eclipse.gsfc.nasa.gov/LEcat5/LE1901-2000.html"
+    },
+    {
+      "kind": "lunar-eclipse",
+      "startYear": 2001,
+      "endYear": 2100,
+      "expectedCount": 228,
+      "actualCount": 228,
+      "sourceUrl": "https://eclipse.gsfc.nasa.gov/LEcat5/LE2001-2100.html"
+    }
+  ],
+  "checks": {
+    "allCenturyCountsMatch": true,
+    "allKnownCasesWithinTolerance": true,
+    "allKnownOccultationsPresent": true,
+    "nasaIndependentVerificationCommand": "node script/build_event_candidates.mjs --source /tmp/de442s.bsp --check --verify-nasa",
+    "nasaVerification": "The opt-in check downloads four NASA catalog pages, parses every catalog number/date/TD maximum, requires exact event counts and one-to-one date matching, and reports seed-time differences. No NASA response is packaged for runtime."
+  }
+}

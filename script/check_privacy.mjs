@@ -8,8 +8,11 @@ const sourceRoots = [
   "shared/swift"
 ];
 const sourceExtensions = new Set([".js", ".jsx", ".swift", ".ts", ".tsx"]);
+const auditedEventTransport =
+  "apps/web/src/domain/events/eventAssetTransport.ts";
+const fetchPattern = /\bfetch\s*\(/;
 const forbidden = [
-  /\bfetch\s*\(/,
+  fetchPattern,
   /\bXMLHttpRequest\b/,
   /\bWebSocket\s*\(/,
   /\bEventSource\s*\(/,
@@ -46,11 +49,52 @@ const files = (
 const violations = [];
 for (const file of files) {
   const source = await readFile(file, "utf8");
+  const relativePath = relative(root, file);
   for (const pattern of forbidden) {
+    if (
+      relativePath === auditedEventTransport &&
+      pattern === fetchPattern
+    ) {
+      continue;
+    }
     if (pattern.test(source)) {
-      violations.push(`${relative(root, file)}: ${pattern}`);
+      violations.push(`${relativePath}: ${pattern}`);
     }
   }
+}
+
+const eventTransportSource = await readFile(
+  join(root, auditedEventTransport),
+  "utf8"
+);
+const eventTransportFetchCalls = [
+  ...eventTransportSource.matchAll(/\bfetch\s*\(/g)
+].length;
+for (const required of [
+  /const EVENT_MANIFEST_PATH\s*=\s*["']\/event-data\/de442s\/de442s-manifest\.v1\.json["']/,
+  /const EVENT_CANDIDATE_MANIFEST_PATH\s*=\s*["']\/event-data\/candidates\/event-candidates-manifest\.v1\.json["']/,
+  /EVENT_CHUNK_PATH\.test\(path\)/,
+  /EVENT_CANDIDATE_CHUNK_PATH\.test\(path\)/,
+  /credentials:\s*["']same-origin["']/,
+  /method:\s*["']GET["']/,
+  /redirect:\s*["']error["']/,
+  /referrerPolicy:\s*["']no-referrer["']/
+]) {
+  if (!required.test(eventTransportSource)) {
+    violations.push(
+      `${auditedEventTransport}: 監査済み同一origin GET契約 ${required} が必要です`
+    );
+  }
+}
+if (
+  eventTransportFetchCalls !== 1 ||
+  /https?:|URLSearchParams|searchParams|FormData/.test(
+    eventTransportSource
+  )
+) {
+  violations.push(
+    `${auditedEventTransport}: 静的asset以外の通信を追加できません`
+  );
 }
 
 const [headers, packageJson, npmrc] = await Promise.all([
@@ -135,6 +179,7 @@ if (violations.length > 0) {
 } else {
   console.log(
     `プライバシー静的検査OK: ${files.length}ソース / ` +
-      "外部通信APIなし / dependency install script固定"
+      "監査済み同一origin静的asset GET 1件 / 外部通信なし / " +
+      "dependency install script固定"
   );
 }

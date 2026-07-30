@@ -16,10 +16,11 @@
 8. PWA成果物、Cloudflareの互換日付とSPA設定、認証なしのdeploy dry-run
 9. SwiftPMテスト
 
-現行buildの基準値は初期12ファイル730.5 KiB gzip、最大初期JavaScriptの
-`catalog-v1`が523.0 KiB rawである。トップレベルと拡張子別の全予算値が
-正のsafe integerとして読めることも検査し、単一の巨大な起動chunkへ戻る
-設定退行を失敗にする。
+リリース候補のテスト件数と実測転送量は、最終差分に対するゲートが完了した
+時点で記録する。開発途中の推測値を現行値として固定せず、
+`config/web-budgets.json`のトップレベルと拡張子別の上限、初期／遅延assetの
+分類を正本にする。全予算値が正のsafe integerとして読めることも検査し、
+単一の巨大な起動chunkへ戻る設定退行を失敗にする。
 成果物検査はJavaScript無効時の`noscript`文言と同一originの再読み込みhrefも
 必須にし、route rootを安全に`index.html`へ解決する。PWAの192/512px PNGと
 Apple touch iconは寸法、不透明RGB、manifest用途、source/dist一致を検査する。
@@ -53,20 +54,59 @@ metadataへ残します。
 
 太陽中心の幾何高度は、未改変SOFA Cの
 `epv00 → ab → pnm06a / c2i06a → pvtob → apio13 → atioq`で作った
-8ケースと比較します。共有100項VSOP2000地球暦の太陽中心→地球位置、
+8ケースと比較します。共有200項VSOP2000地球暦の太陽中心→地球位置、
 地心の真赤道・真分点方向、WGS84 topocenterのENU方向を同じfixtureから
-検証し、地球暦方向は3秒角、距離は
-`0.00001 AU`、全パイプラインの球面角残差は5秒角未満に固定します。
-SOFA側は`epv00`の全1,323項と太陽系重心速度、アプリ側は100 / 1,323項と
+検証し、地球暦方向は1秒角、距離は
+`0.000003 AU`、全パイプラインの球面角残差は2秒角未満に固定します。
+SOFA側は`epv00`の全1,323項と太陽系重心速度、アプリ側は200 / 1,323項と
 その解析微分速度、IAU 2000Bを使うため完全一致とはしません。
 共有係数は`script/build_earth_ephemeris.mjs`が公式`epv00.c`の
-SHA-256を確認して決定論的に生成します。1900–2100の6時間刻み
-293,657時点では、光行差前の太陽方向差が最大2.2124726秒角、
-光行差後が最大2.2026613秒角でした。
+SHA-256を確認して決定論的に生成します。1900-01-01 00:00〜
+2100-12-31 18:00の6時間刻み293,656時点では、光行差前の太陽方向差が最大0.8324427秒角、
+光行差後が最大0.8413076秒角でした。
 見かけ赤経・赤緯は地心方向のまま、水平位置はSOFA `pvtob`とアプリの
 WGS84 ITRS地点減算の双方で太陽の日周視差を含めます。標高4,205 m・
 地平線付近のケースで高さ経路も固定します。薄明区分には大気差を混ぜず、
 0°、−6°、−12°、−18°の太陽中心高度を使います。
+
+### 恒星位置の誤差予算
+
+恒星位置は同じ入力に対するSOFA parityだけでなく、BSC5Pの格納分解能、
+共有200項地球暦、現在日のIERS EOP公表誤差、EOP収録外fallback、描画までの
+数値変換を別々に検査する。
+
+```sh
+ASDF_NODEJS_VERSION=24.18.0 npm exec --workspace=@planetarium/web -- \
+  vitest run \
+  src/domain/precision/starPositionAccuracy.test.ts \
+  src/features/sky/renderingAccuracy.test.ts
+
+swift test --filter PrecisionAstronomyTests
+```
+
+自動検査の小さいparity値を製品全体の保証値とは扱わない。画面ではEOP収録内の
+星表・真空計算部分についての「おおむね1〜数秒角級・サブ秒角保証なし」と、
+収録外または読込失敗時のDUT1=0秒・xp/yp=0近似を確認する。13.5秒角は
+現行の整数うるう秒UTCが維持される期間に限るDUT1の条件付き上限と表示し、
+1972年以前・将来UTC制度、地点、時計、実際の大気を含む総合上限にしない。
+根拠と再現値は`docs/accuracy/star-position-validation.md`を正本にする。
+
+### 食・掩蔽予報の正しさ
+
+イベント層では次を別々の回帰契約として検査する。
+
+- DE442sと候補索引のmanifest、chunk hash、byte長、coverage、strict schema
+- NASAの日食・月食fixtureと、IOTA由来の恒星掩蔽掲載例
+- EOP範囲内と範囲外の時刻系、連続UTCシナリオ、境界の工学的envelope
+- 物理境界の不確実性と地平線可視性を独立に返す状態契約
+- CIRS接平面で天の北0°・東回りとする接触／最接近位置角、退化入力、
+  USNOの日食・月食照合例
+- 600秒の光行時間reserveを含む安全な受信時刻範囲と、1900／2100年の
+  現地年coverage gapを固定するWeb／Swift共有fixture
+- BSC5Pの符号列を、固有名を保ちながらバイエル符号へ整形する掩蔽対象名
+
+最終ゲートでは個別テスト名の件数を手書きせず、`npm run check`と
+`swift test -c release`の実出力をリリース記録へ残す。
 
 ## Webの性能検証
 
@@ -77,11 +117,57 @@ npm run web:bench:precision
 npm run web:bench:precision:soak
 ```
 
-前者は100項地球暦を含むcontext生成、UI対象1,630星、全8,404星を
+前者は200項地球暦を含むcontext生成、UI対象1,630星、全8,404星を
 同じfixtureで比較します。後者は`--expose-gc`付きで1900〜2100年の
 10,000 frame、16,300,000位置を走査し、全座標の有限性と32 MiBの
 retained-heap guardを検証します。所要時間と絶対速度は実行環境に依存するため、
 回帰判断では同じNode.js・同じ端末・同じ星表件数を使います。
+
+## 食・掩蔽予報の軽量性監査
+
+年単位の候補読込と東京での全局地計算は、通常の品質ゲートから分離した
+次のコマンドでWebとmacOSを同条件で測定します。
+
+```sh
+# 代表年2026（108候補）と、現行候補表で最多タイの1932（125候補）
+npm run events:bench
+
+# 任意の単年だけを再測定
+npm run events:bench -- 2026
+```
+
+スクリプトはWebを固定Node.js 24.18の`--expose-gc`付きVitest worker、
+macOSをSwiftPMのreleaseテストとして、それぞれ新しいprocessで実行します。
+`PLANETARIUM_EVENT_BENCHMARK_YEAR`を直接指定して個別にも実行できます。
+
+```sh
+ASDF_NODEJS_VERSION=24.18.0 \
+  PLANETARIUM_EVENT_BENCHMARK_YEAR=2026 \
+  npm run web:bench:events
+
+PLANETARIUM_EVENT_BENCHMARK_YEAR=2026 \
+  swift test -c release \
+    --filter EventForecastPerformanceTests/testAnnualTokyoForecastColdLoad
+```
+
+出力JSONの`candidateLoadMilliseconds`と
+`forecastCalculationMilliseconds`を分けて記録し、候補、DE442s、IERS EOPの
+実読込chunk名・回数・raw byte数も確認します。Swift側はmanifestに記録された
+gzip byte数も併記します。Webの`peakHeapUsedBytes`・`peakRssBytes`には
+Vitest worker、Swiftの`peakResidentBytes`にはXCTest runnerの基礎量が
+含まれるため、異なるruntime間の絶対値比較ではなく、同じ端末・toolchainでの
+差分と回帰に使います。assetはローカルから読むため、Cloudflareや回線の
+遅延は測定対象外です。
+
+同じコマンドは代表年A→隣接年B→Aのwarm asset navigationも出力する。
+戻ったAで`returnAssetReadDelta`が0であることを確認し、解計算時間と
+asset再読込を混同しない。macOSでは、候補、星表、DE442s、EOPのcold loadを
+`SharedAsyncResource`で一つのin-flight taskへ集約し、次も単体テストする。
+
+- 同時callerが一度だけloadする
+- 一つの待機側の取消が共有loadを取消さない
+- 成功値を次の年切替で再利用する
+- 失敗または共有load自身の取消後はentryを除き、次の明示操作で再試行できる
 
 ## Webの手動確認
 
@@ -99,10 +185,21 @@ retained-heap guardを検証します。所要時間と絶対速度は実行環�
 - アクセシビリティ: キーボード、フォーカス、DOM一覧、200%ズーム、390px幅、reduced-motion
 - エラー: Canvas不可、位置拒否、無効な座標・日時で白紙にならない
 - プライバシー: 起動中に外部リクエストへ選択座標を送らない
+- 現象: 現地年、種類、地平線下toggle、理由別空状態、局地／全球分類、
+  現地・UTC、接触／最接近の高度・方位・位置角、日時移動と復帰が一貫する
+- 現象の境界: 発生または中心食分類の不確実性と、地平線上／下が別に見え、
+  断定できない接触を表示しない
+- 現象の年端: 欠落がある1900／2100年だけに収録範囲注意を示し、
+  1901〜2099年へ誤って表示しない
+- 現象のアクセシビリティ: native select、listbox矢印移動、結果件数、
+  一度だけの完了／時刻変更通知、復帰focus、200%、forced-colorsを確認する
+- 遅延読込: 「現象」「ヘルプ」を開く前は対応するCSSとsupplement fontを取得せず、
+  開いた後だけ必要な同一origin assetを取得する。候補とDE442sは「現象」を
+  開いた後だけ取得する
 
 ## macOSの手動確認
 
-- `script/build_and_run.sh`から`.app`として起動する
+- `script/build_and_run.sh`から`release`構成の`.app`として起動する
 - アプリウインドウが前面に現れ、閉じた後にメニューから再表示できる
 - ツールバー、一覧、Canvas、詳細、地点、日時が大きな文字でも操作できる
 - 2D/3D、天球drag、矢印操作、時間再生、選択、星座線、星名が同じStoreに同期する
@@ -111,8 +208,18 @@ retained-heap guardを検証します。所要時間と絶対速度は実行環�
 - 動きを減らす設定では自動再生を停止し、静止操作を残す
 - メニューとキーボードショートカットが画面上の操作と一致する
 - 「現在地」を選ぶまで位置許諾を要求しない
+- 明示的な現在地取得は精度を優先した一回取得とし、OSが返す水平精度を
+  Web／macOSの局地予報へ伝える
 - 位置拒否後も都市と手入力が使える
 - ナイトモードを含め、選択やエラーの意味を色だけに依存しない
+- 現象のnative Picker、地平線下toggle、年移動、一覧、詳細をキーボードと
+  VoiceOverで操作でき、現地時刻とUTCの両方を確認できる
+- 計算・絞り込み結果、時刻変更、復帰を一度だけAnnouncementし、復帰後は
+  最大／最接近操作へfocusが戻る
+- 1900／2100年の収録範囲注意、物理境界の不確実性、地平線状態が
+  別々のアクセシブルな説明として取得できる
+- 観測年は局地最大が観測日時以後となる最初の表示対象を選び、全件過去では
+  最新、別年では先頭へ戻る
 
 ## 視覚比較
 

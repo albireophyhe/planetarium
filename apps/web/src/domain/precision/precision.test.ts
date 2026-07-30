@@ -1252,7 +1252,7 @@ describe("precision metadata and input guardrails", () => {
     expect(() =>
       resolveTimeScales(
         new Date("2026-07-29T00:00:00.000Z"),
-        { dut1Seconds: 2 }
+        { dut1Seconds: 3_601 }
       )
     ).toThrow(/DUT1/);
     const polarDate = new Date("2026-07-29T00:00:00.000Z");

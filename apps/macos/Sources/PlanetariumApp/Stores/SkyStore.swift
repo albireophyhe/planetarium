@@ -565,7 +565,7 @@ final class SkyStore {
         case .observed:
             "globe.badge.chevron.backward"
         case .predicted:
-            "globe.badge.chevron.forward"
+            "clock.arrow.circlepath"
         case nil:
             "exclamationmark.triangle"
         }
@@ -790,15 +790,25 @@ final class SkyStore {
             guard let self else { return }
             self.isLocating = false
             switch result {
-            case let .success(coordinate):
+            case let .success(fix):
                 self.location = ObservingLocation(
                     id: "current",
                     name: "現在地",
-                    latitude: coordinate.latitude,
-                    longitude: coordinate.longitude,
-                    timeZoneIdentifier: TimeZone.current.identifier
+                    latitude: fix.latitude,
+                    longitude: fix.longitude,
+                    timeZoneIdentifier:
+                        TimeZone.current.identifier,
+                    horizontalAccuracyMeters:
+                        fix.horizontalAccuracyMeters
                 )
-                self.statusMessage = "現在地へ移動しました。座標は保存・送信されません。"
+                let accuracyText =
+                    fix.horizontalAccuracyMeters.map {
+                        "（水平精度 ±\(Int($0.rounded())) m）"
+                    }
+                    ?? ""
+                self.statusMessage =
+                    "現在地へ移動しました\(accuracyText)。"
+                    + "座標は保存・送信されません。"
                 AppLog.location.info("location request succeeded")
             case let .failure(error):
                 self.statusMessage = nil
@@ -1186,6 +1196,11 @@ final class SkyStore {
             earthOrientation: earthOrientationOptions(
                 for: estimate
             ),
+            diurnalAberration:
+                .wgs84Observer(
+                    heightMeters:
+                        location.heightMeters
+                ),
             refraction: refractionConfiguration
         )
     }

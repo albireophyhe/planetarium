@@ -5,15 +5,27 @@ import {
   angularSeparationRadians,
   calculateApparentBody,
 } from "./apparentBody";
+import { eclipseContactPositionAngleRadians } from "./eclipseContactPositionAngle";
 import {
-  findSignChangeBrackets,
+  eventEphemerisSearchBounds,
+  intersectEventSearchBounds,
+  resolveEventSearchBounds,
+} from "./ephemerisCoverage";
+import {
   minimizeBracketed,
   solveBracketedRoot,
 } from "./numerics";
+import { eventTimeScaleNotices } from "./timeScaleNotices";
+import {
+  classifyBoundaryMaximumVisibility,
+  classifyEventIntervalVisibility,
+} from "./eventVisibility";
 import type {
   ApparentBodyState,
   EventBodyPosition,
   EventContact,
+  EventEarthOrientationProvenanceOptions,
+  EventEphemerisSearchOptions,
   EventEphemerisProvider,
   EventObserverContext,
   EventProvenance,
@@ -26,6 +38,11 @@ const DEFAULT_HALF_WINDOW_MILLISECONDS = 5 * 60 * 60 * 1_000;
 const DEFAULT_SCAN_STEP_MILLISECONDS = 2 * 60 * 1_000;
 const ROOT_TIME_TOLERANCE_MILLISECONDS = 20;
 const ROOT_ANGLE_TOLERANCE_RADIANS = 1e-13;
+// NASA reports departures of the real lunar limb from a smooth sphere of
+// about ±3 arcseconds, or nearly ±6 km at the Moon's mean distance. Keep
+// that full radial envelope when no topographic limb profile is available:
+// https://eclipse.gsfc.nasa.gov/SEhelp/limb.html
+const BASE_PATH_UNCERTAINTY_KILOMETERS = 6;
 
 export interface SolarDiscSample {
   readonly instantMilliseconds: number;
@@ -43,17 +60,32 @@ export interface SolarEclipseGeometry {
   readonly internalContacts: readonly SolarDiscSample[];
   readonly magnitude: number;
   readonly obscuration: number;
+  readonly boundaryUncertaintyRadians: number;
+  readonly boundaryUncertain: boolean;
+  readonly uncertainBoundary:
+    | "external"
+    | "partial-central"
+    | null;
 }
 
-export interface LocalSolarEclipseOptions {
+export interface LocalSolarEclipseOptions
+  extends EventEarthOrientationProvenanceOptions,
+    EventEphemerisSearchOptions {
+  readonly deltaTModel?: string;
   readonly earthOrientation?: EarthOrientationOptions;
+  readonly earthOrientationAt?: (
+    date: Date,
+  ) => EarthOrientationOptions | undefined;
   readonly eopId?: string;
+  readonly earthRotationPathUncertaintyKilometers?: number | null;
   readonly heightMeters?: number;
   readonly horizontalAccuracyMeters?: number | null;
   readonly locationSource?: EventObserverContext["locationSource"];
   readonly halfWindowMilliseconds?: number;
   readonly scanStepMilliseconds?: number;
   readonly timingUncertaintySeconds?: number | null;
+  readonly timeScaleContributors?: readonly string[];
+  readonly timeScaleWarnings?: readonly string[];
   readonly shouldCancel?: () => boolean;
 }
 
@@ -61,6 +93,58 @@ function checkCancelled(shouldCancel: (() => boolean) | undefined): void {
   if (shouldCancel?.()) {
     throw new DOMException("Event calculation was cancelled", "AbortError");
   }
+}
+
+function validateOptionalUncertainty(
+  value: number | null | undefined,
+  name: string,
+): void {
+  if (
+    value !== undefined &&
+    value !== null &&
+    (!Number.isFinite(value) || value < 0)
+  ) {
+    throw new RangeError(`${name} must be finite and non-negative`);
+  }
+}
+
+/**
+ * Conservative angular band around a local solar-eclipse path boundary.
+ *
+ * The mean-limb path envelope, independently supplied Earth-rotation path
+ * envelope, and known observer horizontal accuracy are added linearly.
+ * Dividing by the topocentric lunar distance converts that ground-path width
+ * into the corresponding small-angle boundary used by the local disc solver.
+ */
+export function solarEclipseBoundaryUncertaintyRadians(
+  moonDistanceKilometers: number,
+  earthRotationPathUncertaintyKilometers?: number | null,
+  horizontalAccuracyMeters?: number | null,
+): number {
+  if (
+    !Number.isFinite(moonDistanceKilometers) ||
+    moonDistanceKilometers <= 0
+  ) {
+    throw new RangeError(
+      "Solar-eclipse Moon distance must be finite and positive",
+    );
+  }
+  validateOptionalUncertainty(
+    earthRotationPathUncertaintyKilometers,
+    "Earth-rotation path uncertainty",
+  );
+  validateOptionalUncertainty(
+    horizontalAccuracyMeters,
+    "Observer horizontal accuracy",
+  );
+  const observerKilometers =
+    (horizontalAccuracyMeters ?? 0) / 1_000;
+  return (
+    (BASE_PATH_UNCERTAINTY_KILOMETERS +
+      (earthRotationPathUncertaintyKilometers ?? 0) +
+      observerKilometers) /
+    moonDistanceKilometers
+  );
 }
 
 function separation(sample: SolarDiscSample): number {
@@ -143,51 +227,43 @@ function overlapFraction(
   );
 }
 
-function uniqueSortedTimes(times: readonly number[]): readonly number[] {
-  const sorted = [...times].sort((left, right) => left - right);
-  const result: number[] = [];
-  for (const time of sorted) {
-    if (
-      result.length === 0 ||
-      Math.abs(time - (result[result.length - 1] ?? time)) > 100
-    ) {
-      result.push(time);
-    }
-  }
-  return Object.freeze(result);
-}
-
-function contactTimes(
+function contactTimesAroundMinimum(
   clearance: (sample: SolarDiscSample) => number,
   sampleAt: (instantMilliseconds: number) => SolarDiscSample,
   startMilliseconds: number,
+  minimumMilliseconds: number,
   endMilliseconds: number,
-  scanStepMilliseconds: number,
   shouldCancel?: () => boolean,
 ): readonly number[] {
-  const brackets = findSignChangeBrackets(
-    (instant) => {
-      checkCancelled(shouldCancel);
-      return clearance(sampleAt(instant));
-    },
-    startMilliseconds,
-    endMilliseconds,
-    scanStepMilliseconds,
-  );
-  return uniqueSortedTimes(
-    brackets.map((bracket) =>
-      solveBracketedRoot(
-        (instant) => {
-          checkCancelled(shouldCancel);
-          return clearance(sampleAt(instant));
-        },
-        bracket.lower,
-        bracket.upper,
-        ROOT_TIME_TOLERANCE_MILLISECONDS,
-        ROOT_ANGLE_TOLERANCE_RADIANS,
-      ).value,
-    ),
-  );
+  const value = (instant: number): number => {
+    checkCancelled(shouldCancel);
+    return clearance(sampleAt(instant));
+  };
+  const minimumValue = value(minimumMilliseconds);
+  if (minimumValue >= 0) {
+    return Object.freeze([]);
+  }
+  const startValue = value(startMilliseconds);
+  const endValue = value(endMilliseconds);
+  if (startValue <= 0 || endValue <= 0) {
+    return Object.freeze([]);
+  }
+  return Object.freeze([
+    solveBracketedRoot(
+      value,
+      startMilliseconds,
+      minimumMilliseconds,
+      ROOT_TIME_TOLERANCE_MILLISECONDS,
+      ROOT_ANGLE_TOLERANCE_RADIANS,
+    ).value,
+    solveBracketedRoot(
+      value,
+      minimumMilliseconds,
+      endMilliseconds,
+      ROOT_TIME_TOLERANCE_MILLISECONDS,
+      ROOT_ANGLE_TOLERANCE_RADIANS,
+    ).value,
+  ]);
 }
 
 export function solveSolarEclipseGeometry(
@@ -195,8 +271,11 @@ export function solveSolarEclipseGeometry(
   sampleAt: (instantMilliseconds: number) => SolarDiscSample,
   options: Pick<
     LocalSolarEclipseOptions,
+    | "earthRotationPathUncertaintyKilometers"
     | "halfWindowMilliseconds"
+    | "horizontalAccuracyMeters"
     | "scanStepMilliseconds"
+    | "searchBounds"
     | "shouldCancel"
   > = {},
 ): SolarEclipseGeometry | null {
@@ -216,8 +295,21 @@ export function solveSolarEclipseGeometry(
   ) {
     throw new RangeError("Solar-eclipse search window must be positive");
   }
-  const start = candidateMilliseconds - halfWindow;
-  const end = candidateMilliseconds + halfWindow;
+  validateOptionalUncertainty(
+    options.earthRotationPathUncertaintyKilometers,
+    "Earth-rotation path uncertainty",
+  );
+  validateOptionalUncertainty(
+    options.horizontalAccuracyMeters,
+    "Observer horizontal accuracy",
+  );
+  const searchBounds = resolveEventSearchBounds(
+    candidateMilliseconds,
+    halfWindow,
+    options.searchBounds,
+  );
+  const start = searchBounds.startUtcMilliseconds;
+  const end = searchBounds.endUtcMilliseconds;
   const minimum = minimizeBracketed(
     (instant) => {
       checkCancelled(options.shouldCancel);
@@ -228,37 +320,94 @@ export function solveSolarEclipseGeometry(
     ROOT_TIME_TOLERANCE_MILLISECONDS,
   );
   const maximum = sampleAt(minimum.argument);
-  if (externalClearance(maximum) >= 0) {
+  const boundaryUncertaintyRadians =
+    solarEclipseBoundaryUncertaintyRadians(
+      maximum.moon.distanceKilometers,
+      options.earthRotationPathUncertaintyKilometers,
+      options.horizontalAccuracyMeters,
+    );
+  const maximumExternalClearance = externalClearance(maximum);
+  if (maximumExternalClearance > boundaryUncertaintyRadians) {
     return null;
   }
-  const externalTimes = contactTimes(
+  const centerSeparation = separation(maximum);
+  const sunRadius = maximum.sun.angularRadiusRadians;
+  const moonRadius = maximum.moon.angularRadiusRadians;
+  if (
+    Math.abs(maximumExternalClearance) <=
+    boundaryUncertaintyRadians
+  ) {
+    return {
+      classification: "partial",
+      maximum,
+      externalContacts: Object.freeze([maximum]),
+      internalContacts: Object.freeze([]),
+      magnitude: Math.max(
+        0,
+        (sunRadius + moonRadius - centerSeparation) /
+          (2 * sunRadius),
+      ),
+      obscuration: overlapFraction(
+        centerSeparation,
+        sunRadius,
+        moonRadius,
+      ),
+      boundaryUncertaintyRadians,
+      boundaryUncertain: true,
+      uncertainBoundary: "external",
+    };
+  }
+  const externalTimes = contactTimesAroundMinimum(
     externalClearance,
     sampleAt,
     start,
+    minimum.argument,
     end,
-    scanStep,
     options.shouldCancel,
   );
   if (externalTimes.length < 2) {
     throw new RangeError("Solar eclipse external contacts were not bracketed");
   }
-  const hasInternalContacts = internalClearance(maximum) < 0;
-  const internalTimes = hasInternalContacts
-    ? contactTimes(
+  const internalMinimum = minimizeBracketed(
+    (instant) => {
+      checkCancelled(options.shouldCancel);
+      return internalClearance(sampleAt(instant));
+    },
+    externalTimes[0] as number,
+    externalTimes[externalTimes.length - 1] as number,
+    ROOT_TIME_TOLERANCE_MILLISECONDS,
+  );
+  const internalMaximum = sampleAt(internalMinimum.argument);
+  const internalBoundaryUncertaintyRadians =
+    solarEclipseBoundaryUncertaintyRadians(
+      internalMaximum.moon.distanceKilometers,
+      options.earthRotationPathUncertaintyKilometers,
+      options.horizontalAccuracyMeters,
+    );
+  const partialCentralBoundaryUncertain =
+    Math.abs(internalMinimum.value) <=
+    internalBoundaryUncertaintyRadians;
+  const hasInternalContacts = internalMinimum.value < 0;
+  const internalTimes =
+    hasInternalContacts && !partialCentralBoundaryUncertain
+    ? contactTimesAroundMinimum(
         internalClearance,
         sampleAt,
-        start,
-        end,
-        scanStep,
+        externalTimes[0] as number,
+        internalMinimum.argument,
+        externalTimes[externalTimes.length - 1] as number,
         options.shouldCancel,
       )
     : [];
-  if (hasInternalContacts && internalTimes.length < 2) {
-    throw new RangeError("Solar eclipse internal contacts were not bracketed");
+  if (
+    hasInternalContacts &&
+    !partialCentralBoundaryUncertain &&
+    internalTimes.length < 2
+  ) {
+    throw new RangeError(
+      "Solar eclipse internal contacts were not bracketed",
+    );
   }
-  const centerSeparation = separation(maximum);
-  const sunRadius = maximum.sun.angularRadiusRadians;
-  const moonRadius = maximum.moon.angularRadiusRadians;
   return {
     classification: hasInternalContacts
       ? moonRadius >= sunRadius
@@ -272,15 +421,26 @@ export function solveSolarEclipseGeometry(
     internalContacts: Object.freeze(
       internalTimes.slice(0, 1).concat(internalTimes.slice(-1)).map(sampleAt),
     ),
-    magnitude: Math.max(
-      0,
-      (sunRadius + moonRadius - centerSeparation) / (2 * sunRadius),
-    ),
+    magnitude: hasInternalContacts
+      ? moonRadius / sunRadius
+      : Math.max(
+          0,
+          (sunRadius + moonRadius - centerSeparation) /
+            (2 * sunRadius),
+        ),
     obscuration: overlapFraction(
       centerSeparation,
       sunRadius,
       moonRadius,
     ),
+    boundaryUncertaintyRadians:
+      partialCentralBoundaryUncertain
+        ? internalBoundaryUncertaintyRadians
+        : boundaryUncertaintyRadians,
+    boundaryUncertain: partialCentralBoundaryUncertain,
+    uncertainBoundary: partialCentralBoundaryUncertain
+      ? "partial-central"
+      : null,
   };
 }
 
@@ -296,6 +456,12 @@ function contact(
   phase: EventContact["phase"],
   sample: SolarDiscSample,
 ): EventContact {
+  const isInternalContact =
+    phase === "solar-c2" || phase === "solar-c3";
+  const contactPointIsAwayFromMoon =
+    isInternalContact &&
+    sample.moon.angularRadiusRadians >
+      sample.sun.angularRadiusRadians;
   return {
     phase,
     instantUtc: new Date(sample.instantMilliseconds),
@@ -307,7 +473,16 @@ function contact(
       sample.sun.horizontal.altitude +
         sample.sun.angularRadiusRadians >
       0,
-    positionAngleRadians: null,
+    positionAngleRadians:
+      phase === "maximum"
+        ? null
+        : eclipseContactPositionAngleRadians(
+            sample.sun.cirsDirection,
+            sample.moon.cirsDirection,
+            contactPointIsAwayFromMoon
+              ? "away-from-other-center"
+              : "toward-other-center",
+          ),
   };
 }
 
@@ -322,14 +497,17 @@ export function calculateLocalSolarEclipse(
   }
   const sampleAt = (instantMilliseconds: number): SolarDiscSample => {
     const date = new Date(instantMilliseconds);
+    const earthOrientation =
+      options.earthOrientationAt?.(date) ??
+      options.earthOrientation;
     const timeScales = resolveTimeScales(
       date,
-      options.earthOrientation,
+      earthOrientation,
     );
     const apparentOptions = {
       heightMeters: options.heightMeters ?? 0,
-      ...(options.earthOrientation?.polarMotion
-        ? { polarMotion: options.earthOrientation.polarMotion }
+      ...(earthOrientation?.polarMotion
+        ? { polarMotion: earthOrientation.polarMotion }
         : {}),
     };
     return {
@@ -352,10 +530,18 @@ export function calculateLocalSolarEclipse(
       ),
     };
   };
+  const loadedSearchBounds =
+    eventEphemerisSearchBounds(ephemeris);
+  const searchBounds = options.searchBounds
+    ? intersectEventSearchBounds(
+        options.searchBounds,
+        loadedSearchBounds,
+      )
+    : loadedSearchBounds;
   const geometry = solveSolarEclipseGeometry(
     event.canonicalEpochUtc.getTime(),
     sampleAt,
-    options,
+    { ...options, searchBounds },
   );
   if (!geometry) {
     return null;
@@ -363,23 +549,46 @@ export function calculateLocalSolarEclipse(
 
   const external = geometry.externalContacts;
   const internal = geometry.internalContacts;
-  const contacts: EventContact[] = [
-    contact("solar-c1", external[0] as SolarDiscSample),
-    ...(internal[0]
-      ? [contact("solar-c2", internal[0])]
-      : []),
-    contact("maximum", geometry.maximum),
-    ...(internal[1]
-      ? [contact("solar-c3", internal[1])]
-      : []),
-    contact(
-      "solar-c4",
-      external[external.length - 1] as SolarDiscSample,
-    ),
-  ];
-  const visibleCount = contacts.filter(
-    (item) => item.aboveHorizon,
-  ).length;
+  const hasCertainExternalContacts = external.length >= 2;
+  const contacts: EventContact[] = hasCertainExternalContacts
+    ? [
+        contact("solar-c1", external[0] as SolarDiscSample),
+        ...(internal[0]
+          ? [contact("solar-c2", internal[0])]
+          : []),
+        contact("maximum", geometry.maximum),
+        ...(internal[1]
+          ? [contact("solar-c3", internal[1])]
+          : []),
+        contact(
+          "solar-c4",
+          external[
+            external.length - 1
+          ] as SolarDiscSample,
+        ),
+      ]
+    : [contact("maximum", geometry.maximum)];
+  const visibility =
+    geometry.uncertainBoundary === "external"
+      ? classifyBoundaryMaximumVisibility(
+          geometry.maximum.sun.horizontal.altitude +
+            geometry.maximum.sun.angularRadiusRadians,
+        )
+      : classifyEventIntervalVisibility(
+        (external[0] as SolarDiscSample).instantMilliseconds,
+        (
+          external[
+            external.length - 1
+          ] as SolarDiscSample
+        ).instantMilliseconds,
+        (instant) => {
+          const sample = sampleAt(instant);
+          return (
+            sample.sun.horizontal.altitude +
+            sample.sun.angularRadiusRadians
+          );
+        },
+      );
   const observer: EventObserverContext = {
     ...location,
     heightMeters: options.heightMeters ?? 0,
@@ -387,35 +596,50 @@ export function calculateLocalSolarEclipse(
       options.horizontalAccuracyMeters ?? null,
     locationSource: options.locationSource ?? "manual",
   };
+  const maximumDate = new Date(
+    geometry.maximum.instantMilliseconds,
+  );
+  const earthOrientationProvenance =
+    options.earthOrientationProvenanceAt?.(maximumDate) ?? {
+      eopSourceSha256: options.eopSourceSha256 ?? null,
+      eopRetrievedAt: options.eopRetrievedAt ?? null,
+      dut1Quality: options.dut1Quality ?? "outside-coverage",
+      polarMotionQuality:
+        options.polarMotionQuality ?? "outside-coverage",
+    };
   const provenance: EventProvenance = {
     algorithmVersion: "event-solar-v1",
     ephemerisId: ephemeris.id,
     ephemerisSourceSha256: ephemeris.sourceSha256,
+    ...earthOrientationProvenance,
     eopId: options.eopId ?? "caller-or-assumed",
-    deltaTModel: "existing UTC-TAI-TT and caller DUT1",
+    deltaTModel:
+      options.deltaTModel ??
+      "existing UTC-TAI-TT and caller DUT1",
     lunarRadiusModel: "mean-spherical-limb",
     limbProfileId: null,
   };
   const timingUncertaintySeconds =
     options.timingUncertaintySeconds ?? null;
+  const maximumEarthOrientation =
+    options.earthOrientationAt?.(maximumDate) ??
+    options.earthOrientation;
+  const timeScaleNotices = eventTimeScaleNotices(
+    maximumDate,
+    maximumEarthOrientation,
+  );
   return {
-    event: {
-      ...event,
-      globalClassification: geometry.classification,
-      title:
-        geometry.classification === "total"
-          ? "皆既日食"
-          : geometry.classification === "annular"
-            ? "金環日食"
-            : "部分日食",
-    },
+    event,
+    localClassification: geometry.classification,
     observer,
-    visibility:
-      visibleCount === 0
-        ? "below-horizon"
-        : visibleCount === contacts.length
-          ? "fully-visible"
-          : "partly-visible",
+    boundaryUncertain: geometry.boundaryUncertain,
+    boundaryUncertaintyReason:
+      geometry.uncertainBoundary === "external"
+        ? "solar-occurrence"
+        : geometry.uncertainBoundary === "partial-central"
+          ? "solar-central-classification"
+          : null,
+    visibility,
     contacts: Object.freeze(contacts),
     maximum: contacts.find((item) => item.phase === "maximum") as EventContact,
     magnitude: geometry.magnitude,
@@ -423,18 +647,29 @@ export function calculateLocalSolarEclipse(
     uncertainty: {
       tier: "uncertain",
       timingSeconds: timingUncertaintySeconds,
-      pathKilometers: 2,
+      pathKilometers:
+        BASE_PATH_UNCERTAINTY_KILOMETERS +
+        (options.earthRotationPathUncertaintyKilometers ??
+          0) +
+        (options.horizontalAccuracyMeters ?? 0) / 1_000,
       observerLocationMeters:
         options.horizontalAccuracyMeters ?? null,
       dominantContributors: Object.freeze([
         "平均月縁（地形未使用）",
-        ...(options.earthOrientation?.dut1Seconds === undefined
+        ...(maximumEarthOrientation?.dut1Seconds === undefined
           ? ["UT1−UTCを0秒と仮定"]
           : []),
         ...(options.horizontalAccuracyMeters === null ||
         options.horizontalAccuracyMeters === undefined
           ? ["観測地点の水平精度が不明"]
-          : []),
+          : ["観測地点の水平精度を境界帯へ線形加算"]),
+        ...(options.earthRotationPathUncertaintyKilometers === null ||
+        options.earthRotationPathUncertaintyKilometers === undefined
+          ? []
+          : ["ΔTによる地球回転の経路不確かさを境界帯へ線形加算"]),
+        "実月縁地形±6 km・既知の観測地点水平精度・地球回転経路を線形加算した総境界幅",
+        ...timeScaleNotices.dominantContributors,
+        ...(options.timeScaleContributors ?? []),
       ]),
     },
     provenance,
@@ -442,6 +677,17 @@ export function calculateLocalSolarEclipse(
       "平均月縁による幾何学的予報です。",
       "地形、建物、雲、視程は含みません。",
       "太陽が地平線に近い段階は大気差の影響を受けます。",
+      ...(geometry.uncertainBoundary === "external"
+        ? [
+            "最接近が局地日食の保守的な物理境界帯内のため、発生有無を確定せず最接近時刻のみを示します。",
+          ]
+        : geometry.uncertainBoundary === "partial-central"
+          ? [
+              "最接近が部分食と中心食の保守的な物理境界帯内のため、局地分類を確定せず中心食接触は示しません。",
+            ]
+          : []),
+      ...timeScaleNotices.warnings,
+      ...(options.timeScaleWarnings ?? []),
     ]),
   };
 }

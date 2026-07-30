@@ -65,7 +65,7 @@ function refractionLabel(star: StarViewModel) {
 function annualParallaxLabel(star: StarViewModel) {
   switch (star.annualParallaxMode) {
     case "truncated-vsop2000-heliocentric-earth":
-      return "適用（VSOP2000 100項地球暦）";
+      return "適用（VSOP2000 200項地球暦）";
     case "jpl-approximate-earth-moon-barycenter":
       return "適用（旧近似地球暦）";
     case "caller-observer-position":
@@ -93,7 +93,7 @@ function diurnalAberrationLabel(star: StarViewModel) {
 function solarLightDeflectionLabel(star: StarViewModel) {
   switch (star.solarLightDeflectionMode) {
     case "truncated-vsop2000-heliocentric-earth":
-      return "適用（VSOP2000 100項地球暦）";
+      return "適用（VSOP2000 200項地球暦）";
     case "jpl-approximate-earth-moon-barycenter":
       return "適用（旧近似地球暦）";
     case "caller-sun-observer-geometry":
@@ -176,6 +176,23 @@ function taiMinusUtcLabel(timeScales: ResolvedTimeScales) {
   return `${signedSeconds(timeScales.taiMinusUtcSeconds, 3)}（${source}）`;
 }
 
+function positionAccuracySummary(
+  star: StarViewModel,
+  earthOrientationEstimate: IersEarthOrientationEstimateV1 | null,
+  timeScales: ResolvedTimeScales | null,
+) {
+  if (star.calculationModel !== "v2") {
+    return "簡易モデルのため、秒角単位の位置精度は想定していません。";
+  }
+  if (
+    earthOrientationEstimate &&
+    timeScales?.dut1Source.startsWith("iers-")
+  ) {
+    return "星表の格納分解能から見た目安として、IERS収録期間内では概ね1〜数秒角級です（全恒星への保証値ではありません）。これは星表・真空計算部分の目安で、地点・時計・実際の大気との差は別です。";
+  }
+  return "IERS収録外または未取得です。DUT1=0秒・xp/yp=0近似を使います。現行の整数うるう秒UTCが維持される期間では、DUT1だけで時角に最大約13.5秒角相当が加わり得ます。1972年以前と将来のUTC制度は別の時刻系近似も含みます。これは星表・真空計算部分の目安で、地点・時計・実際の大気との差は別です。";
+}
+
 export function StarDetails({
   earthOrientationEstimate = null,
   star,
@@ -202,6 +219,14 @@ export function StarDetails({
           この日時と地点では地平線下です
         </p>
       ) : null}
+      <p className="star-details__accuracy-note">
+        <strong>位置精度の目安</strong>
+        {positionAccuracySummary(
+          star,
+          earthOrientationEstimate,
+          timeScales,
+        )}
+      </p>
 
       <dl className="star-details__metrics">
         <div>

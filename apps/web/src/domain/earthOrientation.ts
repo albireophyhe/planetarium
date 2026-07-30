@@ -2,6 +2,8 @@ import { ARCSECONDS_TO_RADIANS } from "./precision/constants";
 import { dateToMjdUtc } from "./dut1";
 
 const MICRO_UNITS_PER_UNIT = 1_000_000;
+const MILLISECONDS_PER_DAY = 86_400_000;
+const UNIX_EPOCH_MJD = 40_587;
 const MAX_CHUNK_RECORDS = 4_096;
 const MAX_DUT1_MICROSECONDS = MICRO_UNITS_PER_UNIT;
 const MAX_POLAR_MOTION_MICROARCSECONDS =
@@ -12,6 +14,9 @@ export type EarthOrientationRecordStatus = "I" | "P";
 export type EarthOrientationEstimateSource =
   | "observed"
   | "predicted";
+export type EarthOrientationEstimateQuality =
+  | EarthOrientationEstimateSource
+  | "mixed";
 
 export type EarthOrientationDailyRecord = readonly [
   mjdUtc: number,
@@ -29,6 +34,12 @@ export interface Dut1EarthOrientationEstimate {
   readonly seconds: number;
   readonly reportedErrorSeconds: number;
   readonly source: EarthOrientationEstimateSource;
+  /**
+   * Quality of every daily sample that contributed to this estimate.
+   * `source` remains conservative and reports mixed interpolation as
+   * predicted for backward compatibility.
+   */
+  readonly quality?: EarthOrientationEstimateQuality;
 }
 
 export interface PolarMotionEstimate {
@@ -38,11 +49,29 @@ export interface PolarMotionEstimate {
   readonly ypReportedErrorRadians: number;
   readonly source: EarthOrientationEstimateSource;
   readonly usesPrediction: boolean;
+  /**
+   * Quality of every non-negligible interpolation support sample.
+   * `source` remains conservative and reports mixed interpolation as
+   * predicted for backward compatibility.
+   */
+  readonly quality?: EarthOrientationEstimateQuality;
 }
 
 export interface IersEarthOrientationEstimateV1 {
   readonly dut1: Dut1EarthOrientationEstimate;
   readonly polarMotion: PolarMotionEstimate;
+}
+
+export interface IersEarthOrientationSnapshotV1 {
+  readonly startUtcMilliseconds: number;
+  readonly endUtcMilliseconds: number;
+  /** Bundled source digest, or null for a source-agnostic local snapshot. */
+  readonly sourceSha256: string | null;
+  /** Bundled source retrieval timestamp, or null when unknown. */
+  readonly retrievedAt: string | null;
+  readonly lookup: (
+    date: Date
+  ) => IersEarthOrientationEstimateV1 | null;
 }
 
 export interface EarthOrientationObservableCoverageV1 {
@@ -77,6 +106,10 @@ export interface IersEarthOrientationServiceV1 {
   readonly lookup: (
     date: Date
   ) => Promise<IersEarthOrientationEstimateV1 | null>;
+  readonly loadSnapshot: (
+    startUtc: Date,
+    endUtc: Date
+  ) => Promise<IersEarthOrientationSnapshotV1>;
 }
 
 export interface EncodedEarthOrientationChunkV1 {
@@ -109,6 +142,16 @@ export interface EarthOrientationChunkDescriptorV1 {
 export type EarthOrientationChunkLoader = (
   descriptor: EarthOrientationChunkDescriptorV1
 ) => Promise<EncodedEarthOrientationChunkV1>;
+
+export interface ChunkedEarthOrientationAccessV1 {
+  readonly lookup: (
+    date: Date
+  ) => Promise<IersEarthOrientationEstimateV1 | null>;
+  readonly loadSnapshot: (
+    startUtc: Date,
+    endUtc: Date
+  ) => Promise<IersEarthOrientationSnapshotV1>;
+}
 
 const CHUNK_KEYS = new Set([
   "schemaVersion",
@@ -387,11 +430,14 @@ function interpolateDut1(
 ): Dut1EarthOrientationEstimate | null {
   const fraction = mjd - start[0];
   if (exactIntegerSample(mjd)) {
+    const quality =
+      start[6] === "I" ? "observed" : "predicted";
     return Object.freeze({
       seconds: start[7] / MICRO_UNITS_PER_UNIT,
       reportedErrorSeconds:
         start[8] / MICRO_UNITS_PER_UNIT,
-      source: start[6] === "I" ? "observed" : "predicted"
+      source: quality,
+      quality
     });
   }
   if (
@@ -409,6 +455,12 @@ function interpolateDut1(
         MICRO_UNITS_PER_UNIT
       : 0;
   const adjustedEnd = end[7] - leapStep;
+  const quality: EarthOrientationEstimateQuality =
+    start[6] === end[6]
+      ? start[6] === "I"
+        ? "observed"
+        : "predicted"
+      : "mixed";
   return Object.freeze({
     seconds:
       (start[7] + fraction * (adjustedEnd - start[7])) /
@@ -418,7 +470,8 @@ function interpolateDut1(
     source:
       start[6] === "I" && end[6] === "I"
         ? "observed"
-        : "predicted"
+        : "predicted",
+    quality
   });
 }
 
@@ -429,6 +482,8 @@ function interpolatePolarMotion(
 ): PolarMotionEstimate | null {
   if (exactIntegerSample(mjd)) {
     const record = records[exactIndex]!;
+    const quality =
+      record[1] === "I" ? "observed" : "predicted";
     return Object.freeze({
       xpRadians:
         (record[2] / MICRO_UNITS_PER_UNIT) *
@@ -442,8 +497,9 @@ function interpolatePolarMotion(
       ypReportedErrorRadians:
         (record[5] / MICRO_UNITS_PER_UNIT) *
         ARCSECONDS_TO_RADIANS,
-      source: record[1] === "I" ? "observed" : "predicted",
-      usesPrediction: record[1] === "P"
+      source: quality,
+      usesPrediction: record[1] === "P",
+      quality
     });
   }
   if (records.length < 4) return null;
@@ -486,6 +542,17 @@ function interpolatePolarMotion(
       Math.abs(weights[index]!) > Number.EPSILON * 8 &&
       record[1] === "P"
   );
+  const usesObservation = support.some(
+    (record, index) =>
+      Math.abs(weights[index]!) > Number.EPSILON * 8 &&
+      record[1] === "I"
+  );
+  const quality: EarthOrientationEstimateQuality =
+    usesPrediction
+      ? usesObservation
+        ? "mixed"
+        : "predicted"
+      : "observed";
   const microarcsecondsToRadians =
     ARCSECONDS_TO_RADIANS / MICRO_UNITS_PER_UNIT;
   return Object.freeze({
@@ -496,7 +563,8 @@ function interpolatePolarMotion(
     ypReportedErrorRadians:
       errorEnvelope(5) * microarcsecondsToRadians,
     source: usesPrediction ? "predicted" : "observed",
-    usesPrediction
+    usesPrediction,
+    quality
   });
 }
 
@@ -562,14 +630,15 @@ function safeDescriptorPath(file: string): boolean {
 }
 
 /**
- * Create a lazy bundled lookup. Fractional UTC times load the one or two
- * chunks needed for the 4-point PM support window; exact daily samples load
- * only their containing chunk.
+ * Create lazy asynchronous access and immutable synchronous snapshots over
+ * bundled EOP chunks. A snapshot validates and loads every chunk needed by
+ * the requested inclusive UTC interval, including the adjacent daily samples
+ * required by four-point polar-motion interpolation, before it resolves.
  */
-export function createChunkedEarthOrientationLookup(
+export function createChunkedEarthOrientationAccess(
   descriptors: readonly EarthOrientationChunkDescriptorV1[],
   loadChunk: EarthOrientationChunkLoader
-): (date: Date) => Promise<IersEarthOrientationEstimateV1 | null> {
+): ChunkedEarthOrientationAccessV1 {
   if (descriptors.length === 0) {
     throw new RangeError(
       "Earth-orientation chunk descriptors must not be empty"
@@ -642,31 +711,43 @@ export function createChunkedEarthOrientationLookup(
     return high;
   };
 
-  return async (
-    date: Date
-  ): Promise<IersEarthOrientationEstimateV1 | null> => {
-    const mjd = dateToMjdUtc(date);
+  const supportRangeForMjd = (
+    mjd: number
+  ): readonly [startMjdUtc: number, endMjdUtc: number] | null => {
     const firstMjd = ordered[0]!.startMjdUtc;
     const lastMjd = ordered.at(-1)!.endMjdUtc;
-    if (mjd === null || mjd < firstMjd || mjd > lastMjd) {
+    if (mjd < firstMjd || mjd > lastMjd) return null;
+    const day = Math.floor(mjd);
+    if (exactIntegerSample(mjd)) {
+      return [Math.round(mjd), Math.round(mjd)];
+    }
+    if (day >= lastMjd || lastMjd - firstMjd + 1 < 4) {
       return null;
     }
-    const day = Math.floor(mjd);
-    const exact = exactIntegerSample(mjd);
-    if (!exact && day >= lastMjd) return null;
-    const supportStart = exact
-      ? day
-      : Math.max(firstMjd, Math.min(day - 1, lastMjd - 3));
-    const supportEnd = exact ? day : supportStart + 3;
+    const supportStart = Math.max(
+      firstMjd,
+      Math.min(day - 1, lastMjd - 3)
+    );
+    return [supportStart, supportStart + 3];
+  };
+
+  const loadRecords = async (
+    supportStart: number,
+    supportEnd: number
+  ): Promise<readonly EarthOrientationDailyRecord[]> => {
     const firstDescriptorIndex =
       descriptorIndexForDay(supportStart);
     const lastDescriptorIndex =
       descriptorIndexForDay(supportEnd);
     if (
       firstDescriptorIndex < 0 ||
-      lastDescriptorIndex < firstDescriptorIndex
+      lastDescriptorIndex < firstDescriptorIndex ||
+      ordered[firstDescriptorIndex]!.endMjdUtc < supportStart ||
+      ordered[lastDescriptorIndex]!.endMjdUtc < supportEnd
     ) {
-      return null;
+      throw new RangeError(
+        "Earth-orientation support range is not covered by the manifest"
+      );
     }
     const loaded = await Promise.all(
       ordered
@@ -679,6 +760,157 @@ export function createChunkedEarthOrientationLookup(
         (record) =>
           record[0] >= supportStart && record[0] <= supportEnd
       );
+    if (
+      supportRecords.length !== supportEnd - supportStart + 1
+    ) {
+      throw new RangeError(
+        "Loaded Earth-orientation chunks do not cover the support range"
+      );
+    }
+    return supportRecords;
+  };
+
+  const lookup = async (
+    date: Date
+  ): Promise<IersEarthOrientationEstimateV1 | null> => {
+    const mjd = dateToMjdUtc(date);
+    if (mjd === null) return null;
+    const supportRange = supportRangeForMjd(mjd);
+    if (!supportRange) return null;
+    const supportRecords = await loadRecords(...supportRange);
     return createEarthOrientationLookup(supportRecords)(date);
   };
+
+  const loadSnapshot = async (
+    startUtc: Date,
+    endUtc: Date
+  ): Promise<IersEarthOrientationSnapshotV1> => {
+    const startMjd = dateToMjdUtc(startUtc);
+    const endMjd = dateToMjdUtc(endUtc);
+    if (startMjd === null || endMjd === null) {
+      throw new TypeError(
+        "Earth-orientation snapshot bounds must be valid Dates"
+      );
+    }
+    const startUtcMilliseconds = startUtc.getTime();
+    const endUtcMilliseconds = endUtc.getTime();
+    if (startUtcMilliseconds > endUtcMilliseconds) {
+      throw new RangeError(
+        "Earth-orientation snapshot start must not follow its end"
+      );
+    }
+
+    const firstMjd = ordered[0]!.startMjdUtc;
+    const lastMjd = ordered.at(-1)!.endMjdUtc;
+    const firstUtcMilliseconds =
+      (firstMjd - UNIX_EPOCH_MJD) * MILLISECONDS_PER_DAY;
+    const lastUtcMilliseconds =
+      (lastMjd - UNIX_EPOCH_MJD) * MILLISECONDS_PER_DAY;
+    const overlapStart = Math.max(
+      startUtcMilliseconds,
+      firstUtcMilliseconds
+    );
+    const overlapEnd = Math.min(
+      endUtcMilliseconds,
+      lastUtcMilliseconds
+    );
+
+    let localLookup:
+      | ((
+          date: Date
+        ) => IersEarthOrientationEstimateV1 | null)
+      | null = null;
+    if (overlapStart <= overlapEnd) {
+      const candidateMilliseconds = new Set<number>([
+        overlapStart,
+        overlapEnd
+      ]);
+      if (overlapStart < overlapEnd) {
+        candidateMilliseconds.add(overlapStart + 1);
+        candidateMilliseconds.add(overlapEnd - 1);
+      }
+      const overlapStartMjd = dateToMjdUtc(
+        new Date(overlapStart)
+      )!;
+      const overlapEndMjd = dateToMjdUtc(
+        new Date(overlapEnd)
+      )!;
+      const firstExactDay = Math.ceil(overlapStartMjd);
+      const lastExactDay = Math.floor(overlapEndMjd);
+      if (firstExactDay <= lastExactDay) {
+        candidateMilliseconds.add(
+          (firstExactDay - UNIX_EPOCH_MJD) *
+            MILLISECONDS_PER_DAY
+        );
+        candidateMilliseconds.add(
+          (lastExactDay - UNIX_EPOCH_MJD) *
+            MILLISECONDS_PER_DAY
+        );
+      }
+      let supportStart = Number.POSITIVE_INFINITY;
+      let supportEnd = Number.NEGATIVE_INFINITY;
+      for (const milliseconds of candidateMilliseconds) {
+        const candidateMjd = dateToMjdUtc(
+          new Date(milliseconds)
+        );
+        const range =
+          candidateMjd === null
+            ? null
+            : supportRangeForMjd(candidateMjd);
+        if (range) {
+          supportStart = Math.min(supportStart, range[0]);
+          supportEnd = Math.max(supportEnd, range[1]);
+        }
+      }
+      if (
+        Number.isFinite(supportStart) &&
+        Number.isFinite(supportEnd)
+      ) {
+        const records = await loadRecords(
+          supportStart,
+          supportEnd
+        );
+        localLookup = createEarthOrientationLookup(records);
+      }
+    }
+
+    const snapshotLookup = Object.freeze(
+      (date: Date): IersEarthOrientationEstimateV1 | null => {
+        const milliseconds =
+          date instanceof Date ? date.getTime() : Number.NaN;
+        if (
+          !Number.isFinite(milliseconds) ||
+          milliseconds < startUtcMilliseconds ||
+          milliseconds > endUtcMilliseconds
+        ) {
+          return null;
+        }
+        return localLookup?.(date) ?? null;
+      }
+    );
+    return Object.freeze({
+      startUtcMilliseconds,
+      endUtcMilliseconds,
+      sourceSha256: null,
+      retrievedAt: null,
+      lookup: snapshotLookup
+    });
+  };
+
+  return Object.freeze({ lookup, loadSnapshot });
+}
+
+/**
+ * Backward-compatible lazy lookup. Fractional UTC times load the one or two
+ * chunks needed for the four-point polar-motion support window; exact daily
+ * samples load only their containing chunk.
+ */
+export function createChunkedEarthOrientationLookup(
+  descriptors: readonly EarthOrientationChunkDescriptorV1[],
+  loadChunk: EarthOrientationChunkLoader
+): (date: Date) => Promise<IersEarthOrientationEstimateV1 | null> {
+  return createChunkedEarthOrientationAccess(
+    descriptors,
+    loadChunk
+  ).lookup;
 }

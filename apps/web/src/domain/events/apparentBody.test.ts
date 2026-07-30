@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { resolveTimeScales } from "../precision";
 import type {
   EphemerisState,
   EventEphemerisProvider,
@@ -8,6 +9,7 @@ import {
   angularSeparationRadians,
   calculateApparentBody,
 } from "./apparentBody";
+import { eventEphemerisSearchBounds } from "./ephemerisCoverage";
 
 const AU_KM = 149_597_870.7;
 
@@ -21,6 +23,11 @@ function state(
 const STATIC_EPHEMERIS: EventEphemerisProvider = {
   id: "synthetic",
   sourceSha256: "0".repeat(64),
+  stateCoverage: {
+    startJulianDateTdb: 2_415_020.5,
+    endJulianDateTdb: 2_488_434.5,
+    endIsIncluded: true,
+  },
   state(tdbJulianDate: number): GeocentricEphemerisState {
     return {
       tdbJulianDate,
@@ -90,6 +97,45 @@ describe("finite-distance apparent bodies", () => {
       -Math.PI / 2,
     );
     expect(result.horizontal.altitude).toBeLessThanOrEqual(Math.PI / 2);
+  });
+
+  it("keeps retarded Sun states inside the loaded start coverage", () => {
+    const stateDates: number[] = [];
+    const ephemeris: EventEphemerisProvider = {
+      ...STATIC_EPHEMERIS,
+      stateCoverage: {
+        startJulianDateTdb: 2_451_544.5,
+        endJulianDateTdb: 2_451_545.5,
+        endIsIncluded: true,
+      },
+      state(tdbJulianDate: number): GeocentricEphemerisState {
+        stateDates.push(tdbJulianDate);
+        return STATIC_EPHEMERIS.state(tdbJulianDate);
+      },
+    };
+    const start = new Date(
+      eventEphemerisSearchBounds(
+        ephemeris,
+      ).startUtcMilliseconds,
+    );
+    const timeScales = resolveTimeScales(start);
+
+    calculateApparentBody(
+      ephemeris,
+      "sun",
+      timeScales.ttJulianDate,
+      timeScales.ut1JulianDate,
+      {
+        latitude: 0,
+        longitude: 0,
+        timeZone: "UTC",
+      },
+    );
+
+    expect(stateDates.length).toBeGreaterThan(1);
+    expect(Math.min(...stateDates)).toBeGreaterThanOrEqual(
+      ephemeris.stateCoverage.startJulianDateTdb,
+    );
   });
 
   it("computes stable small-angle separation", () => {

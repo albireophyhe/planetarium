@@ -9,16 +9,17 @@
 
 ## 現在の状態
 
-恒星中心のMVPと初回50回の改善ループを完了し、現在は精度・時間再生・
-3D天球の第2改善フェーズを進めています。恒星8,404件、固有名49件、
+恒星中心のMVPと初回50回の改善ループ、精度・時間再生・3D天球の
+第2改善フェーズを完了し、現在は日食・月食・明るい恒星の月掩蔽を
+端末内で予報するフェーズを進めています。恒星8,404件、固有名49件、
 主要星座10件を同梱し、WebとmacOSで同じ計算仕様と検証値を使います。
 精密モデルv2（年周視差・太陽重力光偏向・年周/日周光行差・IERS DUT1／極運動）、
 順逆・速度付きの時間再生、任意の3D天球、標準大気差、
 選択星の前後3時間の軌跡、同じ地球姿勢を使う太陽高度と薄明、
 同梱IERS地球姿勢データ、日本語タイポグラフィを
 実装済みです。太陽位置と既定の地球位置・速度は、共有する
-VSOP2000由来100項地球暦を使い、1900〜2100年の約29万時点走査と
-未改変SOFAの8ケースに対して全経路5秒角未満を契約にしています。太陽の
+VSOP2000由来200項地球暦を使い、1900〜2100年の約29万時点走査と
+未改変SOFAの8ケースに対して全経路2秒角未満を契約にしています。太陽の
 水平位置にはWGS84観測地点による日周視差も反映し、見かけ赤経・赤緯は
 比較可能な地心値として保持します。
 
@@ -26,6 +27,12 @@ VSOP2000由来100項地球暦を使い、1900〜2100年の約29万時点走査�
 - [ユーザーストーリーと優先度](docs/product/user-stories.md)
 - [精度・時間・3Dフェーズ実装計画](docs/plans/precision-interaction-plan.md)
 - [精度・時間・3Dフェーズのユーザーストーリー](docs/product/user-stories-phase2.md)
+- [食・掩蔽予報フェーズ実装計画](docs/plans/event-forecast-plan.md)
+- [食・掩蔽予報フェーズのユーザーストーリー](docs/product/user-stories-events.md)
+- [食・掩蔽の共有暦に関する技術判断](docs/decisions/0002-local-event-ephemeris.md)
+- [食・掩蔽予報の独立精度照合](docs/accuracy/event-forecast-validation.md)
+- [恒星位置の精度検証と誤差予算](docs/accuracy/star-position-validation.md)
+- [食・掩蔽候補索引の再現方法](docs/data/event-candidates.md)
 - [天文計算モデル](docs/astronomy-model.md)
 - [天文計算モデル v2](docs/astronomy-model-v2.md)
 - [自動・手動検証方針](docs/testing.md)
@@ -37,7 +44,7 @@ VSOP2000由来100項地球暦を使い、1900〜2100年の約29万時点走査�
 - [リリースチェックリスト](docs/release-checklist.md)
 - [データの出典と再配布上の注意](shared/catalog/README.md)
 - [IERS地球姿勢データの出典・再現・補間契約](shared/eop/README.md)
-- [共有100項地球暦の再現・精度契約](shared/ephemeris/README.md)
+- [共有200項地球暦の再現・精度契約](shared/ephemeris/README.md)
 - [初期実装計画（置換済み）](docs/plans/initial-plan.md)
 - [プラットフォーム構成の判断](docs/decisions/0001-cross-platform-architecture.md)
 - [改善ログ](docs/progress/iterations.md)
@@ -68,6 +75,16 @@ asdfを使わない場合も、`.node-version`と同じNode.jsを利用してく
 なった場合は、通信と副作用を確認した完全なpackage名・versionだけを
 `allowScripts`へ追加します。
 
+食・掩蔽候補索引を固定したJPL DE442sから再生成・照合する場合は、
+配布元kernelを明示します。通常のビルドや実行時にkernel本体は不要です。
+
+```sh
+ASDF_NODEJS_VERSION=24.18.0 npm run data:build:events -- \
+  --source /path/to/de442s.bsp
+ASDF_NODEJS_VERSION=24.18.0 npm run data:check:events -- \
+  --source /path/to/de442s.bsp
+```
+
 ## Web版
 
 ```sh
@@ -97,7 +114,7 @@ ASDF_NODEJS_VERSION=24.18.0 npm run icons:reproduce
 
 ### Webフォントの再生成
 
-Web版はIBM Plex Sans JP 3.0.0のRegular/SemiBoldを、現在のUIと同梱星表で必要な文字へサブセットしたWOFF2を配布します。通常のビルドにはPythonは不要です。UIコピーまたは星表の表示名を変更した場合だけ、Python 3.12.3の隔離環境で再生成します。
+Web版はIBM Plex Sans JP 3.0.0のRegular/SemiBoldを、初期UI・同梱星表用のbase、天文現象用のevent supplement、ヘルプ用のhelp supplementへ分けたWOFF2として配布します。2つのsupplementは各機能の遅延CSSから読み込まれるため、初期転送には含まれません。通常のビルドにはPythonは不要です。UIコピー、星表・現象候補の表示名、ヘルプ本文を変更した場合だけ、Python 3.12.3の隔離環境で再生成します。
 
 ```sh
 ASDF_PYTHON_VERSION=3.12.3 python3 --version
@@ -109,7 +126,7 @@ ASDF_NODEJS_VERSION=24.18.0 npm run web:build
 ASDF_NODEJS_VERSION=24.18.0 npm run web:budget
 ```
 
-`--check`はリポジトリを変更せず、同じ入力から一時生成したバイト列と配布WOFF2を比較します。同時に、文字カバレッジ、Regular 400／SemiBold 600、OFLのライセンスメタデータ、Reserved Font Nameの改名、個別ファイル予算も検証します。基準環境と手元のPythonまたはFontToolsの版が異なる場合は明示的に失敗します。
+`--check`はリポジトリを変更せず、同じ入力から一時生成したバイト列と6個の配布WOFF2を比較します。同時に、baseと各supplementで重複しない文字カバレッジ、3つのCSS内の生成済み`@font-face`と`unicode-range`、Regular 400／SemiBold 600、OFLのライセンスメタデータ、Reserved Font Nameの改名、個別ファイル予算も検証します。event/helpは単独で開けるため、両方だけで使う文字は各supplementへ意図的に収録します。基準環境と手元のPythonまたはFontToolsの版が異なる場合は明示的に失敗します。
 
 CIも同じ固定環境で`--check`を実行します。ライセンスと第三者由来物は[Third-party notices](THIRD_PARTY_NOTICES.md)にまとめています。Web配布物にはOFL 1.1全文も同梱します。
 
@@ -136,3 +153,13 @@ Swiftテストを確認します。
 ## 表示の意味
 
 画面の「地平線上」は幾何学的な高度が0度以上という意味です。実際の肉眼可視性は、昼光、薄明、天候、光害、地形、建物、視力にも左右されます。本アプリは航法、測地、望遠鏡の自動指向には使用できません。
+
+恒星位置の式は収録した共有SOFA検証fixtureで最大数ミリ秒角以内に一致しますが、BSC5P星表の
+格納分解能と品質注記、既定の短縮地球暦、時刻・地点・大気が実用精度を制限します。
+IERS EOP収録内の現在付近では、星表の格納分解能から概ね1〜数秒角級を目安とし、
+全恒星への保証値やサブ秒角精度は主張しません。EOP収録外ではDUT1=0秒・
+xp/yp=0近似を使います。現行の整数うるう秒UTCが維持される期間では、
+DUT1だけで時角へ最大約13.5秒角相当が加わり得ますが、1972年以前と将来の
+UTC制度は別の時刻系近似も含みます。詳細は
+[`docs/accuracy/star-position-validation.md`](docs/accuracy/star-position-validation.md)
+を参照してください。

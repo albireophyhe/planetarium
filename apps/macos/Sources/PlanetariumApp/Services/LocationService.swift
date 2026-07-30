@@ -18,14 +18,20 @@ enum LocationServiceError: LocalizedError {
     }
 }
 
+struct DeviceLocationFix: Hashable, Sendable {
+    let latitude: Double
+    let longitude: Double
+    let horizontalAccuracyMeters: Double?
+}
+
 @MainActor
 final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate {
     private var manager: CLLocationManager?
-    private var completion: ((Result<CLLocationCoordinate2D, Error>) -> Void)?
+    private var completion: ((Result<DeviceLocationFix, Error>) -> Void)?
 
     /// Creates and requests from CLLocationManager only after an explicit user action.
     func requestOnce(
-        completion: @escaping (Result<CLLocationCoordinate2D, Error>) -> Void
+        completion: @escaping (Result<DeviceLocationFix, Error>) -> Void
     ) {
         self.completion = completion
 
@@ -36,7 +42,7 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
 
         let manager = CLLocationManager()
         manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyKilometer
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         self.manager = manager
 
         switch manager.authorizationStatus {
@@ -68,18 +74,33 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
         _ manager: CLLocationManager,
         didUpdateLocations locations: [CLLocation]
     ) {
-        guard let coordinate = locations.last?.coordinate else {
+        guard let location = locations.last else {
             finish(.failure(LocationServiceError.unavailable))
             return
         }
-        finish(.success(coordinate))
+        let coordinate = location.coordinate
+        let horizontalAccuracy =
+            location.horizontalAccuracy.isFinite
+                && location.horizontalAccuracy >= 0
+                ? location.horizontalAccuracy
+                : nil
+        finish(
+            .success(
+                DeviceLocationFix(
+                    latitude: coordinate.latitude,
+                    longitude: coordinate.longitude,
+                    horizontalAccuracyMeters:
+                        horizontalAccuracy
+                )
+            )
+        )
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         finish(.failure(LocationServiceError.failed(error.localizedDescription)))
     }
 
-    private func finish(_ result: Result<CLLocationCoordinate2D, Error>) {
+    private func finish(_ result: Result<DeviceLocationFix, Error>) {
         let callback = completion
         completion = nil
         manager?.delegate = nil

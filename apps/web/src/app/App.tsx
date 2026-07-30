@@ -7,6 +7,8 @@ import {
   SunsetIcon,
 } from "lucide-react";
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -22,6 +24,7 @@ import {
   formatZonedDateTime,
   formatZonedDateTimeInput,
   horizontalToProjection,
+  loadIersEarthOrientationSnapshot,
   namedStarByHR,
   namedStars,
   radiansToDegrees,
@@ -32,7 +35,6 @@ import {
   type IersEarthOrientationEstimateV1,
   type TwilightPhase,
 } from "../domain";
-import { HelpDialog } from "../features/help/HelpDialog";
 import { LocationDialog } from "../features/location/LocationDialog";
 import { LayerPanel } from "../features/settings/LayerPanel";
 import {
@@ -44,6 +46,8 @@ import { StarExplorer } from "../features/stars/StarExplorer";
 import { TimeControls } from "../features/time/TimeControls";
 import { usePlaybackClock } from "../features/time/usePlaybackClock";
 import { SegmentedControl } from "../ui/SegmentedControl";
+import { Dialog } from "../ui/Dialog";
+import { LazyFeatureErrorBoundary } from "../ui/LazyFeatureErrorBoundary";
 import type {
   LayerSettings,
   ObserverLocation,
@@ -67,6 +71,20 @@ import { calculateSelectedStarTrack } from "./selectedStarTrack";
 import { timeScaleAssumptionText } from "./timeScaleAssumption";
 import { useIersEarthOrientation } from "./useIersEarthOrientation";
 import { usePrecisionCatalog } from "./usePrecisionCatalog";
+
+const LazyEventForecastPanel = lazy(() =>
+  import("../features/events/EventForecastPanel").then(
+    ({ EventForecastPanel }) => ({
+      default: EventForecastPanel,
+    }),
+  ),
+);
+
+const LazyHelpDialog = lazy(() =>
+  import("../features/help/HelpDialog").then(({ HelpDialog }) => ({
+    default: HelpDialog,
+  })),
+);
 
 const DEFAULT_CITY = cities.find((city) => city.id === "tokyo") ?? cities[0];
 
@@ -164,8 +182,11 @@ function playbackTimeText(date: Date, timeZone: string) {
 
 function cityToLocation(): ObserverLocation {
   return {
+    heightMeters: 0,
+    horizontalAccuracyMeters: null,
     id: DEFAULT_CITY.id,
     latitude: DEFAULT_CITY.latitude,
+    locationSource: "bundled-city",
     longitude: DEFAULT_CITY.longitude,
     name: DEFAULT_CITY.nameJa,
     timeZone: DEFAULT_CITY.timeZone,
@@ -225,11 +246,17 @@ export function App() {
   });
   const [date, setDate] = useState(initialClock.date);
   const [drawError, setDrawError] = useState<DrawError | null>(null);
+  const [helpActivated, setHelpActivated] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [layers, setLayers] = useState<LayerSettings>(DEFAULT_LAYERS);
   const [location, setLocation] = useState<ObserverLocation>(cityToLocation);
   const [locationOpen, setLocationOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<"stars" | "settings">("stars");
+  const [sideFeature, setSideFeature] = useState<"stars" | "events">(
+    "stars",
+  );
+  const [eventFeatureActivated, setEventFeatureActivated] = useState(false);
+  const [eventReturnDate, setEventReturnDate] = useState<Date | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedHr, setSelectedHr] = useState<number | null>(null);
   const [resolvedSelectedStarTrack, setResolvedSelectedStarTrack] =
@@ -251,6 +278,7 @@ export function App() {
     useState("");
   const [visibleMode, setVisibleMode] = useState<"above" | "all">("above");
   const initialSelectionResolved = useRef(false);
+  const helpTriggerRef = useRef<HTMLButtonElement | null>(null);
   const timeBoundaryNoticeSequence = useRef(
     initialClock.adjusted ? 1 : 0,
   );
@@ -264,6 +292,22 @@ export function App() {
     setTimeBoundaryNotice(null);
     setTimeBoundaryAnnouncement("");
   }, []);
+
+  function handleHelpOpen(trigger: HTMLButtonElement) {
+    helpTriggerRef.current = trigger;
+    setHelpActivated(true);
+    setHelpOpen(true);
+  }
+
+  function handleHelpClose() {
+    setHelpOpen(false);
+  }
+
+  useEffect(() => {
+    if (!helpOpen && helpActivated) {
+      helpTriggerRef.current?.focus();
+    }
+  }, [helpActivated, helpOpen]);
   const showTimeBoundaryNotice = useCallback((message: string) => {
     timeBoundaryNoticeSequence.current += 1;
     setTimeBoundaryAnnouncement("");
@@ -614,6 +658,7 @@ export function App() {
   );
   const handleSearchFocusRequest = useCallback(() => {
     setMobileTab("stars");
+    setSideFeature("stars");
   }, []);
   const sun = useMemo(
     () =>
@@ -740,6 +785,32 @@ export function App() {
     setLocationOpen(true);
   }
 
+  function handleSideFeatureChange(nextFeature: "stars" | "events") {
+    setSideFeature(nextFeature);
+    if (nextFeature === "events") {
+      setEventFeatureActivated(true);
+    }
+  }
+
+  function handleShowEventTime(nextDate: Date) {
+    playback.pause();
+    setEventReturnDate((current) => current ?? date);
+    setDate(clampObservationDate(nextDate));
+    setTimeError(null);
+    clearTimeBoundaryNotice();
+  }
+
+  function handleRestoreObservationTime() {
+    if (!eventReturnDate) {
+      return;
+    }
+    playback.pause();
+    setDate(eventReturnDate);
+    setEventReturnDate(null);
+    setTimeError(null);
+    clearTimeBoundaryNotice();
+  }
+
   function resetView() {
     let highestVisible: StarViewModel | null = null;
     for (const star of namedViewModels) {
@@ -767,7 +838,7 @@ export function App() {
       data-calculation-model={precisionFrame ? "v2" : "v1"}
     >
       <a className="skip-link" href="#star-list-panel">
-        星の一覧へ移動
+        星と現象の一覧へ移動
       </a>
 
       <header className="app-toolbar">
@@ -793,7 +864,7 @@ export function App() {
         </button>
         <button
           className="toolbar-action toolbar-action--help"
-          onClick={() => setHelpOpen(true)}
+          onClick={(event) => handleHelpOpen(event.currentTarget)}
           type="button"
         >
           <CircleHelpIcon aria-hidden="true" size={20} strokeWidth={1.8} />
@@ -970,7 +1041,7 @@ export function App() {
                 {
                   controlsId: "mobile-stars-panel",
                   id: "mobile-stars-tab",
-                  label: "星を探す",
+                  label: "星と現象",
                   value: "stars",
                 },
                 {
@@ -992,21 +1063,107 @@ export function App() {
             role="tabpanel"
             aria-labelledby="mobile-stars-tab"
           >
-            <StarExplorer
-              allStars={namedViewModels}
-              onQueryChange={setSearchQuery}
-              onSearchFocusRequest={handleSearchFocusRequest}
-              onSelect={handleSelectStar}
-              onVisibleModeChange={setVisibleMode}
-              query={searchQuery}
-              selectedHr={selectedHr}
-              visibleMode={visibleMode}
-            />
-            <StarDetails
-              earthOrientationEstimate={currentEarthOrientationEstimate}
-              star={selectedStar}
-              timeScales={precisionFrame?.context.timeScales ?? null}
-            />
+            <div className="side-panel__feature-tabs">
+              <SegmentedControl
+                ariaLabel="星と天文現象"
+                kind="tabs"
+                onChange={handleSideFeatureChange}
+                options={[
+                  {
+                    controlsId: "side-stars-feature-panel",
+                    id: "side-stars-feature-tab",
+                    label: "恒星",
+                    value: "stars",
+                  },
+                  {
+                    controlsId: "side-events-feature-panel",
+                    id: "side-events-feature-tab",
+                    label: "現象",
+                    value: "events",
+                  },
+                ]}
+                value={sideFeature}
+              />
+            </div>
+
+            {sideFeature === "stars" ? (
+              <div
+                className="side-panel__feature-panel"
+                id="side-stars-feature-panel"
+                role="tabpanel"
+                aria-labelledby="side-stars-feature-tab"
+              >
+                <StarExplorer
+                  allStars={namedViewModels}
+                  onQueryChange={setSearchQuery}
+                  onSearchFocusRequest={handleSearchFocusRequest}
+                  onSelect={handleSelectStar}
+                  onVisibleModeChange={setVisibleMode}
+                  query={searchQuery}
+                  selectedHr={selectedHr}
+                  visibleMode={visibleMode}
+                />
+                <StarDetails
+                  earthOrientationEstimate={currentEarthOrientationEstimate}
+                  star={selectedStar}
+                  timeScales={precisionFrame?.context.timeScales ?? null}
+                />
+              </div>
+            ) : null}
+
+            {eventFeatureActivated ? (
+              <div
+                className="side-panel__feature-panel"
+                hidden={sideFeature !== "events"}
+                id="side-events-feature-panel"
+                role="tabpanel"
+                aria-labelledby="side-events-feature-tab"
+              >
+                <LazyFeatureErrorBoundary
+                  fallback={
+                    <div className="lazy-feature-fallback" role="alert">
+                      <span>
+                        予報機能を読み込めませんでした。恒星の星図は利用できます。
+                      </span>
+                      <button
+                        className="button button--secondary"
+                        onClick={() => window.location.reload()}
+                        type="button"
+                      >
+                        再読み込み
+                      </button>
+                    </div>
+                  }
+                  featureName="Event forecast panel"
+                >
+                  <Suspense
+                    fallback={
+                      <p
+                        aria-live="polite"
+                        className="lazy-feature-fallback"
+                        role="status"
+                      >
+                        予報機能を準備しています。
+                      </p>
+                    }
+                  >
+                    <LazyEventForecastPanel
+                      canRestoreObservationTime={eventReturnDate !== null}
+                      loadEarthOrientationSnapshot={
+                        loadIersEarthOrientationSnapshot
+                      }
+                      location={location}
+                      observationDate={date}
+                      onRestoreObservationTime={handleRestoreObservationTime}
+                      onRetryPrecisionCatalog={retryPrecisionCatalog}
+                      onShowEventTime={handleShowEventTime}
+                      precisionCatalog={precisionCatalog}
+                      precisionCatalogStatus={precisionCatalogStatus}
+                    />
+                  </Suspense>
+                </LazyFeatureErrorBoundary>
+              </div>
+            ) : null}
           </div>
 
           <div
@@ -1024,7 +1181,7 @@ export function App() {
             />
             <button
               className="settings-help-button"
-              onClick={() => setHelpOpen(true)}
+              onClick={(event) => handleHelpOpen(event.currentTarget)}
               type="button"
             >
               <CircleHelpIcon aria-hidden="true" size={19} strokeWidth={1.8} />
@@ -1048,7 +1205,70 @@ export function App() {
           open
         />
       ) : null}
-      <HelpDialog onClose={() => setHelpOpen(false)} open={helpOpen} />
+      {helpActivated ? (
+        <LazyFeatureErrorBoundary
+          fallback={
+            <Dialog
+              description="ヘルプ用ファイルを取得できませんでした。星図はそのまま利用できます。"
+              onClose={handleHelpClose}
+              open={helpOpen}
+              title="ヘルプとプライバシー"
+              wide
+            >
+              <p role="alert">
+                通信状態を確認して、ページを再読み込みしてください。
+              </p>
+              <footer className="dialog__actions">
+                <button
+                  className="button button--secondary"
+                  onClick={handleHelpClose}
+                  type="button"
+                >
+                  閉じる
+                </button>
+                <button
+                  className="button button--primary"
+                  onClick={() => window.location.reload()}
+                  type="button"
+                >
+                  再読み込み
+                </button>
+              </footer>
+            </Dialog>
+          }
+          featureName="Help dialog"
+        >
+          <Suspense
+            fallback={
+              <Dialog
+                description="計算方法、安全上の注意、プライバシー情報を読み込んでいます。"
+                onClose={handleHelpClose}
+                open={helpOpen}
+                title="ヘルプとプライバシー"
+                wide
+              >
+                <p aria-live="polite" role="status">
+                  ヘルプを準備しています。
+                </p>
+                <footer className="dialog__actions">
+                  <button
+                    className="button button--secondary"
+                    onClick={handleHelpClose}
+                    type="button"
+                  >
+                    キャンセル
+                  </button>
+                </footer>
+              </Dialog>
+            }
+          >
+            <LazyHelpDialog
+              onClose={handleHelpClose}
+              open={helpOpen}
+            />
+          </Suspense>
+        </LazyFeatureErrorBoundary>
+      ) : null}
 
       <div
         aria-label="選択通知"

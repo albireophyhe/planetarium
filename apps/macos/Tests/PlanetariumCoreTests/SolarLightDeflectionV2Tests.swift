@@ -6,8 +6,10 @@ import XCTest
 
 final class SolarLightDeflectionV2Tests: XCTestCase {
     private let fixture: SOFASolarLightDeflectionFixture = {
-        let data = try! SharedResources.data(
-            for: .sofaSolarLightDeflectionVectors
+        let data = try! TestFixtureData.data(
+            at:
+                "shared/fixtures/"
+                + "sofa-solar-light-deflection.v1.json"
         )
         return try! JSONDecoder().decode(
             SOFASolarLightDeflectionFixture.self,

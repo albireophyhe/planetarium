@@ -79,6 +79,64 @@ final class EventTimeScalesTests: XCTestCase {
                     .nonFiniteTTJulianDate
                 )
             }
+            XCTAssertThrowsError(
+                try EventTimeScales.tdbToUTCDate(
+                    tdbJulianDate: value
+                )
+            ) { error in
+                XCTAssertEqual(
+                    error as? EventTimeScaleError,
+                    .nonFiniteTDBJulianDate
+                )
+            }
         }
+    }
+
+    func testTDBToUTCRoundTripsApplicationModel() throws {
+        let dates = [
+            Date(timeIntervalSince1970: 63_072_000),
+            Date(timeIntervalSince1970: 946_728_000),
+            Date(timeIntervalSince1970: 1_786_556_753.8),
+            Date(timeIntervalSince1970: 4_133_807_999),
+        ]
+
+        for date in dates {
+            let scales = try Astronomy.resolveTimeScalesV2(at: date)
+            let tdb = try EventTimeScales.ttToTdbJulianDate(
+                ttJulianDate: scales.ttJulianDate
+            )
+            let roundTripped = try EventTimeScales.tdbToUTCDate(
+                tdbJulianDate: tdb
+            )
+            XCTAssertEqual(
+                roundTripped.timeIntervalSince1970,
+                date.timeIntervalSince1970,
+                accuracy: 0.001
+            )
+        }
+    }
+
+    func testTDBChunkYearCanDifferFromUTCBoundaryYear() throws {
+        let utc = try XCTUnwrap(
+            ISO8601DateFormatter().date(
+                from: "2024-12-31T23:59:30Z"
+            )
+        )
+        let tdb = try EventTimeScales
+            .utcToTDBJulianDate(utc)
+
+        XCTAssertEqual(
+            try EventTimeScales.tdbCalendarYear(
+                tdbJulianDate: tdb
+            ),
+            2025
+        )
+        XCTAssertEqual(
+            try EventTimeScales.tdbToUTCDate(
+                tdbJulianDate: tdb
+            ).timeIntervalSince1970,
+            utc.timeIntervalSince1970,
+            accuracy: 0.001
+        )
     }
 }

@@ -113,7 +113,7 @@ UIと描画は各プラットフォームでネイティブ実装し、データ
 - Web初期アセットは自己ホスト日本語フォントを含め768KiB gzip・12ファイル以下、
   最大初期JavaScriptは600KiB raw以下、全JavaScriptの各ファイルは
   720KiB raw以下、3D遅延chunkは160KiB gzip以下とする。現行buildは
-  初期12ファイル730.5KiB gzip、最大初期JavaScriptの`catalog-v1`は
+  初期12ファイル719.6KiB gzip、最大初期JavaScriptの`catalog-v1`は
   523.0KiB rawである。
 - 星図は状態変化時だけ再描画し、非表示時に時間ループを継続しない。
 - Webの2D Canvasと3D rendererは共通の純粋関数でdevice pixel ratioを

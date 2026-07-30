@@ -1,6 +1,8 @@
 # macOS版のビルドと配布準備
 
-現在のmacOS版はSwiftPMを正本とし、開発用の`.app`をシェルから組み立てます。
+現在のmacOS版はSwiftPMを正本とし、最適化したローカル検証用の`.app`を
+シェルから組み立てます。配布候補に近い応答速度を確認できるよう、
+Swiftの`release`構成を使用します。
 
 ## 開発用アプリ
 
@@ -11,7 +13,14 @@
 
 `--verify`は実行ファイル、Info.plist、Bundle ID、最低OS、Web版と意匠を
 揃えたアプリアイコン、ad hoc署名、同梱resourceの完全な期待集合と
-schemaVersion、起動プロセスを検査します。生成先は`dist/Planetarium.app`です。
+schemaVersion、起動プロセスを検査します。さらに全regular fileのlogical
+bytesを署名後に合算し、`config/macos-budgets.json`の20 MiB上限を超える
+配布候補を停止します。現在の実測は19,270,160 bytes（18.377 MiB）です。
+生成先は`dist/Planetarium.app`です。
+
+旧星表と検証fixtureはテスト時にリポジトリ原本から読み、本番`.app`には
+同梱しません。SwiftPMの増分buildに残った既知の旧資産もstaging時に除き、
+閉じたresource一覧で未知の残留物を拒否します。
 
 アプリアイコンの固定hashと10表現だけを確認する場合は
 `./script/build_app_icon.sh --check`、Web原画からlibrsvg 2.62.3で
@@ -27,7 +36,8 @@ byte単位に再現する場合は`./script/build_app_icon.sh --reproduce`を使
 
 ## 公開配布との境界
 
-現在のad hoc署名はローカル開発用で、第三者配布用ではありません。公開前には次を別工程として実施します。
+現在のad hoc署名はローカル検証用で、`release`構成であっても第三者配布用では
+ありません。公開前には次を別工程として実施します。
 
 1. 一意のVersion/Build番号を設定する。
 2. Developer ID Application証明書を用い、Hardened Runtime

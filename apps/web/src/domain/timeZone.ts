@@ -185,6 +185,33 @@ export function zonedLocalToDate(
     : candidates[0];
 }
 
+/**
+ * UTC offset in whole seconds at a local civil date-time.
+ *
+ * The value is positive east of Greenwich. Resolving the local label first
+ * also preserves historical IANA offsets that are not whole hours.
+ */
+export function timeZoneOffsetSecondsAtLocalDateTime(
+  localDateTime: string,
+  timeZone: string
+): number {
+  const requestedParts = parseLocalDateTime(localDateTime);
+  const instant = zonedLocalToDate(
+    localDateTime,
+    timeZone,
+    "earlier"
+  );
+  const offsetSeconds =
+    (utcLikeMilliseconds(requestedParts) - instant.getTime()) /
+    1_000;
+  if (!Number.isSafeInteger(offsetSeconds)) {
+    throw new RangeError(
+      `Could not resolve a whole-second UTC offset in ${timeZone}`
+    );
+  }
+  return offsetSeconds;
+}
+
 /** Reader-facing date and time in the requested IANA time zone. */
 export function formatZonedDateTime(
   date: Date,

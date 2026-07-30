@@ -1,20 +1,12 @@
 import Foundation
 
 public enum SharedResource: String, CaseIterable, Sendable {
-    case brightStars = "bright-stars.v1"
     case brightStarsV2 = "bright-stars.v2"
     case cities = "cities.v1"
     case constellations = "constellations.v1"
     case starNames = "star-names.v1"
     case truncatedEarthHeliocentricEphemeris =
         "truncated-earth-heliocentric.v1"
-    case astronomyTestVectors = "astro-test-vectors.v1"
-    case astronomyTestVectorsV2 = "astro-test-vectors.v2"
-    case sofaDiurnalAberrationVectors =
-        "sofa-diurnal-aberration.v1"
-    case sofaSolarLightDeflectionVectors =
-        "sofa-solar-light-deflection.v1"
-    case sofaSolarPositionVectors = "sofa-solar-position.v1"
 }
 
 public enum IERSDUT1SharedResource: String, CaseIterable, Sendable {
@@ -59,7 +51,12 @@ public enum DE442SEphemerisSharedResource:
     String, CaseIterable, Sendable
 {
     case manifest = "de442s-manifest.v1"
-    case comparisonFixture = "de442s-ephemeris.v1"
+}
+
+public enum EventCandidateSharedResource:
+    String, CaseIterable, Sendable
+{
+    case manifest = "event-candidates-manifest.v1"
 }
 
 public enum SharedResourceError: LocalizedError, Sendable {
@@ -74,6 +71,9 @@ public enum SharedResourceError: LocalizedError, Sendable {
     )
     case invalidDE442SEphemerisChunkName(String)
     case missingDE442SEphemerisChunk(String)
+    case missingEventCandidates(EventCandidateSharedResource)
+    case invalidEventCandidateChunkName(String)
+    case missingEventCandidateChunk(String)
 
     public var errorDescription: String? {
         switch self {
@@ -91,6 +91,12 @@ public enum SharedResourceError: LocalizedError, Sendable {
             "DE442s共有暦chunk名「\(fileName)」が不正です。"
         case let .missingDE442SEphemerisChunk(fileName):
             "DE442s共有暦chunk「\(fileName)」を読み込めませんでした。"
+        case let .missingEventCandidates(resource):
+            "天文現象候補「\(resource.rawValue).json」を読み込めませんでした。"
+        case let .invalidEventCandidateChunkName(fileName):
+            "天文現象候補chunk名「\(fileName)」が不正です。"
+        case let .missingEventCandidateChunk(fileName):
+            "天文現象候補chunk「\(fileName)」を読み込めませんでした。"
         }
     }
 }
@@ -244,6 +250,69 @@ public enum SharedResources {
         ) else {
             throw SharedResourceError
                 .missingDE442SEphemerisChunk(fileName)
+        }
+        return url
+    }
+
+    public static func eventCandidateData(
+        for resource: EventCandidateSharedResource
+    ) throws -> Data {
+        try Data(contentsOf: eventCandidateURL(for: resource))
+    }
+
+    public static func eventCandidateURL(
+        for resource: EventCandidateSharedResource
+    ) throws -> URL {
+        guard let url = resourceBundle.url(
+            forResource: resource.rawValue,
+            withExtension: "json",
+            subdirectory: "events"
+        ) else {
+            throw SharedResourceError
+                .missingEventCandidates(resource)
+        }
+        return url
+    }
+
+    public static func eventCandidateChunkData(
+        named fileName: String
+    ) throws -> Data {
+        try Data(
+            contentsOf: eventCandidateChunkURL(
+                named: fileName
+            )
+        )
+    }
+
+    public static func eventCandidateChunkURL(
+        named fileName: String
+    ) throws -> URL {
+        let fileURL = URL(fileURLWithPath: fileName)
+        let stem = fileURL
+            .deletingPathExtension()
+            .lastPathComponent
+        let id = String(stem.dropLast(3))
+        let yearParts = id.split(separator: "-", omittingEmptySubsequences: false)
+        guard
+            fileURL.lastPathComponent == fileName,
+            fileURL.pathExtension == "json",
+            stem.hasSuffix(".v1"),
+            yearParts.count == 2,
+            yearParts.allSatisfy({
+                $0.count == 4 && $0.allSatisfy(\.isNumber)
+            }),
+            fileName == "\(id).v1.json"
+        else {
+            throw SharedResourceError
+                .invalidEventCandidateChunkName(fileName)
+        }
+        guard let url = resourceBundle.url(
+            forResource: stem,
+            withExtension: "json",
+            subdirectory: "events/chunks"
+        ) else {
+            throw SharedResourceError
+                .missingEventCandidateChunk(fileName)
         }
         return url
     }

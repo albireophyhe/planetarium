@@ -1,0 +1,318 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/event-candidates-manifest.schema.json",
+  "title": "Offline eclipse candidate manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "model",
+    "source",
+    "coverage",
+    "generation",
+    "interpretation",
+    "chunks",
+    "statistics"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "model": { "const": "de442s-mean-sphere-eclipse-candidates-v1" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ephemeris",
+        "kernelUrl",
+        "kernelSha256",
+        "kernelByteLength",
+        "starCatalog",
+        "nasaCatalogs"
+      ],
+      "properties": {
+        "ephemeris": { "const": "JPL DE442s" },
+        "kernelUrl": { "type": "string", "format": "uri" },
+        "kernelSha256": { "$ref": "#/$defs/sha256" },
+        "kernelByteLength": { "const": 32701440 },
+        "starCatalog": { "$ref": "#/$defs/starCatalog" },
+        "nasaCatalogs": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/nasaCatalog" }
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "calendar",
+        "timeScale",
+        "startYear",
+        "endYear",
+        "endIsExclusive",
+        "chunkYears"
+      ],
+      "properties": {
+        "calendar": { "const": "proleptic Gregorian" },
+        "timeScale": { "const": "TDB" },
+        "startYear": { "const": 1900 },
+        "endYear": { "const": 2101 },
+        "endIsExclusive": { "const": true },
+        "chunkYears": { "const": 5 }
+      }
+    },
+    "generation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scanStepDays",
+        "maximumToleranceSeconds",
+        "localSearchHalfWindowDays",
+        "solarCandidateRule",
+        "lunarCandidateRule",
+        "occultationCandidateRule",
+        "occultationScanStepDays",
+        "occultationSelectedStarCount",
+        "occultationSelectedStars",
+        "constants",
+        "determinism"
+      ],
+      "properties": {
+        "scanStepDays": { "const": 0.5 },
+        "maximumToleranceSeconds": { "const": 1 },
+        "localSearchHalfWindowDays": { "const": 0.75 },
+        "solarCandidateRule": { "type": "string", "minLength": 1 },
+        "lunarCandidateRule": { "type": "string", "minLength": 1 },
+        "occultationCandidateRule": {
+          "type": "string",
+          "minLength": 1
+        },
+        "occultationScanStepDays": { "const": 0.125 },
+        "occultationSelectedStarCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "occultationSelectedStars": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/occultationStar" }
+        },
+        "constants": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "earthEquatorialRadiusKilometers",
+            "earthPolarRadiusKilometers",
+            "sunNominalRadiusKilometers",
+            "moonMeanRadiusKilometers",
+            "solarPenumbralLunarRadiusRatio",
+            "solarUmbralLunarRadiusRatio",
+            "lunarShadowDanjonScale",
+            "solarClassificationBoundaryToleranceKilometers",
+            "distanceUnit",
+            "angleUnit"
+          ],
+          "properties": {
+            "earthEquatorialRadiusKilometers": { "const": 6378.137 },
+            "earthPolarRadiusKilometers": {
+              "const": 6356.752314245
+            },
+            "sunNominalRadiusKilometers": { "const": 695700 },
+            "moonMeanRadiusKilometers": { "const": 1737.4 },
+            "solarPenumbralLunarRadiusRatio": { "const": 0.272488 },
+            "solarUmbralLunarRadiusRatio": { "const": 0.272281 },
+            "lunarShadowDanjonScale": { "const": 1.01 },
+            "solarClassificationBoundaryToleranceKilometers": {
+              "const": 1.5
+            },
+            "distanceUnit": { "const": "kilometer" },
+            "angleUnit": { "const": "radian" }
+          }
+        },
+        "determinism": { "type": "string", "minLength": 1 }
+      }
+    },
+    "interpretation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "purpose",
+        "classificationHint",
+        "uncertainty",
+        "occultationAstrometry",
+        "searchWindow",
+        "runtimeNetwork"
+      ],
+      "properties": {
+        "purpose": { "type": "string", "minLength": 1 },
+        "classificationHint": { "type": "string", "minLength": 1 },
+        "uncertainty": { "type": "string", "minLength": 1 },
+        "occultationAstrometry": {
+          "type": "string",
+          "minLength": 1
+        },
+        "searchWindow": { "type": "string", "minLength": 1 },
+        "runtimeNetwork": { "type": "string", "minLength": 1 }
+      }
+    },
+    "chunks": {
+      "type": "array",
+      "minItems": 41,
+      "maxItems": 41,
+      "items": { "$ref": "#/$defs/chunk" }
+    },
+    "statistics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "chunkCount",
+        "eventCount",
+        "solarEclipseCount",
+        "lunarEclipseCount",
+        "lunarOccultationCount",
+        "totalChunkBytes",
+        "totalChunkGzipBytes",
+        "maximumChunkBytes",
+        "maximumChunkGzipBytes"
+      ],
+      "properties": {
+        "chunkCount": { "const": 41 },
+        "eventCount": { "type": "integer", "minimum": 900 },
+        "solarEclipseCount": { "type": "integer", "minimum": 450 },
+        "lunarEclipseCount": { "type": "integer", "minimum": 450 },
+        "lunarOccultationCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "totalChunkBytes": { "type": "integer", "minimum": 1 },
+        "totalChunkGzipBytes": { "type": "integer", "minimum": 1 },
+        "maximumChunkBytes": { "type": "integer", "minimum": 1 },
+        "maximumChunkGzipBytes": { "type": "integer", "minimum": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "starCatalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "artifact",
+        "referenceSystem",
+        "epoch",
+        "sourceUrl",
+        "sourceSha256",
+        "starsContentSha256"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "artifact": {
+          "const": "shared/catalog/bright-stars.v2.json"
+        },
+        "referenceSystem": { "const": "FK5" },
+        "epoch": { "const": "J2000.0" },
+        "sourceUrl": { "type": "string", "format": "uri" },
+        "sourceSha256": { "$ref": "#/$defs/sha256" },
+        "starsContentSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "occultationStar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hr",
+        "vMagnitude",
+        "eclipticLatitudeRadians"
+      ],
+      "properties": {
+        "hr": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9999
+        },
+        "vMagnitude": {
+          "type": "number",
+          "minimum": -2,
+          "maximum": 3
+        },
+        "eclipticLatitudeRadians": {
+          "type": "number",
+          "minimum": -0.14,
+          "maximum": 0.14
+        }
+      }
+    },
+    "nasaCatalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "startYear",
+        "endYear",
+        "expectedCount",
+        "url"
+      ],
+      "properties": {
+        "kind": {
+          "enum": ["solar-eclipse", "lunar-eclipse"]
+        },
+        "startYear": { "enum": [1901, 2001] },
+        "endYear": { "enum": [2000, 2100] },
+        "expectedCount": { "type": "integer", "minimum": 200 },
+        "url": { "type": "string", "format": "uri" }
+      }
+    },
+    "chunk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "startYear",
+        "endYear",
+        "file",
+        "eventCount",
+        "solarEclipseCount",
+        "lunarEclipseCount",
+        "lunarOccultationCount",
+        "byteLength",
+        "gzipByteLength",
+        "sha256"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{4}$"
+        },
+        "startYear": {
+          "type": "integer",
+          "minimum": 1900,
+          "maximum": 2100
+        },
+        "endYear": {
+          "type": "integer",
+          "minimum": 1901,
+          "maximum": 2101
+        },
+        "file": {
+          "type": "string",
+          "pattern": "^shared/events/chunks/[0-9]{4}-[0-9]{4}\\.v1\\.json$"
+        },
+        "eventCount": { "type": "integer", "minimum": 0 },
+        "solarEclipseCount": { "type": "integer", "minimum": 0 },
+        "lunarEclipseCount": { "type": "integer", "minimum": 0 },
+        "lunarOccultationCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "byteLength": { "type": "integer", "minimum": 1 },
+        "gzipByteLength": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

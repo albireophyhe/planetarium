@@ -18,7 +18,7 @@ representation, error handling, and composition.
   `shared/ephemeris/truncated-earth-heliocentric.v1.json`, and
   `script/build_earth_ephemeris.mjs` adapt the Sun-to-Earth position series,
   orientation matrix, and analytic derivative in `epv00`. The artifact keeps
-  100 of 1,323 heliocentric terms selected by the documented century-wide
+  200 of 1,323 heliocentric terms selected by the documented century-wide
   contribution bound. The generator accepts only the pinned official
   `epv00.c` with SHA-256
   `939d57fb2556dcd065370e090df962a7d459a89d972e7fe1b9b250306fe73c8a`.
@@ -31,7 +31,7 @@ representation, error handling, and composition.
   and near-Sun limiter in `ld` and `ldsun`. It accepts prepared Sun-to-observer
   geometry, adds strict finite and unit-vector validation, and explicitly
   normalizes the result. Its default geometry comes from Planetarium's
-  100-term heliocentric `epv00` truncation; planetary-body deflection remains
+  200-term heliocentric `epv00` truncation; planetary-body deflection remains
   outside this routine.
 - `refraction.ts` adapts `refco`, limits the public API to visual wavelengths,
   rejects values outside application guardrails, and numerically inverts the
@@ -64,7 +64,7 @@ representation, error handling, and composition.
   `era00`, and `gmst06`. It combines IAU 2006 bias/precession with abridged
   IAU 2000B nutation and uses only the leading equation-of-equinoxes term for
   apparent sidereal time.
-- `EarthEphemerisV2.swift` evaluates the same shared 100-term coefficient
+- `EarthEphemerisV2.swift` evaluates the same shared 200-term coefficient
   artifact derived from the Sun-to-Earth position series, orientation matrix,
   and analytic derivative in `epv00`. It uses TT as a TDB proxy and omits the
   SSB-to-Sun position and velocity and the Earth-center-to-observing-site
@@ -76,7 +76,7 @@ representation, error handling, and composition.
   expression and near-Sun limiter in `ld` and `ldsun`. It accepts prepared
   Sun-to-observer geometry, adds strict finite and unit-vector validation,
   and explicitly normalizes the result. Its default geometry comes from the
-  shared 100-term heliocentric `epv00` truncation; planetary-body deflection
+  shared 200-term heliocentric `epv00` truncation; planetary-body deflection
   remains outside this routine.
 - `RefractionV2.swift` adapts `refco`, limits the public API to visual
   wavelengths, applies application guardrails, and numerically inverts the

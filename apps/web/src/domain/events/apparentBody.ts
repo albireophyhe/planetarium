@@ -21,6 +21,7 @@ import {
 } from "../precision/vector";
 import type { Matrix3, Vector3 } from "../precision/vector";
 import { degreesToRadians } from "../angles";
+import { eventEphemerisState } from "./ephemerisCoverage";
 import { ttToTdbJulianDate } from "./eventTime";
 import type {
   ApparentBodyState,
@@ -162,7 +163,10 @@ function prepareObserver(
       transpose(precessionNutation),
       cirsSiteVelocityKilometersPerDay,
     );
-  const receptionState = ephemeris.state(tdbJulianDate);
+  const receptionState = eventEphemerisState(
+    ephemeris,
+    tdbJulianDate,
+  );
   const barycentricPositionKilometers = add(
     receptionState.earthBarycentric.positionKilometers,
     icrfSiteKilometers,
@@ -193,7 +197,7 @@ function targetBarycentricPosition(
   body: EventSolarSystemBody,
   tdbJulianDate: number,
 ): Vector3 {
-  const state = ephemeris.state(tdbJulianDate);
+  const state = eventEphemerisState(ephemeris, tdbJulianDate);
   const geocentric =
     body === "sun" ? state.sunGeocentric : state.moonGeocentric;
   return add(
@@ -340,7 +344,10 @@ export function calculateGeocentricApparentBody(
     throw new RangeError("Event TT Julian date must be finite");
   }
   const tdbJulianDate = ttToTdbJulianDate(ttJulianDate);
-  const receptionState = ephemeris.state(tdbJulianDate);
+  const receptionState = eventEphemerisState(
+    ephemeris,
+    tdbJulianDate,
+  );
   const observerPosition =
     receptionState.earthBarycentric.positionKilometers;
   let emissionTdbJulianDate = tdbJulianDate;

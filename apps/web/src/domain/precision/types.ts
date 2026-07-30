@@ -19,8 +19,9 @@ export interface PrecisionStar extends Star {
 
 export interface EarthOrientationOptions {
   /**
-   * UT1−UTC in seconds. When omitted, zero is used and reported as an
-   * approximation.
+   * UT1−UTC in seconds. Values through ±3600 seconds are supported so future
+   * continuous-UTC scenarios can remain distinct from Earth rotation. When
+   * omitted, zero is used and reported as an approximation.
    */
   readonly dut1Seconds?: number;
   /**
@@ -31,7 +32,8 @@ export interface EarthOrientationOptions {
   /**
    * Uncertainty or reported error of the supplied DUT1 value in seconds,
    * when known. Its statistical interpretation comes from the caller or
-   * source product; it cannot be supplied without `dut1Seconds`.
+   * source product; values through 3600 seconds are supported and it cannot
+   * be supplied without `dut1Seconds`.
    */
   readonly dut1UncertaintySeconds?: number;
   /**
@@ -129,19 +131,19 @@ export interface DiurnalAberrationOptions {
 export interface ApparentPositionOptionsV2 {
   readonly earthOrientation?: EarthOrientationOptions;
   /**
-   * Defaults to the 100-term VSOP2000 heliocentric Earth approximation. Use
+   * Defaults to the 200-term VSOP2000 heliocentric Earth approximation. Use
    * false for no annual parallax, or provide an external observer position
    * in AU.
    */
   readonly annualParallax?: false | CustomAnnualParallax;
   /**
-   * Defaults to solar geometry from the 100-term VSOP2000 heliocentric Earth
+   * Defaults to solar geometry from the 200-term VSOP2000 heliocentric Earth
    * approximation. Use false for no solar deflection, or provide an external
    * Sun-to-observer unit direction and distance.
    */
   readonly solarLightDeflection?: false | CustomSolarLightDeflection;
   /**
-   * Defaults to the analytic velocity of the 100-term VSOP2000 heliocentric
+   * Defaults to the analytic velocity of the 200-term VSOP2000 heliocentric
    * Earth approximation. Use false for no annual aberration, or provide an
    * external ephemeris vector.
    */
@@ -343,7 +345,7 @@ export interface LightweightApparentStarPositionV2 {
 export interface ApparentSunPositionV2 {
   /**
    * Apparent geocentric direction on the true equator/equinox of date.
-   * The default ephemeris is a documented 100-term VSOP2000 truncation.
+   * The default ephemeris is a documented 200-term VSOP2000 truncation.
    */
   readonly apparentEquatorial: EquatorialCoordinates;
   /**

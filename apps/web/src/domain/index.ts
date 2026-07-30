@@ -54,6 +54,7 @@ export {
 export {
   formatZonedDateTime,
   formatZonedDateTimeInput,
+  timeZoneOffsetSecondsAtLocalDateTime,
   zonedLocalToDate
 } from "./timeZone";
 export type {
@@ -69,14 +70,17 @@ export type {
 } from "./dut1";
 export type {
   Dut1EarthOrientationEstimate,
+  ChunkedEarthOrientationAccessV1,
   EarthOrientationChunkDescriptorV1,
   EarthOrientationCoverageV1,
   EarthOrientationDailyRecord,
+  EarthOrientationEstimateQuality,
   EarthOrientationEstimateSource,
   EarthOrientationRecordStatus,
   EarthOrientationSourceSummaryV1,
   EncodedEarthOrientationChunkV1,
   IersEarthOrientationEstimateV1,
+  IersEarthOrientationSnapshotV1,
   IersEarthOrientationServiceV1,
   PolarMotionEstimate
 } from "./earthOrientation";
@@ -87,11 +91,13 @@ export {
   decodeDut1Chunk
 } from "./dut1";
 export {
+  createChunkedEarthOrientationAccess,
   createChunkedEarthOrientationLookup,
   createEarthOrientationLookup,
   decodeEarthOrientationChunk
 } from "./earthOrientation";
 export {
+  loadIersEarthOrientationSnapshot,
   loadIersEarthOrientationService,
   lookupIersEarthOrientation
 } from "./earthOrientationDataLoader";

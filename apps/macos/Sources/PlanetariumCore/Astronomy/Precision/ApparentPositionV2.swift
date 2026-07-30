@@ -639,7 +639,7 @@ public extension Astronomy {
      Calculates the apparent Sun from the same immutable frame state as the
      stellar v2 pipeline.
 
-     The shared 100-term VSOP2000 heliocentric Earth ephemeris supplies the
+     The shared 200-term VSOP2000 heliocentric Earth ephemeris supplies the
      geocentric natural direction and distance. WGS84 site displacement is
      applied after the Earth-orientation rotations and before split-at-CIRS
      diurnal aberration, so the horizontal result includes solar diurnal

@@ -60,7 +60,6 @@ struct StarSidebarView: View {
                 .listStyle(.sidebar)
             }
         }
-        .navigationTitle("星を探す")
         .onChange(of: store.searchFocusRequest) {
             searchIsFocused = true
         }

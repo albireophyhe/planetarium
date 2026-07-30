@@ -34,6 +34,17 @@ function validateCoordinates(latitude: number, longitude: number) {
   return null;
 }
 
+function validateHeight(heightMeters: number) {
+  if (
+    !Number.isFinite(heightMeters) ||
+    heightMeters < -500 ||
+    heightMeters > 10_000
+  ) {
+    return "標高は−500 mから10,000 mの数値で入力してください。";
+  }
+  return null;
+}
+
 export function LocationDialog({
   cities,
   currentLocation,
@@ -41,7 +52,17 @@ export function LocationDialog({
   onClose,
   open,
 }: LocationDialogProps) {
+  const [heightMeters, setHeightMeters] = useState(
+    String(currentLocation.heightMeters),
+  );
+  const [horizontalAccuracyMeters, setHorizontalAccuracyMeters] =
+    useState<number | null>(
+      currentLocation.horizontalAccuracyMeters,
+    );
   const [latitude, setLatitude] = useState(String(currentLocation.latitude));
+  const [locationSource, setLocationSource] = useState(
+    currentLocation.locationSource,
+  );
   const [longitude, setLongitude] = useState(String(currentLocation.longitude));
   const [name, setName] = useState(currentLocation.name);
   const [notice, setNotice] = useState<LocationNotice>(null);
@@ -54,7 +75,10 @@ export function LocationDialog({
       return;
     }
     setName(city.nameJa);
+    setHeightMeters("0");
+    setHorizontalAccuracyMeters(null);
     setLatitude(String(city.latitude));
+    setLocationSource("bundled-city");
     setLongitude(String(city.longitude));
     setTimeZone(city.timeZone);
     setNotice({
@@ -83,14 +107,22 @@ export function LocationDialog({
         const resolvedTimeZone =
           Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
         setName("現在地");
+        setHeightMeters(
+          String(
+            position.coords.altitude === null
+              ? 0
+              : Math.round(position.coords.altitude),
+          ),
+        );
+        setHorizontalAccuracyMeters(position.coords.accuracy);
         setLatitude(position.coords.latitude.toFixed(5));
+        setLocationSource("device-geolocation");
         setLongitude(position.coords.longitude.toFixed(5));
         setTimeZone(resolvedTimeZone);
         setRequestingLocation(false);
         setNotice({
           kind: "info",
-          message:
-            "現在地を取得しました。この座標はサーバーへ送信せず、既定では保存しません。",
+          message: `現在地を取得しました（水平精度 ±${position.coords.accuracy.toFixed(0)} m）。この座標はサーバーへ送信せず、既定では保存しません。`,
         });
       },
       (error) => {
@@ -102,14 +134,18 @@ export function LocationDialog({
         setNotice({ kind: "error", message });
       },
       {
-        enableHighAccuracy: false,
-        maximumAge: 300_000,
-        timeout: 12_000,
+        // This is an explicit, one-shot astronomy request. Prefer the most
+        // accurate fix the device can provide so eclipse/occultation boundary
+        // handling receives a meaningful horizontal-accuracy radius.
+        enableHighAccuracy: true,
+        maximumAge: 60_000,
+        timeout: 15_000,
       },
     );
   }
 
   function applyManualLocation() {
+    const heightValue = Number(heightMeters);
     const latitudeValue = Number(latitude);
     const longitudeValue = Number(longitude);
     const coordinateError = validateCoordinates(
@@ -118,6 +154,11 @@ export function LocationDialog({
     );
     if (coordinateError) {
       setNotice({ kind: "error", message: coordinateError });
+      return;
+    }
+    const heightError = validateHeight(heightValue);
+    if (heightError) {
+      setNotice({ kind: "error", message: heightError });
       return;
     }
     if (!hasValidTimeZone(timeZone)) {
@@ -130,8 +171,11 @@ export function LocationDialog({
     }
 
     onApply({
+      heightMeters: heightValue,
+      horizontalAccuracyMeters,
       id: `custom-${latitudeValue}-${longitudeValue}`,
       latitude: latitudeValue,
+      locationSource,
       longitude: longitudeValue,
       name: name.trim() || "カスタム地点",
       timeZone,
@@ -145,6 +189,11 @@ export function LocationDialog({
       city.longitude === Number(longitude) &&
       city.timeZone === timeZone,
   );
+
+  function markManualInput() {
+    setHorizontalAccuracyMeters(null);
+    setLocationSource("manual");
+  }
 
   return (
     <Dialog
@@ -181,7 +230,7 @@ export function LocationDialog({
             {requestingLocation ? "現在地を確認中…" : "現在地を使用"}
           </button>
           <p className="form-note">
-            このボタンを押した時だけ、ブラウザが位置情報の許可を求めます。
+            このボタンを押した時だけ、ブラウザが精度を優先して位置情報を1回取得します。
           </p>
         </section>
 
@@ -191,7 +240,10 @@ export function LocationDialog({
             <span>地点名</span>
             <input
               autoComplete="off"
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => {
+                markManualInput();
+                setName(event.target.value);
+              }}
               value={name}
             />
           </label>
@@ -202,7 +254,10 @@ export function LocationDialog({
                 inputMode="decimal"
                 max="90"
                 min="-90"
-                onChange={(event) => setLatitude(event.target.value)}
+                onChange={(event) => {
+                  markManualInput();
+                  setLatitude(event.target.value);
+                }}
                 step="0.0001"
                 type="number"
                 value={latitude}
@@ -214,7 +269,10 @@ export function LocationDialog({
                 inputMode="decimal"
                 max="180"
                 min="-180"
-                onChange={(event) => setLongitude(event.target.value)}
+                onChange={(event) => {
+                  markManualInput();
+                  setLongitude(event.target.value);
+                }}
                 step="0.0001"
                 type="number"
                 value={longitude}
@@ -222,11 +280,29 @@ export function LocationDialog({
             </label>
           </div>
           <label className="form-field">
+            <span>標高（楕円体高・m）</span>
+            <input
+              inputMode="decimal"
+              max="10000"
+              min="-500"
+              onChange={(event) => {
+                markManualInput();
+                setHeightMeters(event.target.value);
+              }}
+              step="1"
+              type="number"
+              value={heightMeters}
+            />
+          </label>
+          <label className="form-field">
             <span>タイムゾーン</span>
             <input
               autoCapitalize="off"
               autoComplete="off"
-              onChange={(event) => setTimeZone(event.target.value)}
+              onChange={(event) => {
+                markManualInput();
+                setTimeZone(event.target.value);
+              }}
               placeholder="Asia/Tokyo"
               spellCheck="false"
               value={timeZone}

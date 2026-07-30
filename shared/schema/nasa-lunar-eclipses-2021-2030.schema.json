@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/nasa-lunar-eclipses-2021-2030.schema.json",
+  "title": "NASA lunar-eclipse decade validation fixture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "source",
+    "timeScale",
+    "tolerances",
+    "events"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "publisher",
+        "url",
+        "attribution",
+        "accessedAt"
+      ],
+      "properties": {
+        "title": { "const": "Lunar Eclipses: 2021 - 2030" },
+        "publisher": {
+          "const": "NASA Goddard Space Flight Center"
+        },
+        "url": {
+          "const": "https://eclipse.gsfc.nasa.gov/LEdecade/LEdecade2021.html"
+        },
+        "attribution": {
+          "const": "Eclipse Predictions by Fred Espenak, NASA's GSFC"
+        },
+        "accessedAt": {
+          "type": "string",
+          "format": "date"
+        }
+      }
+    },
+    "timeScale": {
+      "const": "TD (treated as TT for this validation)"
+    },
+    "tolerances": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maximumUtcSeconds",
+        "umbralMagnitude"
+      ],
+      "properties": {
+        "maximumUtcSeconds": { "const": 3 },
+        "umbralMagnitude": { "const": 0.005 }
+      }
+    },
+    "events": {
+      "type": "array",
+      "minItems": 22,
+      "maxItems": 22,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/event" }
+    }
+  },
+  "$defs": {
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "greatestEclipseTd",
+        "classification",
+        "umbralMagnitude"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^le-20(?:2[1-9]|30)(?:0[1-9]|1[0-2])(?:0[1-9]|[12][0-9]|3[01])$"
+        },
+        "greatestEclipseTd": {
+          "type": "string",
+          "pattern": "^20(?:2[1-9]|30)-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$"
+        },
+        "classification": {
+          "enum": ["penumbral", "partial", "total"]
+        },
+        "umbralMagnitude": {
+          "type": "number",
+          "minimum": -2,
+          "maximum": 2
+        }
+      }
+    }
+  }
+}

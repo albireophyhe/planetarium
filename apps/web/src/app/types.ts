@@ -72,8 +72,14 @@ export type SelectedStarTrack = {
 };
 
 export type ObserverLocation = {
+  heightMeters: number;
+  horizontalAccuracyMeters: number | null;
   id: string;
   latitude: number;
+  locationSource:
+    | "bundled-city"
+    | "manual"
+    | "device-geolocation";
   longitude: number;
   name: string;
   timeZone: string;

@@ -157,13 +157,8 @@ export function useIersEarthOrientation(
   }, []);
 
   const lookupAt = useCallback(
-    async (requestedDate: Date) => {
-      try {
-        return await lookup(new Date(requestedDate.getTime()));
-      } catch {
-        return null;
-      }
-    },
+    (requestedDate: Date) =>
+      lookup(new Date(requestedDate.getTime())),
     [lookup]
   );
 

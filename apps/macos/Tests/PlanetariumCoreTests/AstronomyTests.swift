@@ -6,7 +6,9 @@ import XCTest
 
 final class AstronomyTests: XCTestCase {
     private let fixture: AstronomyFixture = {
-        let data = try! SharedResources.data(for: .astronomyTestVectors)
+        let data = try! TestFixtureData.data(
+            at: "shared/fixtures/astro-test-vectors.v1.json"
+        )
         return try! JSONDecoder().decode(AstronomyFixture.self, from: data)
     }()
 

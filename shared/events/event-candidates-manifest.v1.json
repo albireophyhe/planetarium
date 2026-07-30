@@ -1,0 +1,761 @@
+{
+  "schemaVersion": 1,
+  "model": "de442s-mean-sphere-eclipse-candidates-v1",
+  "source": {
+    "ephemeris": "JPL DE442s",
+    "kernelUrl": "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de442s.bsp",
+    "kernelSha256": "54d97562a5b094d298b1b8eafa5a2e17e3e010ce85e1a366d07f003ad159323c",
+    "kernelByteLength": 32701440,
+    "starCatalog": {
+      "id": "NASA HEASARC BSC5P bright-stars.v2",
+      "artifact": "shared/catalog/bright-stars.v2.json",
+      "referenceSystem": "FK5",
+      "epoch": "J2000.0",
+      "sourceUrl": "https://heasarc.gsfc.nasa.gov/W3Browse/catalog/bsc5p.html",
+      "sourceSha256": "a30e96d261ad5aea5d6f919828aa35bf08362fde0eca2062ea6e5ee3a796508b",
+      "starsContentSha256": "4e1a2de053ce13bb60027b66588fb396eada244a219d19c824cad32278043856"
+    },
+    "nasaCatalogs": [
+      {
+        "kind": "solar-eclipse",
+        "startYear": 1901,
+        "endYear": 2000,
+        "expectedCount": 228,
+        "url": "https://eclipse.gsfc.nasa.gov/SEcat5/SE1901-2000.html"
+      },
+      {
+        "kind": "solar-eclipse",
+        "startYear": 2001,
+        "endYear": 2100,
+        "expectedCount": 224,
+        "url": "https://eclipse.gsfc.nasa.gov/SEcat5/SE2001-2100.html"
+      },
+      {
+        "kind": "lunar-eclipse",
+        "startYear": 1901,
+        "endYear": 2000,
+        "expectedCount": 229,
+        "url": "https://eclipse.gsfc.nasa.gov/LEcat5/LE1901-2000.html"
+      },
+      {
+        "kind": "lunar-eclipse",
+        "startYear": 2001,
+        "endYear": 2100,
+        "expectedCount": 228,
+        "url": "https://eclipse.gsfc.nasa.gov/LEcat5/LE2001-2100.html"
+      }
+    ]
+  },
+  "coverage": {
+    "calendar": "proleptic Gregorian",
+    "timeScale": "TDB",
+    "startYear": 1900,
+    "endYear": 2101,
+    "endIsExclusive": true,
+    "chunkYears": 5
+  },
+  "generation": {
+    "scanStepDays": 0.5,
+    "maximumToleranceSeconds": 1,
+    "localSearchHalfWindowDays": 0.75,
+    "solarCandidateRule": "At the minimum geocentric shadow-axis miss distance, retain the event when the mean spherical Earth intersects the Moon's penumbral cone. Lunar radii k1/k2 follow the NASA Besselian convention.",
+    "lunarCandidateRule": "At minimum Moon-to-antisolar-axis separation, retain the event when the mean lunar disk intersects the Danjon 1.01 penumbra.",
+    "occultationCandidateRule": "For bundled BSC5P stars at V <= 3.0 and within 8 degrees of the J2000 ecliptic, retain a minimum when the geocentric separation is no greater than lunar semidiameter plus maximum equatorial lunar parallax plus a 120 arcsecond inclusion margin.",
+    "occultationScanStepDays": 0.125,
+    "occultationSelectedStarCount": 25,
+    "occultationSelectedStars": [
+      {
+        "hr": 1165,
+        "vMagnitude": 2.87,
+        "eclipticLatitudeRadians": 0.07069983077
+      },
+      {
+        "hr": 1457,
+        "vMagnitude": 0.85,
+        "eclipticLatitudeRadians": -0.095424720752
+      },
+      {
+        "hr": 1791,
+        "vMagnitude": 1.65,
+        "eclipticLatitudeRadians": 0.093988839233
+      },
+      {
+        "hr": 1910,
+        "vMagnitude": 3,
+        "eclipticLatitudeRadians": -0.038321574845
+      },
+      {
+        "hr": 2286,
+        "vMagnitude": 2.88,
+        "eclipticLatitudeRadians": -0.014313395369
+      },
+      {
+        "hr": 2421,
+        "vMagnitude": 1.93,
+        "eclipticLatitudeRadians": -0.117681336064
+      },
+      {
+        "hr": 2473,
+        "vMagnitude": 2.98,
+        "eclipticLatitudeRadians": 0.036127491427
+      },
+      {
+        "hr": 2990,
+        "vMagnitude": 1.14,
+        "eclipticLatitudeRadians": 0.11665909771
+      },
+      {
+        "hr": 3982,
+        "vMagnitude": 1.35,
+        "eclipticLatitudeRadians": 0.008112958611
+      },
+      {
+        "hr": 5056,
+        "vMagnitude": 0.98,
+        "eclipticLatitudeRadians": -0.035858213165
+      },
+      {
+        "hr": 5531,
+        "vMagnitude": 2.75,
+        "eclipticLatitudeRadians": 0.00581472275
+      },
+      {
+        "hr": 5944,
+        "vMagnitude": 2.89,
+        "eclipticLatitudeRadians": -0.095564517541
+      },
+      {
+        "hr": 5953,
+        "vMagnitude": 2.32,
+        "eclipticLatitudeRadians": -0.034662595844
+      },
+      {
+        "hr": 5984,
+        "vMagnitude": 2.62,
+        "eclipticLatitudeRadians": 0.017586598819
+      },
+      {
+        "hr": 6084,
+        "vMagnitude": 2.89,
+        "eclipticLatitudeRadians": -0.070465301161
+      },
+      {
+        "hr": 6134,
+        "vMagnitude": 0.96,
+        "eclipticLatitudeRadians": -0.079760268077
+      },
+      {
+        "hr": 6165,
+        "vMagnitude": 2.82,
+        "eclipticLatitudeRadians": -0.106822501551
+      },
+      {
+        "hr": 6378,
+        "vMagnitude": 2.43,
+        "eclipticLatitudeRadians": 0.125628531074
+      },
+      {
+        "hr": 6746,
+        "vMagnitude": 2.99,
+        "eclipticLatitudeRadians": -0.122020146799
+      },
+      {
+        "hr": 6859,
+        "vMagnitude": 2.7,
+        "eclipticLatitudeRadians": -0.112961180642
+      },
+      {
+        "hr": 6913,
+        "vMagnitude": 2.81,
+        "eclipticLatitudeRadians": -0.03727295662
+      },
+      {
+        "hr": 7121,
+        "vMagnitude": 2.02,
+        "eclipticLatitudeRadians": -0.060204401751
+      },
+      {
+        "hr": 7194,
+        "vMagnitude": 2.6,
+        "eclipticLatitudeRadians": -0.125298523759
+      },
+      {
+        "hr": 7264,
+        "vMagnitude": 2.89,
+        "eclipticLatitudeRadians": 0.025081913782
+      },
+      {
+        "hr": 8322,
+        "vMagnitude": 2.87,
+        "eclipticLatitudeRadians": -0.045405685332
+      }
+    ],
+    "constants": {
+      "earthEquatorialRadiusKilometers": 6378.137,
+      "earthPolarRadiusKilometers": 6356.752314245,
+      "sunNominalRadiusKilometers": 695700,
+      "moonMeanRadiusKilometers": 1737.4,
+      "solarPenumbralLunarRadiusRatio": 0.272488,
+      "solarUmbralLunarRadiusRatio": 0.272281,
+      "lunarShadowDanjonScale": 1.01,
+      "solarClassificationBoundaryToleranceKilometers": 1.5,
+      "distanceUnit": "kilometer",
+      "angleUnit": "radian"
+    },
+    "determinism": "Direct Float64 evaluation of the pinned DE442s Type 2 SPK; fixed half-day eclipse and three-hour occultation scans; one-second golden-section stopping width; canonical pretty-printed UTF-8 JSON."
+  },
+  "interpretation": {
+    "purpose": "Small offline seeds for a later topocentric contact solver; candidates are not observer-specific predictions.",
+    "classificationHint": "Mean-sphere geometry only. The runtime solver must recompute classification and local visibility. A sampled total path whose minimum umbra is within 1.5 km of zero is marked hybrid because a sub-minute transition and the mean lunar limb cannot be resolved by this index.",
+    "uncertainty": "Mean lunar limb, spherical Earth candidate filter, and no atmosphere or lunar topography. Grazing contacts need a limb profile and site/EOP uncertainty. TDB seeds require the application time-scale pipeline before UTC display.",
+    "occultationAstrometry": "BSC5P FK5 J2000 position and proper motion are connected to Hipparcos/ICRS with SOFA-derived rotation and spin. The broad 120 arcsecond margin covers omitted candidate-stage aberration, light time, catalog quantization, and perspective acceleration. The runtime must use its full apparent-position pipeline.",
+    "searchWindow": "The stored +/-18 hour window intentionally exceeds all eclipse contact durations and absorbs seed/model differences.",
+    "runtimeNetwork": "None. NASA pages are fetched only when the generator is invoked with --verify-nasa."
+  },
+  "chunks": [
+    {
+      "id": "1900-1905",
+      "startYear": 1900,
+      "endYear": 1905,
+      "file": "shared/events/chunks/1900-1905.v1.json",
+      "eventCount": 143,
+      "solarEclipseCount": 11,
+      "lunarEclipseCount": 11,
+      "lunarOccultationCount": 121,
+      "byteLength": 89652,
+      "gzipByteLength": 9923,
+      "sha256": "f8c8a46ba30f575a6f34bf50dee19eda8c92f5543f144a474d23701b2ca13d1a"
+    },
+    {
+      "id": "1905-1910",
+      "startYear": 1905,
+      "endYear": 1910,
+      "file": "shared/events/chunks/1905-1910.v1.json",
+      "eventCount": 210,
+      "solarEclipseCount": 12,
+      "lunarEclipseCount": 12,
+      "lunarOccultationCount": 186,
+      "byteLength": 132804,
+      "gzipByteLength": 14163,
+      "sha256": "1f1010cf967b8b215f41c9e5ffb4b2e29581af54a3f75720cb95a7c388c6755a"
+    },
+    {
+      "id": "1910-1915",
+      "startYear": 1910,
+      "endYear": 1915,
+      "file": "shared/events/chunks/1910-1915.v1.json",
+      "eventCount": 378,
+      "solarEclipseCount": 11,
+      "lunarEclipseCount": 10,
+      "lunarOccultationCount": 357,
+      "byteLength": 242532,
+      "gzipByteLength": 24492,
+      "sha256": "3dce5638aa9eaa26bf2ea1f24bdabd465832a5d088ede5201714556e0146ad0a"
+    },
+    {
+      "id": "1915-1920",
+      "startYear": 1915,
+      "endYear": 1920,
+      "file": "shared/events/chunks/1915-1920.v1.json",
+      "eventCount": 321,
+      "solarEclipseCount": 13,
+      "lunarEclipseCount": 13,
+      "lunarOccultationCount": 295,
+      "byteLength": 204264,
+      "gzipByteLength": 20948,
+      "sha256": "abc1dfa69e09a2655da53982f72e152929f6df68e3a9a6e34897750e5ffb1d3b"
+    },
+    {
+      "id": "1920-1925",
+      "startYear": 1920,
+      "endYear": 1925,
+      "file": "shared/events/chunks/1920-1925.v1.json",
+      "eventCount": 130,
+      "solarEclipseCount": 11,
+      "lunarEclipseCount": 11,
+      "lunarOccultationCount": 108,
+      "byteLength": 81661,
+      "gzipByteLength": 9123,
+      "sha256": "e3305513328052b3f796a87f9a427ca75a63e241da99a05e110e52e28aa1034b"
+    },
+    {
+      "id": "1925-1930",
+      "startYear": 1925,
+      "endYear": 1930,
+      "file": "shared/events/chunks/1925-1930.v1.json",
+      "eventCount": 235,
+      "solarEclipseCount": 12,
+      "lunarEclipseCount": 12,
+      "lunarOccultationCount": 211,
+      "byteLength": 148709,
+      "gzipByteLength": 15721,
+      "sha256": "06deb07fbbc1a657ebccdbcee3c8226bb05e684886ea58068e5f5aa09cbd2736"
+    },
+    {
+      "id": "1930-1935",
+      "startYear": 1930,
+      "endYear": 1935,
+      "file": "shared/events/chunks/1930-1935.v1.json",
+      "eventCount": 459,
+      "solarEclipseCount": 11,
+      "lunarEclipseCount": 12,
+      "lunarOccultationCount": 436,
+      "byteLength": 294862,
+      "gzipByteLength": 29375,
+      "sha256": "a06647a5be9f7f41eedcf6f92d0570254daabe0cf736b53457789e7c4a1f888b"
+    },
+    {
+      "id": "1935-1940",
+      "startYear": 1935,
+      "endYear": 1940,
+      "file": "shared/events/chunks/1935-1940.v1.json",
+      "eventCount": 236,
+      "solarEclipseCount": 13,
+      "lunarEclipseCount": 11,
+      "lunarOccultationCount": 212,
+      "byteLength": 149328,
+      "gzipByteLength": 15730,
+      "sha256": "bfa82579c8c3ba2c5a3f0bbcf1bc4f67fe0eef6bb09afe16904bc3b11221f8e3"
+    },
+    {
+      "id": "1940-1945",
+      "startYear": 1940,
+      "endYear": 1945,
+      "file": "shared/events/chunks/1940-1945.v1.json",
+      "eventCount": 143,
+      "solarEclipseCount": 11,
+      "lunarEclipseCount": 13,
+      "lunarOccultationCount": 119,
+      "byteLength": 89818,
+      "gzipByteLength": 9918,
+      "sha256": "6e9bd27d11df61a82a850f21fb48cc00bcf7dd9d7645803fc34b9248f838a6d5"
+    },
+    {
+      "id": "1945-1950",
+      "startYear": 1945,
+      "endYear": 1950,
+      "file": "shared/events/chunks/1945-1950.v1.json",
+      "eventCount": 242,
+      "solarEclipseCount": 12,
+      "lunarEclipseCount": 10,
+      "lunarOccultationCount": 220,
+      "byteLength": 153673,
+      "gzipByteLength": 16117,
+      "sha256": "4846592490be8b233cccad5af7a9a62070ad25a840567e6907df2973dff9cc73"
+    },
+    {
+      "id": "1950-1955",
+      "startYear": 1950,
+      "endYear": 1955,
+      "file": "shared/events/chunks/1950-1955.v1.json",
+      "eventCount": 469,
+      "solarEclipseCount": 12,
+      "lunarEclipseCount": 11,
+      "lunarOccultationCount": 446,
+      "byteLength": 301202,
+      "gzipByteLength": 30010,
+      "sha256": "66d689e81e63bc6118270555186238637186f27c2515839f7112fa753a477861"
+    },
+    {
+      "id": "1955-1960",
+      "startYear": 1955,
+      "endYear": 1960,
+      "file": "shared/events/chunks/1955-1960.v1.json",
+      "eventCount": 166,
+      "solarEclipseCount": 10,
+      "lunarEclipseCount": 12,
+      "lunarOccultationCount": 144,
+      "byteLength": 104312,
+      "gzipByteLength": 11393,
+      "sha256": "2c9e99affed83ca94a41dbff466be0f3576a71df52efff2d37ea8a28e3d23ba1"
+    },
+    {
+      "id": "1960-1965",
+      "startYear": 1960,
+      "endYear": 1965,
+      "file": "shared/events/chunks/1960-1965.v1.json",
+      "eventCount": 178,
+      "solarEclipseCount": 12,
+      "lunarEclipseCount": 12,
+      "lunarOccultationCount": 154,
+      "byteLength": 112295,
+      "gzipByteLength": 12085,
+      "sha256": "b30b868c53663d4e863625778ed79ecb505ef2ae33e30c6ddc3098b325e41a38"
+    },
+    {
+      "id": "1965-1970",
+      "startYear": 1965,
+      "endYear": 1970,
+      "file": "shared/events/chunks/1965-1970.v1.json",
+      "eventCount": 338,
+      "solarEclipseCount": 10,
+      "lunarEclipseCount": 11,
+      "lunarOccultationCount": 317,
+      "byteLength": 216329,
+      "gzipByteLength": 22084,
+      "sha256": "cf18a50059f56ba49602267eb5442648fe29325d368b2f68d735e46f8694182a"
+    },
+    {
+      "id": "1970-1975",
+      "startYear": 1970,
+      "endYear": 1975,
+      "file": "shared/events/chunks/1970-1975.v1.json",
+      "eventCount": 382,
+      "solarEclipseCount": 12,
+      "lunarEclipseCount": 12,
+      "lunarOccultationCount": 358,
+      "byteLength": 244277,
+      "gzipByteLength": 24671,
+      "sha256": "60846983547e1044749db16b8bd8c19d348852a361d5b86647390496c87a8627"
+    },
+    {
+      "id": "1975-1980",
+      "startYear": 1975,
+      "endYear": 1980,
+      "file": "shared/events/chunks/1975-1980.v1.json",
+      "eventCount": 131,
+      "solarEclipseCount": 10,
+      "lunarEclipseCount": 10,
+      "lunarOccultationCount": 111,
+      "byteLength": 82359,
+      "gzipByteLength": 9075,
+      "sha256": "98967a6f1756f32988b1043f75149542b43e5e25e016ba76a2af69246ed05f4c"
+    },
+    {
+      "id": "1980-1985",
+      "startYear": 1980,
+      "endYear": 1985,
+      "file": "shared/events/chunks/1980-1985.v1.json",
+      "eventCount": 227,
+      "solarEclipseCount": 12,
+      "lunarEclipseCount": 13,
+      "lunarOccultationCount": 202,
+      "byteLength": 143549,
+      "gzipByteLength": 15119,
+      "sha256": "95a0a464b92489b8823c6403c1bbf7d510aeb94a1dd98d6091ef2b8629643b9d"
+    },
+    {
+      "id": "1985-1990",
+      "startYear": 1985,
+      "endYear": 1990,
+      "file": "shared/events/chunks/1985-1990.v1.json",
+      "eventCount": 418,
+      "solarEclipseCount": 10,
+      "lunarEclipseCount": 10,
+      "lunarOccultationCount": 398,
+      "byteLength": 268670,
+      "gzipByteLength": 26844,
+      "sha256": "2c04b80820e8fb8c69e63e933b6634c08222b579e7f8df5593bd674f0fb605b5"
+    },
+    {
+      "id": "1990-1995",
+      "startYear": 1990,
+      "endYear": 1995,
+      "file": "shared/events/chunks/1990-1995.v1.json",
+      "eventCount": 292,
+      "solarEclipseCount": 11,
+      "lunarEclipseCount": 12,
+      "lunarOccultationCount": 269,
+      "byteLength": 185660,
+      "gzipByteLength": 19185,
+      "sha256": "bcabcf2bf490624e05962e08e2f8cf98f64ba5d5467d8c55a4895aaa06dfbd8a"
+    },
+    {
+      "id": "1995-2000",
+      "startYear": 1995,
+      "endYear": 2000,
+      "file": "shared/events/chunks/1995-2000.v1.json",
+      "eventCount": 118,
+      "solarEclipseCount": 10,
+      "lunarEclipseCount": 11,
+      "lunarOccultationCount": 97,
+      "byteLength": 74178,
+      "gzipByteLength": 8454,
+      "sha256": "f75494af17b047fb45c4e4866c98d4c786adbe773d496e287dc93b6ead74a982"
+    },
+    {
+      "id": "2000-2005",
+      "startYear": 2000,
+      "endYear": 2005,
+      "file": "shared/events/chunks/2000-2005.v1.json",
+      "eventCount": 230,
+      "solarEclipseCount": 12,
+      "lunarEclipseCount": 12,
+      "lunarOccultationCount": 206,
+      "byteLength": 145344,
+      "gzipByteLength": 15247,
+      "sha256": "520481c9b710d49a042595b045d26680a04e8668662ca152408acaa110ae5f86"
+    },
+    {
+      "id": "2005-2010",
+      "startYear": 2005,
+      "endYear": 2010,
+      "file": "shared/events/chunks/2005-2010.v1.json",
+      "eventCount": 475,
+      "solarEclipseCount": 10,
+      "lunarEclipseCount": 12,
+      "lunarOccultationCount": 453,
+      "byteLength": 305338,
+      "gzipByteLength": 30124,
+      "sha256": "f3026dfa7fe5989af72b09f51537d6bb4c3f6914a56412bee22d70b065bf6812"
+    },
+    {
+      "id": "2010-2015",
+      "startYear": 2010,
+      "endYear": 2015,
+      "file": "shared/events/chunks/2010-2015.v1.json",
+      "eventCount": 201,
+      "solarEclipseCount": 12,
+      "lunarEclipseCount": 11,
+      "lunarOccultationCount": 178,
+      "byteLength": 126697,
+      "gzipByteLength": 13532,
+      "sha256": "e2429a674f0227753c50aa9e270d040e323b79c9c661919266e726bfe90cdd20"
+    },
+    {
+      "id": "2015-2020",
+      "startYear": 2015,
+      "endYear": 2020,
+      "file": "shared/events/chunks/2015-2020.v1.json",
+      "eventCount": 168,
+      "solarEclipseCount": 12,
+      "lunarEclipseCount": 10,
+      "lunarOccultationCount": 146,
+      "byteLength": 106456,
+      "gzipByteLength": 11462,
+      "sha256": "13b3f97f9a26d30c2edab31b4cf401ce32a1801756aa8377ba5a25dc308c938a"
+    },
+    {
+      "id": "2020-2025",
+      "startYear": 2020,
+      "endYear": 2025,
+      "file": "shared/events/chunks/2020-2025.v1.json",
+      "eventCount": 268,
+      "solarEclipseCount": 10,
+      "lunarEclipseCount": 12,
+      "lunarOccultationCount": 246,
+      "byteLength": 170552,
+      "gzipByteLength": 17676,
+      "sha256": "64974ff68eaf89d5d900adb6ba4a010ea941b3dd6f59d87d4dcefcef658d8e27"
+    },
+    {
+      "id": "2025-2030",
+      "startYear": 2025,
+      "endYear": 2030,
+      "file": "shared/events/chunks/2025-2030.v1.json",
+      "eventCount": 439,
+      "solarEclipseCount": 12,
+      "lunarEclipseCount": 12,
+      "lunarOccultationCount": 415,
+      "byteLength": 281471,
+      "gzipByteLength": 28223,
+      "sha256": "7d0146024966985f89be155c608a39e9030ffd1ec75476b7955046db91e34f1a"
+    },
+    {
+      "id": "2030-2035",
+      "startYear": 2030,
+      "endYear": 2035,
+      "file": "shared/events/chunks/2030-2035.v1.json",
+      "eventCount": 148,
+      "solarEclipseCount": 10,
+      "lunarEclipseCount": 11,
+      "lunarOccultationCount": 127,
+      "byteLength": 92950,
+      "gzipByteLength": 10247,
+      "sha256": "09384c36e9bd92ea23001c1476288d4825c0dc7637c17c6d2eb70103a67379a7"
+    },
+    {
+      "id": "2035-2040",
+      "startYear": 2035,
+      "endYear": 2040,
+      "file": "shared/events/chunks/2035-2040.v1.json",
+      "eventCount": 195,
+      "solarEclipseCount": 12,
+      "lunarEclipseCount": 12,
+      "lunarOccultationCount": 171,
+      "byteLength": 123247,
+      "gzipByteLength": 13224,
+      "sha256": "6a85cd816cb744d7ba3caeb16b97dff3f813adb24b322162fac9018319fcf544"
+    },
+    {
+      "id": "2040-2045",
+      "startYear": 2040,
+      "endYear": 2045,
+      "file": "shared/events/chunks/2040-2045.v1.json",
+      "eventCount": 370,
+      "solarEclipseCount": 10,
+      "lunarEclipseCount": 10,
+      "lunarOccultationCount": 350,
+      "byteLength": 237434,
+      "gzipByteLength": 23863,
+      "sha256": "16505e838066e5e9116b7276083f7f82a13456f66be9d91cd7045d4022196e54"
+    },
+    {
+      "id": "2045-2050",
+      "startYear": 2045,
+      "endYear": 2050,
+      "file": "shared/events/chunks/2045-2050.v1.json",
+      "eventCount": 328,
+      "solarEclipseCount": 12,
+      "lunarEclipseCount": 12,
+      "lunarOccultationCount": 304,
+      "byteLength": 209196,
+      "gzipByteLength": 21450,
+      "sha256": "052600b6d5b6121d082c6b8ee3ec40af5f7e1108b78bed3d0fca05d22bb26204"
+    },
+    {
+      "id": "2050-2055",
+      "startYear": 2050,
+      "endYear": 2055,
+      "file": "shared/events/chunks/2050-2055.v1.json",
+      "eventCount": 132,
+      "solarEclipseCount": 11,
+      "lunarEclipseCount": 10,
+      "lunarOccultationCount": 111,
+      "byteLength": 83102,
+      "gzipByteLength": 9185,
+      "sha256": "46211fb16f7bd73313d87b7a28bb90dc5606bfc0a3806e3e35e6ae136c231f91"
+    },
+    {
+      "id": "2055-2060",
+      "startYear": 2055,
+      "endYear": 2060,
+      "file": "shared/events/chunks/2055-2060.v1.json",
+      "eventCount": 226,
+      "solarEclipseCount": 12,
+      "lunarEclipseCount": 12,
+      "lunarOccultationCount": 202,
+      "byteLength": 142934,
+      "gzipByteLength": 15188,
+      "sha256": "73775e20dde5c7b415467c8bde66d3f1c1b69d2b234a3794ce75a9bad885af98"
+    },
+    {
+      "id": "2060-2065",
+      "startYear": 2060,
+      "endYear": 2065,
+      "file": "shared/events/chunks/2060-2065.v1.json",
+      "eventCount": 441,
+      "solarEclipseCount": 10,
+      "lunarEclipseCount": 11,
+      "lunarOccultationCount": 420,
+      "byteLength": 283494,
+      "gzipByteLength": 28130,
+      "sha256": "5c747427c72ec6719a704c1939c90f0d9d701ddfea016fbe74f343a3086a43b5"
+    },
+    {
+      "id": "2065-2070",
+      "startYear": 2065,
+      "endYear": 2070,
+      "file": "shared/events/chunks/2065-2070.v1.json",
+      "eventCount": 258,
+      "solarEclipseCount": 13,
+      "lunarEclipseCount": 12,
+      "lunarOccultationCount": 233,
+      "byteLength": 163357,
+      "gzipByteLength": 16951,
+      "sha256": "cf13ac3cf298e91abaaaa52d5ed1335f73e43eea1aec8898917c2e43d5d542c5"
+    },
+    {
+      "id": "2070-2075",
+      "startYear": 2070,
+      "endYear": 2075,
+      "file": "shared/events/chunks/2070-2075.v1.json",
+      "eventCount": 130,
+      "solarEclipseCount": 10,
+      "lunarEclipseCount": 11,
+      "lunarOccultationCount": 109,
+      "byteLength": 81924,
+      "gzipByteLength": 9154,
+      "sha256": "8b37d989b553766cf3622fa008deb213064f4a35265adb391ea3569e61d6e0c0"
+    },
+    {
+      "id": "2075-2080",
+      "startYear": 2075,
+      "endYear": 2080,
+      "file": "shared/events/chunks/2075-2080.v1.json",
+      "eventCount": 236,
+      "solarEclipseCount": 12,
+      "lunarEclipseCount": 12,
+      "lunarOccultationCount": 212,
+      "byteLength": 149357,
+      "gzipByteLength": 15707,
+      "sha256": "806382c434d062113a992895e10e78cc90684af418376d0389f485eec6fecaf2"
+    },
+    {
+      "id": "2080-2085",
+      "startYear": 2080,
+      "endYear": 2085,
+      "file": "shared/events/chunks/2080-2085.v1.json",
+      "eventCount": 477,
+      "solarEclipseCount": 12,
+      "lunarEclipseCount": 10,
+      "lunarOccultationCount": 455,
+      "byteLength": 306733,
+      "gzipByteLength": 30384,
+      "sha256": "d254dd440d762c5e1348def45061b4b836ddb9d896e09dc78b86f0c5cc0e9015"
+    },
+    {
+      "id": "2085-2090",
+      "startYear": 2085,
+      "endYear": 2090,
+      "file": "shared/events/chunks/2085-2090.v1.json",
+      "eventCount": 171,
+      "solarEclipseCount": 11,
+      "lunarEclipseCount": 12,
+      "lunarOccultationCount": 148,
+      "byteLength": 107320,
+      "gzipByteLength": 11711,
+      "sha256": "fa69dcce6643501929f605ab7763f187d83fa3994c970de520be77f73d576848"
+    },
+    {
+      "id": "2090-2095",
+      "startYear": 2090,
+      "endYear": 2095,
+      "file": "shared/events/chunks/2090-2095.v1.json",
+      "eventCount": 178,
+      "solarEclipseCount": 12,
+      "lunarEclipseCount": 12,
+      "lunarOccultationCount": 154,
+      "byteLength": 112330,
+      "gzipByteLength": 12061,
+      "sha256": "e8965c92c3074316cc6cbbb9084ee3f55f49a2da85bf7c6777b806e2a9e1072c"
+    },
+    {
+      "id": "2095-2100",
+      "startYear": 2095,
+      "endYear": 2100,
+      "file": "shared/events/chunks/2095-2100.v1.json",
+      "eventCount": 309,
+      "solarEclipseCount": 11,
+      "lunarEclipseCount": 12,
+      "lunarOccultationCount": 286,
+      "byteLength": 197132,
+      "gzipByteLength": 20213,
+      "sha256": "ddc3e44cbe987b3bae912142946b7ec351fd2f8a47367e265d821d8b796ec6c2"
+    },
+    {
+      "id": "2100-2101",
+      "startYear": 2100,
+      "endYear": 2101,
+      "file": "shared/events/chunks/2100-2101.v1.json",
+      "eventCount": 124,
+      "solarEclipseCount": 2,
+      "lunarEclipseCount": 2,
+      "lunarOccultationCount": 120,
+      "byteLength": 80231,
+      "gzipByteLength": 8473,
+      "sha256": "efb9d2223cd7a2c579747b20e1850e43a91f609a583098f8e25d9a940a73ba89"
+    }
+  ],
+  "statistics": {
+    "chunkCount": 41,
+    "eventCount": 10720,
+    "solarEclipseCount": 454,
+    "lunarEclipseCount": 459,
+    "lunarOccultationCount": 9807,
+    "totalChunkBytes": 6826733,
+    "totalChunkGzipBytes": 706635,
+    "maximumChunkBytes": 306733,
+    "maximumChunkGzipBytes": 30384
+  }
+}

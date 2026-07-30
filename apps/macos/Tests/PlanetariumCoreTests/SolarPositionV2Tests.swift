@@ -6,8 +6,8 @@ import XCTest
 
 final class SolarPositionV2Tests: XCTestCase {
     private let fixture: SOFASolarPositionFixture = {
-        let data = try! SharedResources.data(
-            for: .sofaSolarPositionVectors
+        let data = try! TestFixtureData.data(
+            at: "shared/fixtures/sofa-solar-position.v1.json"
         )
         return try! JSONDecoder().decode(
             SOFASolarPositionFixture.self,
@@ -134,22 +134,22 @@ final class SolarPositionV2Tests: XCTestCase {
 
             XCTAssertLessThan(
                 equatorialResidual,
-                5,
+                2,
                 "\(vector.id) apparent equatorial"
             )
             XCTAssertLessThan(
                 horizontalResidual,
-                5,
+                2,
                 "\(vector.id) horizontal ENU"
             )
             XCTAssertLessThan(
                 ephemerisDirectionResidual,
-                3,
+                1,
                 "\(vector.id) heliocentric direction"
             )
             XCTAssertLessThan(
                 ephemerisDistanceResidual,
-                1e-5,
+                3e-6,
                 "\(vector.id) heliocentric distance"
             )
             XCTAssertEqual(

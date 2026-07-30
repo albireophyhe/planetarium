@@ -1,5 +1,6 @@
+import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
-import { join, posix } from "node:path";
+import { basename, join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const projectRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -8,6 +9,14 @@ const distRoot = join(projectRoot, "apps/web/dist");
 const canonicalSofaNoticePath = join(
   projectRoot,
   "shared/licenses/IAU-SOFA-derived-work-notice.md"
+);
+const canonicalEventManifestPath = join(
+  projectRoot,
+  "shared/ephemeris/de442s/de442s-manifest.v1.json"
+);
+const canonicalEventCandidateManifestPath = join(
+  projectRoot,
+  "shared/events/event-candidates-manifest.v1.json"
 );
 const violations = [];
 
@@ -142,6 +151,8 @@ try {
   for (const fragment of [
     "Content-Security-Policy:",
     "/assets/*",
+    "/event-data/de442s/chunks/*",
+    "/event-data/candidates/chunks/*",
     "Cache-Control: public, max-age=31536000, immutable"
   ]) {
     if (!sourceHeaders.includes(fragment)) {
@@ -169,6 +180,168 @@ try {
     violations.push(
       "canonical IAU SOFA通知に非推奨声明または完全な6条件がありません"
     );
+  }
+
+  const [
+    canonicalEventCandidateManifest,
+    distributedEventCandidateManifest
+  ] = await Promise.all([
+    readFile(canonicalEventCandidateManifestPath, "utf8"),
+    readText(
+      distRoot,
+      "event-data/candidates/event-candidates-manifest.v1.json"
+    )
+  ]);
+  if (
+    canonicalEventCandidateManifest !==
+    distributedEventCandidateManifest
+  ) {
+    violations.push(
+      "distのevent candidate manifestがsharedのcanonical版と一致しません"
+    );
+  }
+  const eventCandidateManifest = JSON.parse(
+    canonicalEventCandidateManifest
+  );
+  if (
+    eventCandidateManifest.schemaVersion !== 1 ||
+    eventCandidateManifest.model !==
+      "de442s-mean-sphere-eclipse-candidates-v1" ||
+    !Array.isArray(eventCandidateManifest.chunks) ||
+    eventCandidateManifest.chunks.length !== 41
+  ) {
+    violations.push(
+      "canonical event candidate manifestの配布契約が不正です"
+    );
+  } else {
+    const expectedCandidateChunkFiles = new Set();
+    for (const chunk of eventCandidateManifest.chunks) {
+      const fileName = basename(chunk.file ?? "");
+      if (
+        !/^\d{4}-\d{4}\.v1\.json$/.test(fileName) ||
+        !Number.isSafeInteger(chunk.byteLength) ||
+        !/^[0-9a-f]{64}$/.test(chunk.sha256 ?? "")
+      ) {
+        violations.push(
+          "canonical event candidate chunk記述が不正です: " +
+            JSON.stringify(chunk.id)
+        );
+        continue;
+      }
+      expectedCandidateChunkFiles.add(fileName);
+      const distributedChunk = await readFile(
+        join(
+          distRoot,
+          "event-data/candidates/chunks",
+          fileName
+        )
+      );
+      if (distributedChunk.byteLength !== chunk.byteLength) {
+        violations.push(
+          `dist event candidate chunk ${fileName} のbyte lengthがmanifestと不一致`
+        );
+      }
+      const sha256 = createHash("sha256")
+        .update(distributedChunk)
+        .digest("hex");
+      if (sha256 !== chunk.sha256) {
+        violations.push(
+          `dist event candidate chunk ${fileName} のSHA-256がmanifestと不一致`
+        );
+      }
+    }
+    const distributedCandidateChunkFiles = await readdir(
+      join(distRoot, "event-data/candidates/chunks")
+    );
+    for (const fileName of distributedCandidateChunkFiles) {
+      if (!expectedCandidateChunkFiles.has(fileName)) {
+        violations.push(
+          `dist event candidatesにmanifest外chunkがあります: ${fileName}`
+        );
+      }
+    }
+    if (
+      distributedCandidateChunkFiles.length !==
+      expectedCandidateChunkFiles.size
+    ) {
+      violations.push(
+        "dist event candidate chunk集合がmanifestの41件と一致しません"
+      );
+    }
+  }
+
+  const [canonicalEventManifest, distributedEventManifest] =
+    await Promise.all([
+      readFile(canonicalEventManifestPath, "utf8"),
+      readText(
+        distRoot,
+        "event-data/de442s/de442s-manifest.v1.json"
+      )
+    ]);
+  if (canonicalEventManifest !== distributedEventManifest) {
+    violations.push(
+      "distのDE442s manifestがsharedのcanonical版と一致しません"
+    );
+  }
+  const eventManifest = JSON.parse(canonicalEventManifest);
+  if (
+    eventManifest.schemaVersion !== 1 ||
+    eventManifest.model !== "jpl-de442s-type2-float32" ||
+    !Array.isArray(eventManifest.chunks) ||
+    eventManifest.chunks.length !== 41
+  ) {
+    violations.push("canonical DE442s manifestの配布契約が不正です");
+  } else {
+    const expectedChunkFiles = new Set();
+    for (const chunk of eventManifest.chunks) {
+      const fileName = basename(chunk.file ?? "");
+      if (
+        !/^\d{4}-\d{4}\.v1\.bin$/.test(fileName) ||
+        !Number.isSafeInteger(chunk.byteLength) ||
+        !/^[0-9a-f]{64}$/.test(chunk.sha256 ?? "")
+      ) {
+        violations.push(
+          `canonical DE442s chunk記述が不正です: ${JSON.stringify(chunk.id)}`
+        );
+        continue;
+      }
+      expectedChunkFiles.add(fileName);
+      const distributedChunk = await readFile(
+        join(
+          distRoot,
+          "event-data/de442s/chunks",
+          fileName
+        )
+      );
+      if (distributedChunk.byteLength !== chunk.byteLength) {
+        violations.push(
+          `dist DE442s chunk ${fileName} のbyte lengthがmanifestと不一致`
+        );
+      }
+      const sha256 = createHash("sha256")
+        .update(distributedChunk)
+        .digest("hex");
+      if (sha256 !== chunk.sha256) {
+        violations.push(
+          `dist DE442s chunk ${fileName} のSHA-256がmanifestと不一致`
+        );
+      }
+    }
+    const distributedChunkFiles = await readdir(
+      join(distRoot, "event-data/de442s/chunks")
+    );
+    for (const fileName of distributedChunkFiles) {
+      if (!expectedChunkFiles.has(fileName)) {
+        violations.push(
+          `dist DE442sにmanifest外chunkがあります: ${fileName}`
+        );
+      }
+    }
+    if (distributedChunkFiles.length !== expectedChunkFiles.size) {
+      violations.push(
+        "dist DE442s chunk集合がmanifestの41件と一致しません"
+      );
+    }
   }
 
   for (const [field, expected] of [
@@ -475,6 +648,6 @@ if (violations.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(
-    "Web成果物OK: PWA manifest / 参照先 / headers / Cloudflare SPA設定"
+    "Web成果物OK: PWA / 参照先 / headers / DE442s 41 chunks / event candidates 41 chunks / Cloudflare SPA設定"
   );
 }

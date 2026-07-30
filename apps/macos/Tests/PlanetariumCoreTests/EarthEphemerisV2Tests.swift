@@ -26,12 +26,12 @@ final class EarthEphemerisV2Tests: XCTestCase {
         XCTAssertEqual(artifact.truncation.fullTermCount, 1_323)
         XCTAssertEqual(
             artifact.truncation.retainedTermCount,
-            100
+            200
         )
-        XCTAssertEqual(artifact.retainedTermCount, 100)
+        XCTAssertEqual(artifact.retainedTermCount, 200)
         XCTAssertEqual(
             artifact.series.all.map(\.count),
-            [43, 44, 2, 4, 3, 3, 0, 0, 1]
+            [90, 88, 6, 4, 4, 3, 2, 2, 1]
         )
         XCTAssertEqual(
             artifact.bcrsOrientationMatrix,

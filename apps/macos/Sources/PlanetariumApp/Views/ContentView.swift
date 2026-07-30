@@ -4,17 +4,37 @@ import SwiftUI
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Bindable var store: SkyStore
+    @Bindable var eventStore: EventForecastStore
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var sidebarMode: PlanetariumSidebarMode = .stars
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            StarSidebarView(store: store)
+            PlanetariumSidebarView(
+                skyStore: store,
+                eventStore: eventStore,
+                mode: $sidebarMode
+            )
                 .navigationSplitViewColumnWidth(min: 230, ideal: 280, max: 360)
         } detail: {
             SkyWorkspaceView(store: store)
                 .inspector(isPresented: $store.isInspectorPresented) {
-                    StarInspectorView(store: store)
-                        .inspectorColumnWidth(min: 270, ideal: 320, max: 390)
+                    Group {
+                        switch sidebarMode {
+                        case .stars:
+                            StarInspectorView(store: store)
+                        case .events:
+                            EventForecastInspectorView(
+                                skyStore: store,
+                                eventStore: eventStore
+                            )
+                        }
+                    }
+                    .inspectorColumnWidth(
+                        min: 270,
+                        ideal: 320,
+                        max: 390
+                    )
                 }
         }
         .navigationSplitViewStyle(.balanced)
@@ -53,6 +73,32 @@ struct ContentView: View {
         .tint(store.nightMode ? Color(red: 0.88, green: 0.29, blue: 0.29) : .blue)
         .onChange(of: scenePhase) { _, newPhase in
             store.handleScenePhase(newPhase)
+        }
+        .onChange(of: sidebarMode) { _, newMode in
+            switch newMode {
+            case .stars:
+                eventStore.deactivate()
+            case .events:
+                eventStore.activate(
+                    location: store.location,
+                    observationDate:
+                        store.observationDate
+                )
+                // Keep inspector visibility user-controlled. Presenting it
+                // from this segmented Picker callback re-enters AppKit's
+                // constraint pass when the change comes from AX Press.
+            }
+        }
+        .onChange(of: store.location) {
+            guard sidebarMode == .events else {
+                return
+            }
+            eventStore.reload(
+                location: store.location
+            )
+        }
+        .onDisappear {
+            eventStore.deactivate()
         }
     }
 

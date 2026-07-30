@@ -3,6 +3,10 @@ import {
   J2000_JULIAN_DATE,
   SECONDS_PER_DAY,
 } from "../precision/constants";
+import { resolveTimeScales } from "../precision/timeScales";
+
+const UNIX_EPOCH_JULIAN_DATE = 2_440_587.5;
+const MILLISECONDS_PER_DAY = 86_400_000;
 
 /**
  * Compact geocentric TT→TDB approximation.
@@ -27,4 +31,69 @@ export function tdbMinusTtSeconds(ttJulianDate: number): number {
 }
 export function ttToTdbJulianDate(ttJulianDate: number): number {
   return ttJulianDate + tdbMinusTtSeconds(ttJulianDate) / SECONDS_PER_DAY;
+}
+
+export function utcDateToTdbJulianDate(date: Date): number {
+  if (!Number.isFinite(date.getTime())) {
+    throw new RangeError("UTC date must be valid");
+  }
+  return ttToTdbJulianDate(resolveTimeScales(date).ttJulianDate);
+}
+
+/**
+ * Returns the proleptic-Gregorian year of a TDB-labelled Julian date.
+ *
+ * This deliberately does not convert TDB to UTC. Candidate chunks are
+ * partitioned by their TDB calendar year, while their public filtering is
+ * performed later against converted UTC instants.
+ */
+export function tdbCalendarYear(tdbJulianDate: number): number {
+  if (!Number.isFinite(tdbJulianDate)) {
+    throw new RangeError("TDB Julian date must be finite");
+  }
+  const tdbLabelMilliseconds =
+    (tdbJulianDate - UNIX_EPOCH_JULIAN_DATE) *
+    MILLISECONDS_PER_DAY;
+  const year = new Date(tdbLabelMilliseconds).getUTCFullYear();
+  if (!Number.isFinite(year)) {
+    throw new RangeError("TDB Julian date is outside the Date range");
+  }
+  return year;
+}
+
+/**
+ * Inverts this application's UTC→TT→TDB model for candidate seed times.
+ *
+ * Eclipse candidates are stored in TDB because that is DE442s' independent
+ * variable. The returned UTC Date follows the same leap-second assumptions
+ * as `resolveTimeScales`, so a round trip stays deterministic and the local
+ * contact solver receives a correctly centered search window.
+ */
+export function tdbJulianDateToUtcDate(tdbJulianDate: number): Date {
+  if (!Number.isFinite(tdbJulianDate)) {
+    throw new RangeError("TDB Julian date must be finite");
+  }
+
+  let utcMilliseconds =
+    (tdbJulianDate - UNIX_EPOCH_JULIAN_DATE) *
+      MILLISECONDS_PER_DAY -
+    69_184;
+  for (let iteration = 0; iteration < 6; iteration += 1) {
+    const candidate = new Date(utcMilliseconds);
+    const computedTdb = ttToTdbJulianDate(
+      resolveTimeScales(candidate).ttJulianDate,
+    );
+    const correctionMilliseconds =
+      (tdbJulianDate - computedTdb) * MILLISECONDS_PER_DAY;
+    utcMilliseconds += correctionMilliseconds;
+    if (Math.abs(correctionMilliseconds) < 0.001) {
+      break;
+    }
+  }
+
+  const result = new Date(utcMilliseconds);
+  if (!Number.isFinite(result.getTime())) {
+    throw new RangeError("TDB Julian date is outside the Date range");
+  }
+  return result;
 }

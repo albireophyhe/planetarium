@@ -19,6 +19,7 @@ import { App } from "./App";
 const trackCalculationSpy = vi.hoisted(() => vi.fn());
 const dut1LookupAtSpy = vi.hoisted(() => vi.fn());
 const dut1RetrySpy = vi.hoisted(() => vi.fn());
+const eventPanelRenderSpy = vi.hoisted(() => vi.fn());
 const dut1HookState = vi.hoisted(() => ({
   estimate: {
     dut1: {
@@ -75,6 +76,44 @@ vi.mock("./selectedStarTrack", async (importOriginal) => {
     },
   };
 });
+
+type MockEventPanelProps = {
+  canRestoreObservationTime: boolean;
+  observationDate: Date;
+  onRestoreObservationTime: () => void;
+  onShowEventTime: (date: Date) => void;
+};
+
+vi.mock("../features/events/EventForecastPanel", () => ({
+  EventForecastPanel: (props: MockEventPanelProps) => {
+    eventPanelRenderSpy(props);
+    return (
+      <section aria-label="テスト用天文現象予報">
+        <time dateTime={props.observationDate.toISOString()}>
+          {props.observationDate.toISOString()}
+        </time>
+        <button
+          onClick={() =>
+            props.onShowEventTime(
+              new Date("2026-08-12T17:45:54.000Z"),
+            )
+          }
+          type="button"
+        >
+          テスト最大時刻を空に表示
+        </button>
+        {props.canRestoreObservationTime ? (
+          <button
+            onClick={props.onRestoreObservationTime}
+            type="button"
+          >
+            テスト元の日時に戻る
+          </button>
+        ) : null}
+      </section>
+    );
+  },
+}));
 
 vi.mock("../features/location/LocationDialog", () => ({
   LocationDialog: ({ open }: { open: boolean }) =>
@@ -172,6 +211,7 @@ describe("App selection announcements", () => {
     );
     dut1RetrySpy.mockClear();
     trackCalculationSpy.mockClear();
+    eventPanelRenderSpy.mockClear();
   });
 
   it("upgrades the rendered sky to the lazy precision-v2 catalog", async () => {
@@ -216,7 +256,7 @@ describe("App selection announcements", () => {
     expect(screen.getByText("見かけ赤経（観測日）")).toBeVisible();
     expect(screen.getByText("年周視差")).toBeVisible();
     expect(
-      screen.getAllByText("適用（VSOP2000 100項地球暦）"),
+      screen.getAllByText("適用（VSOP2000 200項地球暦）"),
     ).toHaveLength(2);
     expect(
       screen.getByText(
@@ -226,6 +266,62 @@ describe("App selection announcements", () => {
     expect(
       screen.getByText(/IERS EOP予測値（DUT1・極運動）/),
     ).toBeVisible();
+  });
+
+  it("loads forecasts only after the events tab and changes time only on an explicit action", async () => {
+    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const user = userEvent.setup();
+    render(<App />);
+    const readout = document.querySelector(".playback-readout time");
+    const originalDateTime = readout?.getAttribute("datetime");
+
+    expect(
+      screen.getByRole("tab", {
+        hidden: true,
+        name: "星と現象",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: "恒星" }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(eventPanelRenderSpy).not.toHaveBeenCalled();
+
+    await user.click(
+      screen.getByRole("button", { name: "時間を再生" }),
+    );
+    await user.click(screen.getByRole("tab", { name: "現象" }));
+
+    expect(
+      await screen.findByRole("region", {
+        name: "テスト用天文現象予報",
+      }),
+    ).toBeVisible();
+    expect(eventPanelRenderSpy).toHaveBeenCalled();
+    expect(readout).toHaveAttribute("datetime", originalDateTime);
+    expect(
+      screen.getByRole("button", { name: "時間を一時停止" }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "テスト最大時刻を空に表示",
+      }),
+    );
+    expect(readout).toHaveAttribute(
+      "datetime",
+      "2026-08-12T17:45:54.000Z",
+    );
+    expect(
+      screen.getByRole("button", { name: "時間を再生" }),
+    ).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "テスト元の日時に戻る",
+      }),
+    );
+    expect(readout).toHaveAttribute("datetime", originalDateTime);
   });
 
   it.each([
@@ -681,4 +777,67 @@ describe("App location workflow", () => {
       ).toHaveAttribute("aria-pressed", "false");
     },
   );
+});
+
+describe("App help workflow", () => {
+  beforeEach(() => {
+    Object.defineProperties(HTMLDialogElement.prototype, {
+      close: {
+        configurable: true,
+        value() {
+          this.removeAttribute("open");
+        },
+      },
+      showModal: {
+        configurable: true,
+        value() {
+          this.setAttribute("open", "");
+        },
+      },
+    });
+  });
+
+  it("loads help only after the explicit action and can close it", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const helpButton = screen.getByRole("button", {
+      name: "ヘルプ",
+    });
+
+    expect(
+      screen.queryByRole("dialog", {
+        name: "ヘルプとプライバシー",
+      }),
+    ).not.toBeInTheDocument();
+
+    await user.click(helpButton);
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: "ヘルプとプライバシー",
+      }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "ヘルプとプライバシーを閉じる",
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", {
+          name: "ヘルプとプライバシー",
+        }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(document.querySelector("dialog")).toBeInTheDocument();
+    expect(helpButton).toHaveFocus();
+
+    await user.click(helpButton);
+    expect(
+      await screen.findByRole("dialog", {
+        name: "ヘルプとプライバシー",
+      }),
+    ).toBeInTheDocument();
+  });
 });

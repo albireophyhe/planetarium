@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Cross-runtime regression contract for the Web and Swift event earth-rotation fallback; this is not an independent scientific oracle.",
+  "bundledEopCoverage": {
+    "firstSampleUtc": "1973-01-02T00:00:00.000Z",
+    "lastSampleUtc": "2027-07-31T00:00:00.000Z",
+    "interval": "closed"
+  },
+  "tolerances": {
+    "seconds": 1e-9,
+    "kilometers": 1e-9,
+    "polynomialSeconds": 1e-9
+  },
+  "fallbackCases": [
+    {
+      "id": "historical-1900",
+      "observedAtUtc": "1900-01-01T00:00:00.000Z",
+      "expected": {
+        "outcome": "fallback",
+        "deltaTSeconds": -2.745453411341962,
+        "dut1Seconds": 34.92945341134196,
+        "deltaTUncertaintySeconds": 1,
+        "pathUncertaintyKilometers": 0.4651011,
+        "assumedTaiMinusUtcSeconds": 0,
+        "eopId": "outside-IERS-coverage-historical-delta-t-model",
+        "deltaTModel": "NASA-2004-historical-polynomial-DE442s"
+      }
+    },
+    {
+      "id": "historical-1950",
+      "observedAtUtc": "1950-01-01T00:00:00.000Z",
+      "expected": {
+        "outcome": "fallback",
+        "deltaTSeconds": 29.08680761388151,
+        "dut1Seconds": 3.0971923861184862,
+        "deltaTUncertaintySeconds": 1,
+        "pathUncertaintyKilometers": 0.4651011,
+        "assumedTaiMinusUtcSeconds": 0,
+        "eopId": "outside-IERS-coverage-historical-delta-t-model",
+        "deltaTModel": "NASA-2004-historical-polynomial-DE442s"
+      }
+    },
+    {
+      "id": "historical-1955",
+      "observedAtUtc": "1955-01-01T00:00:00.000Z",
+      "expected": {
+        "outcome": "fallback",
+        "deltaTSeconds": 31.063181008310874,
+        "dut1Seconds": 1.1208189916891236,
+        "deltaTUncertaintySeconds": 1,
+        "pathUncertaintyKilometers": 0.4651011,
+        "assumedTaiMinusUtcSeconds": 0,
+        "eopId": "outside-IERS-coverage-historical-delta-t-model",
+        "deltaTModel": "NASA-2004-historical-polynomial-DE442s"
+      }
+    },
+    {
+      "id": "inside-eop-2005",
+      "observedAtUtc": "2005-01-01T00:00:00.000Z",
+      "expected": {
+        "outcome": "inside-bundled-eop-coverage-error"
+      }
+    },
+    {
+      "id": "inside-eop-2026",
+      "observedAtUtc": "2026-01-01T00:00:00.000Z",
+      "expected": {
+        "outcome": "inside-bundled-eop-coverage-error"
+      }
+    },
+    {
+      "id": "eop-last-sample-minus-1ms",
+      "observedAtUtc": "2027-07-30T23:59:59.999Z",
+      "expected": {
+        "outcome": "inside-bundled-eop-coverage-error"
+      }
+    },
+    {
+      "id": "eop-last-sample",
+      "observedAtUtc": "2027-07-31T00:00:00.000Z",
+      "expected": {
+        "outcome": "inside-bundled-eop-coverage-error"
+      }
+    },
+    {
+      "id": "eop-last-sample-plus-1ms",
+      "observedAtUtc": "2027-07-31T00:00:00.001Z",
+      "expected": {
+        "outcome": "fallback",
+        "deltaTSeconds": 69.23169400000002,
+        "dut1Seconds": -0.04769400000002122,
+        "deltaTUncertaintySeconds": 6.826313828125044,
+        "pathUncertaintyKilometers": 3.1749260704061686,
+        "assumedTaiMinusUtcSeconds": 37,
+        "eopId": "outside-IERS-coverage-future-delta-t-model",
+        "deltaTModel": "NASA-2004-polynomial-anchored-to-IERS-EOP-2027-07-31"
+      }
+    },
+    {
+      "id": "future-2050",
+      "observedAtUtc": "2050-01-01T00:00:00.000Z",
+      "expected": {
+        "outcome": "fallback",
+        "deltaTSeconds": 86.26190756572355,
+        "dut1Seconds": -17.07790756572355,
+        "deltaTUncertaintySeconds": 16.85626552524444,
+        "pathUncertaintyKilometers": 7.839867637683266,
+        "assumedTaiMinusUtcSeconds": 37,
+        "eopId": "outside-IERS-coverage-future-delta-t-model",
+        "deltaTModel": "NASA-2004-polynomial-anchored-to-IERS-EOP-2027-07-31"
+      }
+    },
+    {
+      "id": "future-2100",
+      "observedAtUtc": "2100-01-01T00:00:00.000Z",
+      "expected": {
+        "outcome": "fallback",
+        "deltaTSeconds": 195.94527331719019,
+        "dut1Seconds": -126.76127331719019,
+        "deltaTUncertaintySeconds": 49.30865040218279,
+        "pathUncertaintyKilometers": 22.93350754157066,
+        "assumedTaiMinusUtcSeconds": 37,
+        "eopId": "outside-IERS-coverage-future-delta-t-model",
+        "deltaTModel": "NASA-2004-polynomial-anchored-to-IERS-EOP-2027-07-31"
+      }
+    }
+  ],
+  "nasaPolynomialBoundaryCases": [
+    {
+      "id": "nasa-piece-1920",
+      "boundaryDecimalYear": 1920,
+      "epsilonYears": 1e-9,
+      "expectedSeconds": {
+        "before": 21.18761999976972,
+        "at": 21.2,
+        "after": 21.20000000084492
+      }
+    },
+    {
+      "id": "nasa-piece-1941",
+      "boundaryDecimalYear": 1941,
+      "epsilonYears": 1e-9,
+      "expectedSeconds": {
+        "before": 24.77225959958144,
+        "at": 24.773141433749377,
+        "after": 24.773141434329027
+      }
+    },
+    {
+      "id": "nasa-piece-1961",
+      "boundaryDecimalYear": 1961,
+      "epsilonYears": 1e-9,
+      "expectedSeconds": {
+        "before": 33.55026227393656,
+        "at": 33.579880865652456,
+        "after": 33.57988086600821
+      }
+    },
+    {
+      "id": "nasa-piece-1986",
+      "boundaryDecimalYear": 1986,
+      "epsilonYears": 1e-9,
+      "expectedSeconds": {
+        "before": 54.86785493845612,
+        "at": 54.87773753824,
+        "after": 54.87773753868563
+      }
+    },
+    {
+      "id": "nasa-piece-2005",
+      "boundaryDecimalYear": 2005,
+      "epsilonYears": 1e-9,
+      "expectedSeconds": {
+        "before": 64.72064621848959,
+        "at": 64.670575,
+        "after": 64.67057500037807
+      }
+    },
+    {
+      "id": "nasa-piece-2050",
+      "boundaryDecimalYear": 2050,
+      "epsilonYears": 1e-9,
+      "expectedSeconds": {
+        "before": 93.00099999911895,
+        "at": 92.99999999999997,
+        "after": 93.00000000203477
+      }
+    }
+  ]
+}

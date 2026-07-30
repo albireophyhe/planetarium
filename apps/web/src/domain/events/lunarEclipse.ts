@@ -6,15 +6,24 @@ import {
   calculateApparentBody,
   calculateGeocentricApparentBody,
 } from "./apparentBody";
+import { eclipseContactPositionAngleRadians } from "./eclipseContactPositionAngle";
 import {
-  findSignChangeBrackets,
+  eventEphemerisSearchBounds,
+  intersectEventSearchBounds,
+  resolveEventSearchBounds,
+} from "./ephemerisCoverage";
+import {
   minimizeBracketed,
   solveBracketedRoot,
 } from "./numerics";
+import { eventTimeScaleNotices } from "./timeScaleNotices";
+import { classifyEventIntervalVisibility } from "./eventVisibility";
 import type {
   ApparentGeocentricBodyState,
   EventBodyPosition,
   EventContact,
+  EventEarthOrientationProvenanceOptions,
+  EventEphemerisSearchOptions,
   EventEphemerisProvider,
   EventObserverContext,
   EventProvenance,
@@ -48,8 +57,14 @@ export interface LunarEclipseGeometry {
   readonly umbralMagnitude: number;
 }
 
-export interface LocalLunarEclipseOptions {
+export interface LocalLunarEclipseOptions
+  extends EventEarthOrientationProvenanceOptions,
+    EventEphemerisSearchOptions {
+  readonly deltaTModel?: string;
   readonly earthOrientation?: EarthOrientationOptions;
+  readonly earthOrientationAt?: (
+    date: Date,
+  ) => EarthOrientationOptions | undefined;
   readonly eopId?: string;
   readonly heightMeters?: number;
   readonly horizontalAccuracyMeters?: number | null;
@@ -57,6 +72,8 @@ export interface LocalLunarEclipseOptions {
   readonly halfWindowMilliseconds?: number;
   readonly scanStepMilliseconds?: number;
   readonly timingUncertaintySeconds?: number | null;
+  readonly timeScaleContributors?: readonly string[];
+  readonly timeScaleWarnings?: readonly string[];
   readonly shouldCancel?: () => boolean;
 }
 
@@ -119,25 +136,11 @@ function clearance(
   return sample.centerSeparationRadians - contactRadius;
 }
 
-function uniqueSortedTimes(times: readonly number[]): readonly number[] {
-  const result: number[] = [];
-  for (const time of [...times].sort((left, right) => left - right)) {
-    if (
-      result.length === 0 ||
-      Math.abs(time - (result[result.length - 1] ?? time)) > 100
-    ) {
-      result.push(time);
-    }
-  }
-  return Object.freeze(result);
-}
-
 function contactTimes(
   shadow: "penumbral" | "umbral" | "total",
   sampleAt: (instantMilliseconds: number) => LunarShadowSample,
   start: number,
   end: number,
-  step: number,
   shouldCancel?: () => boolean,
 ): readonly number[] {
   const value = (instant: number): number => {
@@ -149,18 +152,36 @@ function contactTimes(
     }
     return clearance(sampleAt(instant), shadow);
   };
-  return uniqueSortedTimes(
-    findSignChangeBrackets(value, start, end, step).map(
-      (bracket) =>
-        solveBracketedRoot(
-          value,
-          bracket.lower,
-          bracket.upper,
-          ROOT_TIME_TOLERANCE_MILLISECONDS,
-          ROOT_ANGLE_TOLERANCE_RADIANS,
-        ).value,
-    ),
+  const minimum = minimizeBracketed(
+    value,
+    start,
+    end,
+    ROOT_TIME_TOLERANCE_MILLISECONDS,
   );
+  if (minimum.value >= 0) {
+    return Object.freeze([]);
+  }
+  if (value(start) <= 0 || value(end) <= 0) {
+    throw new RangeError(
+      "Lunar-eclipse search window does not bracket both contacts",
+    );
+  }
+  return Object.freeze([
+    solveBracketedRoot(
+      value,
+      start,
+      minimum.argument,
+      ROOT_TIME_TOLERANCE_MILLISECONDS,
+      ROOT_ANGLE_TOLERANCE_RADIANS,
+    ).value,
+    solveBracketedRoot(
+      value,
+      minimum.argument,
+      end,
+      ROOT_TIME_TOLERANCE_MILLISECONDS,
+      ROOT_ANGLE_TOLERANCE_RADIANS,
+    ).value,
+  ]);
 }
 
 export function solveLunarEclipseGeometry(
@@ -170,6 +191,7 @@ export function solveLunarEclipseGeometry(
     LocalLunarEclipseOptions,
     | "halfWindowMilliseconds"
     | "scanStepMilliseconds"
+    | "searchBounds"
     | "shouldCancel"
   > = {},
 ): LunarEclipseGeometry | null {
@@ -189,8 +211,13 @@ export function solveLunarEclipseGeometry(
   ) {
     throw new RangeError("Lunar-eclipse search window must be positive");
   }
-  const start = candidateMilliseconds - halfWindow;
-  const end = candidateMilliseconds + halfWindow;
+  const searchBounds = resolveEventSearchBounds(
+    candidateMilliseconds,
+    halfWindow,
+    options.searchBounds,
+  );
+  const start = searchBounds.startUtcMilliseconds;
+  const end = searchBounds.endUtcMilliseconds;
   const minimum = minimizeBracketed(
     (instant) => {
       if (options.shouldCancel?.()) {
@@ -209,36 +236,29 @@ export function solveLunarEclipseGeometry(
   if (clearance(maximum, "penumbral") >= 0) {
     return null;
   }
-  const hasUmbra = clearance(maximum, "umbral") < 0;
-  const hasTotality = hasUmbra && clearance(maximum, "total") < 0;
   const penumbralTimes = contactTimes(
     "penumbral",
     sampleAt,
     start,
     end,
-    scanStep,
     options.shouldCancel,
   );
-  const umbralTimes = hasUmbra
-    ? contactTimes(
-        "umbral",
-        sampleAt,
-        start,
-        end,
-        scanStep,
-        options.shouldCancel,
-      )
-    : [];
-  const totalTimes = hasTotality
-    ? contactTimes(
-        "total",
-        sampleAt,
-        start,
-        end,
-        scanStep,
-        options.shouldCancel,
-      )
-    : [];
+  const umbralTimes = contactTimes(
+    "umbral",
+    sampleAt,
+    start,
+    end,
+    options.shouldCancel,
+  );
+  const totalTimes = contactTimes(
+    "total",
+    sampleAt,
+    start,
+    end,
+    options.shouldCancel,
+  );
+  const hasUmbra = umbralTimes.length >= 2;
+  const hasTotality = totalTimes.length >= 2;
   if (
     penumbralTimes.length < 2 ||
     (hasUmbra && umbralTimes.length < 2) ||
@@ -307,9 +327,13 @@ export function calculateLocalLunarEclipse(
   const globalSampleAt = (
     instantMilliseconds: number,
   ): LunarShadowSample => {
+    const instant = new Date(instantMilliseconds);
+    const earthOrientation =
+      options.earthOrientationAt?.(instant) ??
+      options.earthOrientation;
     const timeScales = resolveTimeScales(
-      new Date(instantMilliseconds),
-      options.earthOrientation,
+      instant,
+      earthOrientation,
     );
     return lunarShadowSample(
       instantMilliseconds,
@@ -325,10 +349,18 @@ export function calculateLocalLunarEclipse(
       ),
     );
   };
+  const loadedSearchBounds =
+    eventEphemerisSearchBounds(ephemeris);
+  const searchBounds = options.searchBounds
+    ? intersectEventSearchBounds(
+        options.searchBounds,
+        loadedSearchBounds,
+      )
+    : loadedSearchBounds;
   const geometry = solveLunarEclipseGeometry(
     event.canonicalEpochUtc.getTime(),
     globalSampleAt,
-    options,
+    { ...options, searchBounds },
   );
   if (!geometry) {
     return null;
@@ -338,9 +370,13 @@ export function calculateLocalLunarEclipse(
     phase: EventContact["phase"],
     sample: LunarShadowSample,
   ): EventContact => {
+    const instant = new Date(sample.instantMilliseconds);
+    const earthOrientation =
+      options.earthOrientationAt?.(instant) ??
+      options.earthOrientation;
     const timeScales = resolveTimeScales(
-      new Date(sample.instantMilliseconds),
-      options.earthOrientation,
+      instant,
+      earthOrientation,
     );
     const moon = calculateApparentBody(
       ephemeris,
@@ -350,18 +386,32 @@ export function calculateLocalLunarEclipse(
       location,
       {
         heightMeters: options.heightMeters ?? 0,
-        ...(options.earthOrientation?.polarMotion
-          ? { polarMotion: options.earthOrientation.polarMotion }
+        ...(earthOrientation?.polarMotion
+          ? { polarMotion: earthOrientation.polarMotion }
           : {}),
       },
     );
+    const shadowCenterDirection = opposite(
+      sample.sun.cirsDirection,
+    );
+    const contactPointIsAwayFromShadowCenter =
+      phase === "lunar-u2" || phase === "lunar-u3";
     return {
       phase,
       instantUtc: new Date(sample.instantMilliseconds),
       bodies: { moon: moonBodyPosition(moon) },
       aboveHorizon:
         moon.horizontal.altitude + moon.angularRadiusRadians > 0,
-      positionAngleRadians: null,
+      positionAngleRadians:
+        phase === "maximum"
+          ? null
+          : eclipseContactPositionAngleRadians(
+              sample.moon.cirsDirection,
+              shadowCenterDirection,
+              contactPointIsAwayFromShadowCenter
+                ? "away-from-other-center"
+                : "toward-other-center",
+            ),
     };
   };
   const first = <T,>(items: readonly T[]): T | undefined => items[0];
@@ -410,30 +460,76 @@ export function calculateLocalLunarEclipse(
       last(geometry.penumbralContacts) as LunarShadowSample,
     ),
   ];
-  const visibleCount = contacts.filter(
-    (item) => item.aboveHorizon,
-  ).length;
-  const classificationTitle =
-    geometry.classification === "total"
-      ? "皆既月食"
-      : geometry.classification === "partial"
-        ? "部分月食"
-        : "半影月食";
+  const firstPenumbral =
+    first(geometry.penumbralContacts) as LunarShadowSample;
+  const lastPenumbral =
+    last(geometry.penumbralContacts) as LunarShadowSample;
+  const visibility = classifyEventIntervalVisibility(
+    firstPenumbral.instantMilliseconds,
+    lastPenumbral.instantMilliseconds,
+    (instant) => {
+      const date = new Date(instant);
+      const earthOrientation =
+        options.earthOrientationAt?.(date) ??
+        options.earthOrientation;
+      const timeScales = resolveTimeScales(
+        date,
+        earthOrientation,
+      );
+      const moon = calculateApparentBody(
+        ephemeris,
+        "moon",
+        timeScales.ttJulianDate,
+        timeScales.ut1JulianDate,
+        location,
+        {
+          heightMeters: options.heightMeters ?? 0,
+          ...(earthOrientation?.polarMotion
+            ? {
+                polarMotion: earthOrientation.polarMotion,
+              }
+            : {}),
+        },
+      );
+      return (
+        moon.horizontal.altitude +
+        moon.angularRadiusRadians
+      );
+    },
+  );
+  const maximumDate = new Date(
+    geometry.maximum.instantMilliseconds,
+  );
+  const earthOrientationProvenance =
+    options.earthOrientationProvenanceAt?.(maximumDate) ?? {
+      eopSourceSha256: options.eopSourceSha256 ?? null,
+      eopRetrievedAt: options.eopRetrievedAt ?? null,
+      dut1Quality: options.dut1Quality ?? "outside-coverage",
+      polarMotionQuality:
+        options.polarMotionQuality ?? "outside-coverage",
+    };
   const provenance: EventProvenance = {
     algorithmVersion: "event-lunar-v1-danjon",
     ephemerisId: ephemeris.id,
     ephemerisSourceSha256: ephemeris.sourceSha256,
+    ...earthOrientationProvenance,
     eopId: options.eopId ?? "caller-or-assumed",
-    deltaTModel: "existing UTC-TAI-TT and caller DUT1",
+    deltaTModel:
+      options.deltaTModel ??
+      "existing UTC-TAI-TT and caller DUT1",
     lunarRadiusModel: "mean-spherical-limb",
     limbProfileId: null,
   };
+  const maximumEarthOrientation =
+    options.earthOrientationAt?.(maximumDate) ??
+    options.earthOrientation;
+  const timeScaleNotices = eventTimeScaleNotices(
+    maximumDate,
+    maximumEarthOrientation,
+  );
   return {
-    event: {
-      ...event,
-      globalClassification: geometry.classification,
-      title: classificationTitle,
-    },
+    event,
+    localClassification: geometry.classification,
     observer: {
       ...location,
       heightMeters: options.heightMeters ?? 0,
@@ -441,12 +537,9 @@ export function calculateLocalLunarEclipse(
         options.horizontalAccuracyMeters ?? null,
       locationSource: options.locationSource ?? "manual",
     },
-    visibility:
-      visibleCount === 0
-        ? "below-horizon"
-        : visibleCount === contacts.length
-          ? "fully-visible"
-          : "partly-visible",
+    boundaryUncertain: false,
+    boundaryUncertaintyReason: null,
+    visibility,
     contacts: Object.freeze(contacts),
     maximum: contacts.find((item) => item.phase === "maximum") as EventContact,
     magnitude:
@@ -463,9 +556,11 @@ export function calculateLocalLunarEclipse(
       dominantContributors: Object.freeze([
         "Danjon法（影半径1.01倍）",
         "地球大気による影の境界は連続的",
-        ...(options.earthOrientation?.dut1Seconds === undefined
+        ...(maximumEarthOrientation?.dut1Seconds === undefined
           ? ["UT1−UTCを0秒と仮定"]
           : []),
+        ...timeScaleNotices.dominantContributors,
+        ...(options.timeScaleContributors ?? []),
       ]),
     },
     provenance,
@@ -473,6 +568,8 @@ export function calculateLocalLunarEclipse(
       "月食の影半径はNASA Five Millennium Catalogと同じDanjon法です。",
       "半影の開始・終了は淡く、肉眼で明確に判別できない場合があります。",
       "地形、建物、雲、視程は含みません。",
+      ...timeScaleNotices.warnings,
+      ...(options.timeScaleWarnings ?? []),
     ]),
   };
 }

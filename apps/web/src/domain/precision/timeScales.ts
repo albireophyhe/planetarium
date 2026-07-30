@@ -59,6 +59,8 @@ const LEAP_SECONDS: readonly LeapSecondEntry[] = [
  * December 2026. A later Bulletin C can change the offset from 2027-07-01.
  */
 const LEAP_SECOND_KNOWN_THROUGH = Date.parse("2027-07-01T00:00:00.000Z");
+const MAXIMUM_ABSOLUTE_DUT1_SECONDS = 3_600;
+const MAXIMUM_DUT1_UNCERTAINTY_SECONDS = 3_600;
 
 function defaultTaiMinusUtc(date: Date): {
   readonly value: number;
@@ -111,8 +113,10 @@ export function resolveTimeScales(
   const dut1Seconds = hasDut1
     ? assertFinite(options.dut1Seconds as number, "DUT1")
     : 0;
-  if (Math.abs(dut1Seconds) > 1) {
-    throw new RangeError("DUT1 must be between -1 and +1 seconds");
+  if (Math.abs(dut1Seconds) > MAXIMUM_ABSOLUTE_DUT1_SECONDS) {
+    throw new RangeError(
+      "DUT1 must be between -3600 and +3600 seconds"
+    );
   }
   const dut1Source = hasDut1
     ? (options.dut1Source ?? "caller")
@@ -139,10 +143,11 @@ export function resolveTimeScales(
         );
   if (
     dut1UncertaintySeconds !== null &&
-    (dut1UncertaintySeconds < 0 || dut1UncertaintySeconds > 1)
+    (dut1UncertaintySeconds < 0 ||
+      dut1UncertaintySeconds > MAXIMUM_DUT1_UNCERTAINTY_SECONDS)
   ) {
     throw new RangeError(
-      "DUT1 uncertainty must be between 0 and 1 second"
+      "DUT1 uncertainty must be between 0 and 3600 seconds"
     );
   }
   if (dut1Source === "assumed-zero") {

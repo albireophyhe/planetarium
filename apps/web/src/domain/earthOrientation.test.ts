@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  createChunkedEarthOrientationAccess,
   createChunkedEarthOrientationLookup,
   createEarthOrientationLookup,
   decodeEarthOrientationChunk,
@@ -111,7 +112,8 @@ describe("integrated IERS Earth orientation", () => {
     expect(exact?.dut1).toEqual({
       seconds: 0.101,
       reportedErrorSeconds: 0.00002,
-      source: "observed"
+      source: "observed",
+      quality: "observed"
     });
     expect(exact?.polarMotion.source).toBe("observed");
 
@@ -150,6 +152,8 @@ describe("integrated IERS Earth orientation", () => {
 
     expect(result?.dut1.source).toBe("observed");
     expect(result?.polarMotion.source).toBe("predicted");
+    expect(result?.dut1.quality).toBe("observed");
+    expect(result?.polarMotion.quality).toBe("mixed");
     expect(result?.polarMotion.usesPrediction).toBe(true);
   });
 
@@ -243,6 +247,184 @@ describe("integrated IERS Earth orientation", () => {
     expect(await lookup(dateFromMjd(60_002.75))).not.toBeNull();
     expect(loader).toHaveBeenCalledTimes(2);
     expect(await lookup(dateFromMjd(60_005.1))).toBeNull();
+  });
+
+  it("preloads a chunk-boundary interval into an immutable synchronous snapshot", async () => {
+    const chunks = new Map([
+      [
+        "eop/a.json",
+        encodedChunk(60_000, ["I", "I", "I"])
+      ],
+      [
+        "eop/b.json",
+        {
+          ...encodedChunk(60_003, ["I", "I", "I"]),
+          xpMicroarcsecondsDelta: delta([
+            12_700,
+            16_400,
+            22_500
+          ]),
+          ypMicroarcsecondsDelta: delta([
+            -18_200,
+            -16_800,
+            -15_000
+          ])
+        }
+      ]
+    ]);
+    const loader = vi.fn(async ({ file }: { file: string }) => {
+      const chunk = chunks.get(file);
+      if (!chunk) throw new Error("missing chunk");
+      return chunk;
+    });
+    const access = createChunkedEarthOrientationAccess(
+      [
+        {
+          file: "eop/a.json",
+          startMjdUtc: 60_000,
+          endMjdUtc: 60_002,
+          recordCount: 3
+        },
+        {
+          file: "eop/b.json",
+          startMjdUtc: 60_003,
+          endMjdUtc: 60_005,
+          recordCount: 3
+        }
+      ],
+      loader
+    );
+    const start = dateFromMjd(60_002.25);
+    const end = dateFromMjd(60_003.75);
+    const snapshot = await access.loadSnapshot(start, end);
+
+    expect(loader.mock.calls.map(([descriptor]) => descriptor.file))
+      .toEqual(["eop/a.json", "eop/b.json"]);
+    expect(Object.isFrozen(snapshot)).toBe(true);
+    expect(Object.isFrozen(snapshot.lookup)).toBe(true);
+    expect(snapshot.startUtcMilliseconds).toBe(start.getTime());
+    expect(snapshot.endUtcMilliseconds).toBe(end.getTime());
+    expect(snapshot.sourceSha256).toBeNull();
+    expect(snapshot.retrievedAt).toBeNull();
+
+    const result = snapshot.lookup(dateFromMjd(60_002.5));
+    expect(result).not.toBeNull();
+    expect(result).not.toBeInstanceOf(Promise);
+    expect(snapshot.lookup(dateFromMjd(60_003.5))).not.toBeNull();
+    expect(snapshot.lookup(dateFromMjd(60_002.249))).toBeNull();
+    expect(snapshot.lookup(dateFromMjd(60_003.751))).toBeNull();
+    expect(loader).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the leap-second midnight step in a synchronous snapshot", async () => {
+    const first = {
+      ...encodedChunk(57_752, ["I", "I"]),
+      dut1MicrosecondsDelta: delta([-406_800, -407_760])
+    };
+    const second = {
+      ...encodedChunk(57_754, ["I", "I"]),
+      dut1MicrosecondsDelta: delta([591_282, 590_000])
+    };
+    const access = createChunkedEarthOrientationAccess(
+      [
+        {
+          file: "eop/before.json",
+          startMjdUtc: 57_752,
+          endMjdUtc: 57_753,
+          recordCount: 2
+        },
+        {
+          file: "eop/after.json",
+          startMjdUtc: 57_754,
+          endMjdUtc: 57_755,
+          recordCount: 2
+        }
+      ],
+      async ({ file }) =>
+        file === "eop/before.json" ? first : second
+    );
+    const midnight = dateFromMjd(57_754);
+    const immediatelyBefore = new Date(midnight.getTime() - 1);
+    const snapshot = await access.loadSnapshot(
+      immediatelyBefore,
+      midnight
+    );
+
+    expect(
+      snapshot.lookup(immediatelyBefore)?.dut1.seconds
+    ).toBeCloseTo(-0.408718, 8);
+    expect(snapshot.lookup(midnight)?.dut1.seconds).toBe(
+      0.591282
+    );
+  });
+
+  it("resolves an all-out-of-coverage interval without loading chunks", async () => {
+    const loader = vi.fn(async () =>
+      encodedChunk(60_000, ["I", "I", "I", "I"])
+    );
+    const access = createChunkedEarthOrientationAccess(
+      [
+        {
+          file: "eop/a.json",
+          startMjdUtc: 60_000,
+          endMjdUtc: 60_003,
+          recordCount: 4
+        }
+      ],
+      loader
+    );
+    const snapshot = await access.loadSnapshot(
+      dateFromMjd(59_000),
+      dateFromMjd(59_001)
+    );
+
+    expect(loader).not.toHaveBeenCalled();
+    expect(snapshot.lookup(dateFromMjd(59_000.5))).toBeNull();
+    expect(snapshot.lookup(dateFromMjd(60_001))).toBeNull();
+    await expect(
+      access.loadSnapshot(
+        new Date(Number.NaN),
+        dateFromMjd(60_001)
+      )
+    ).rejects.toThrow(/valid Dates/);
+    await expect(
+      access.loadSnapshot(
+        dateFromMjd(60_001),
+        dateFromMjd(60_000)
+      )
+    ).rejects.toThrow(/must not follow/);
+  });
+
+  it("rejects a snapshot when a required chunk fails integrity validation", async () => {
+    const loader = vi.fn(async () => ({
+      ...encodedChunk(60_000, ["I", "I", "I", "I"]),
+      startMjdUtc: 60_001
+    }));
+    const access = createChunkedEarthOrientationAccess(
+      [
+        {
+          file: "eop/corrupt.json",
+          startMjdUtc: 60_000,
+          endMjdUtc: 60_003,
+          recordCount: 4
+        }
+      ],
+      loader
+    );
+
+    await expect(
+      access.loadSnapshot(
+        dateFromMjd(60_000.25),
+        dateFromMjd(60_000.75)
+      )
+    ).rejects.toThrow(/does not match manifest/);
+    await expect(
+      access.loadSnapshot(
+        dateFromMjd(60_000.25),
+        dateFromMjd(60_000.75)
+      )
+    ).rejects.toThrow(/does not match manifest/);
+    expect(loader).toHaveBeenCalledTimes(2);
   });
 
   it("rejects a prediction-to-observed reversal across a chunk boundary", async () => {

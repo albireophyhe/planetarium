@@ -22,7 +22,7 @@
 
 | 視点 | 今回優先したストーリー | 判定 | 根拠と残件 |
 | --- | --- | --- | --- |
-| 開発者 | 地球暦・太陽経路・初期HTMLを再現可能な配布契約にしたい | 実装済み | VSOP2000由来100項のgenerator/schema/hash/両bundle検査、地心赤道方向とWGS84 topocenterを分けるSOFA 8件fixture、CSP互換boot shellのstylesheet参照・byte一致・inline禁止検査を追加 |
+| 開発者 | 地球暦・太陽経路・初期HTMLを再現可能な配布契約にしたい | 実装済み | VSOP2000由来200項のgenerator/schema/hash/両bundle検査、地心赤道方向とWGS84 topocenterを分けるSOFA 8件fixture、CSP互換boot shellのstylesheet参照・byte一致・inline禁止検査を追加 |
 | 一般ユーザー | 待機中も何のアプリか分かり、太陽の方向と3Dの向きを迷わず確認したい | 実装済み | Web boot shell、両版の太陽マーカー、macOS 3Dの6方向ラベル・方向・75–250%倍率・reset・shortcutを自動テストとbundle起動で確認 |
 | 天文学に詳しいユーザー | 暦の切り詰めと時刻系の仮定を具体値で見たい | 実装済み | VSOP100の選択規則・全期間残差を文書化し、Web/macOSとも1900年の0秒近似と将来の37秒仮定を通常期間では出さない警告として表示。macOSはInspectorから根拠の詳細も確認できる |
 | その他・無関係な人 | 開いただけで待たされる理由が分かり、操作を強制されたくない | 実装済み | 起動前シェルは目的と準備状態の2文だけに抑え、既定2D・停止、音・自動回転・位置権限・強制チュートリアルなしを維持 |

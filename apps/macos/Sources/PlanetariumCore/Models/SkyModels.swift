@@ -78,19 +78,29 @@ public struct ObservingLocation: Hashable, Sendable {
     public let latitude: Double
     public let longitude: Double
     public let timeZoneIdentifier: String
+    /// Height above the WGS84 reference ellipsoid. Zero is the explicit
+    /// approximation used by bundled cities and manual coordinates.
+    public let heightMeters: Double
+    /// Radius reported by a device location fix. `nil` means that the
+    /// location source did not provide a measured accuracy.
+    public let horizontalAccuracyMeters: Double?
 
     public init(
         id: String,
         name: String,
         latitude: Double,
         longitude: Double,
-        timeZoneIdentifier: String
+        timeZoneIdentifier: String,
+        heightMeters: Double = 0,
+        horizontalAccuracyMeters: Double? = nil
     ) {
         self.id = id
         self.name = name
         self.latitude = latitude
         self.longitude = longitude
         self.timeZoneIdentifier = timeZoneIdentifier
+        self.heightMeters = heightMeters
+        self.horizontalAccuracyMeters = horizontalAccuracyMeters
     }
 
     public init(city: City) {

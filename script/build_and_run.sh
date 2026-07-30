@@ -5,6 +5,7 @@ MODE="${1:-run}"
 APP_NAME="Planetarium"
 BUNDLE_ID="com.yjhe.Planetarium"
 MIN_SYSTEM_VERSION="14.0"
+SWIFT_CONFIGURATION="release"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
@@ -17,6 +18,7 @@ INFO_PLIST="$APP_CONTENTS/Info.plist"
 INFO_PLIST_TEMPLATE="$ROOT_DIR/apps/macos/Resources/Info.plist"
 APP_ICON="$APP_RESOURCES/Planetarium.icns"
 APP_ICON_SOURCE="$ROOT_DIR/apps/macos/Resources/Planetarium.icns"
+MACOS_BUDGETS="$ROOT_DIR/config/macos-budgets.json"
 PACKAGED_RESOURCE_BUNDLE_NAME="Planetarium_PlanetariumShared.bundle"
 PACKAGED_RESOURCE_BUNDLE="$APP_RESOURCES/$PACKAGED_RESOURCE_BUNDLE_NAME"
 
@@ -24,8 +26,8 @@ cd "$ROOT_DIR"
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
-swift build --product "$APP_NAME"
-BUILD_DIR="$(swift build --show-bin-path)"
+swift build -c "$SWIFT_CONFIGURATION" --product "$APP_NAME"
+BUILD_DIR="$(swift build -c "$SWIFT_CONFIGURATION" --show-bin-path)"
 BUILD_BINARY="$BUILD_DIR/$APP_NAME"
 RESOURCE_BUNDLE="$BUILD_DIR/Planetarium_PlanetariumShared.bundle"
 
@@ -42,6 +44,27 @@ if [[ ! -d "$RESOURCE_BUNDLE" ]]; then
 fi
 cp -R "$RESOURCE_BUNDLE" "$APP_RESOURCES/"
 
+# SwiftPM can leave removed resources in an incremental build directory.
+# Keep repository-only compatibility data and verification fixtures out of
+# the staged application even when that cache predates Package.swift.
+for resource_name in \
+  astro-test-vectors.v1.json \
+  astro-test-vectors.v2.json \
+  bright-stars.v1.json \
+  de442s-ephemeris.v1.json \
+  eclipse-contact-position-angles.v1.json \
+  event-candidates.v1.json \
+  event-earth-rotation-model.v1.json \
+  event-forecast-year-coverage.v1.json \
+  nasa-lunar-eclipses-2021-2030.v1.json \
+  nasa-solar-eclipses-2021-2030.v1.json \
+  sofa-diurnal-aberration.v1.json \
+  sofa-solar-light-deflection.v1.json \
+  sofa-solar-position.v1.json
+do
+  /bin/rm -f -- "$PACKAGED_RESOURCE_BUNDLE/$resource_name"
+done
+
 /usr/bin/codesign --force --deep --sign - "$APP_BUNDLE" >/dev/null
 
 open_app() {
@@ -50,6 +73,7 @@ open_app() {
 
 verify_staged_bundle() (
   local actual_resources_file
+  local actual_bundle_size
   local actual_sha256
   local actual_size
   local excluded_path
@@ -62,6 +86,7 @@ verify_staged_bundle() (
   local bundle_identifier
   local bundle_icon_file
   local minimum_system_version
+  local maximum_bundle_size
 
   inventory_dir="$(mktemp -d)"
   trap '/bin/rm -rf -- "$inventory_dir"' EXIT
@@ -90,15 +115,9 @@ verify_staged_bundle() (
   /usr/bin/codesign --verify --deep --strict "$APP_BUNDLE"
 
   for resource_name in \
-    bright-stars.v1.json \
     cities.v1.json \
     constellations.v1.json \
-    star-names.v1.json \
-    astro-test-vectors.v1.json \
-    de442s-ephemeris.v1.json \
-    sofa-diurnal-aberration.v1.json \
-    sofa-solar-light-deflection.v1.json \
-    sofa-solar-position.v1.json
+    star-names.v1.json
   do
     test -s "$PACKAGED_RESOURCE_BUNDLE/$resource_name"
     /usr/bin/jq -e \
@@ -119,16 +138,6 @@ verify_staged_bundle() (
         == .statistics.totalChunkBytes' \
     "$PACKAGED_RESOURCE_BUNDLE/$resource_name" >/dev/null
 
-  /usr/bin/jq -e \
-    '.schemaVersion == 1
-      and .model == "jpl-de442s-type2-float32"
-      and .sourceSha256 == "54d97562a5b094d298b1b8eafa5a2e17e3e010ce85e1a366d07f003ad159323c"
-      and .summary.boundaryCount == 42
-      and .summary.boundaryChunkComparisonCount == 82
-      and .summary.sampleCount == 9
-      and .summary.quantizationGrid.evaluationCount == 82602' \
-    "$PACKAGED_RESOURCE_BUNDLE/de442s-ephemeris.v1.json" >/dev/null
-
   while IFS=$'\t' read -r resource_name expected_size expected_sha256; do
     resource_path="$PACKAGED_RESOURCE_BUNDLE/chunks/$resource_name"
     test -s "$resource_path"
@@ -147,15 +156,64 @@ verify_staged_bundle() (
       "$PACKAGED_RESOURCE_BUNDLE/de442s-manifest.v1.json"
   )
 
-  for resource_name in \
-    bright-stars.v2.json \
-    astro-test-vectors.v2.json
-  do
-    test -s "$PACKAGED_RESOURCE_BUNDLE/$resource_name"
-    /usr/bin/jq -e \
-      '.schemaVersion == 2' \
-      "$PACKAGED_RESOURCE_BUNDLE/$resource_name" >/dev/null
-  done
+  resource_path="$PACKAGED_RESOURCE_BUNDLE/events/event-candidates-manifest.v1.json"
+  test -s "$resource_path"
+  /usr/bin/jq -e \
+    '.schemaVersion == 1
+      and .model == "de442s-mean-sphere-eclipse-candidates-v1"
+      and .source.kernelSha256
+        == "54d97562a5b094d298b1b8eafa5a2e17e3e010ce85e1a366d07f003ad159323c"
+      and .coverage.startYear == 1900
+      and .coverage.endYear == 2101
+      and .coverage.endIsExclusive == true
+      and .statistics.chunkCount == 41
+      and (.chunks | length) == .statistics.chunkCount
+      and ([.chunks[].eventCount] | add)
+        == .statistics.eventCount
+      and ([.chunks[].solarEclipseCount] | add)
+        == .statistics.solarEclipseCount
+      and ([.chunks[].lunarEclipseCount] | add)
+        == .statistics.lunarEclipseCount
+      and ([.chunks[].lunarOccultationCount] | add)
+        == .statistics.lunarOccultationCount
+      and ([.chunks[].byteLength] | add)
+        == .statistics.totalChunkBytes' \
+    "$resource_path" >/dev/null
+
+  expected_sha256="$(
+    /usr/bin/jq -r \
+      '.manifestSha256' \
+      "$ROOT_DIR/shared/fixtures/event-candidates.v1.json"
+  )"
+  actual_sha256="$(
+    /usr/bin/shasum -a 256 "$resource_path" |
+      /usr/bin/awk '{ print $1 }'
+  )"
+  [[ "$actual_sha256" == "$expected_sha256" ]]
+
+  while IFS=$'\t' read -r resource_name expected_size expected_sha256; do
+    resource_path="$PACKAGED_RESOURCE_BUNDLE/events/chunks/$resource_name"
+    test -s "$resource_path"
+    actual_size="$(/usr/bin/stat -f '%z' "$resource_path")"
+    [[ "$actual_size" == "$expected_size" ]]
+    actual_sha256="$(
+      /usr/bin/shasum -a 256 "$resource_path" |
+        /usr/bin/awk '{ print $1 }'
+    )"
+    [[ "$actual_sha256" == "$expected_sha256" ]]
+  done < <(
+    /usr/bin/jq -r \
+      '.chunks[]
+        | [(.file | split("/")[-1]), .byteLength, .sha256]
+        | @tsv' \
+      "$PACKAGED_RESOURCE_BUNDLE/events/event-candidates-manifest.v1.json"
+  )
+
+  resource_name="bright-stars.v2.json"
+  test -s "$PACKAGED_RESOURCE_BUNDLE/$resource_name"
+  /usr/bin/jq -e \
+    '.schemaVersion == 2' \
+    "$PACKAGED_RESOURCE_BUNDLE/$resource_name" >/dev/null
 
   resource_name="truncated-earth-heliocentric.v1.json"
   test -s "$PACKAGED_RESOURCE_BUNDLE/$resource_name"
@@ -167,12 +225,12 @@ verify_staged_bundle() (
       and .source.sourceFileSha256 == "939d57fb2556dcd065370e090df962a7d459a89d972e7fe1b9b250306fe73c8a"
       and .source.archiveSha256 == "d9c10833cae8b4d9361a0ffda31ec361fd1262362025bec4d4e51a880150ace2"
       and .truncation.fullTermCount == 1323
-      and .truncation.retainedTermCount == 100
+      and .truncation.retainedTermCount == 200
       and ([
         .series.e0x, .series.e0y, .series.e0z,
         .series.e1x, .series.e1y, .series.e1z,
         .series.e2x, .series.e2y, .series.e2z
-      ] | map(length)) == [43, 44, 2, 4, 3, 3, 0, 0, 1]
+      ] | map(length)) == [90, 88, 6, 4, 4, 3, 2, 2, 1]
       and .bcrsOrientationMatrix == [
         [1, 2.11284e-7, -9.1603e-8],
         [-2.30286e-7, 0.917482137087, -0.397776982902],
@@ -182,7 +240,7 @@ verify_staged_bundle() (
         .series.e0x, .series.e0y, .series.e0z,
         .series.e1x, .series.e1y, .series.e1z,
         .series.e2x, .series.e2y, .series.e2z
-      ] | map(length) | add) == 100' \
+      ] | map(length) | add) == 200' \
     "$PACKAGED_RESOURCE_BUNDLE/$resource_name" >/dev/null
 
   resource_name="IAU-SOFA-derived-work-notice.md"
@@ -258,18 +316,12 @@ verify_staged_bundle() (
       "Planetarium.icns" \
       "$PACKAGED_RESOURCE_BUNDLE_NAME/Info.plist" \
       "$PACKAGED_RESOURCE_BUNDLE_NAME/IAU-SOFA-derived-work-notice.md" \
-      "$PACKAGED_RESOURCE_BUNDLE_NAME/astro-test-vectors.v1.json" \
-      "$PACKAGED_RESOURCE_BUNDLE_NAME/astro-test-vectors.v2.json" \
-      "$PACKAGED_RESOURCE_BUNDLE_NAME/bright-stars.v1.json" \
       "$PACKAGED_RESOURCE_BUNDLE_NAME/bright-stars.v2.json" \
       "$PACKAGED_RESOURCE_BUNDLE_NAME/cities.v1.json" \
       "$PACKAGED_RESOURCE_BUNDLE_NAME/constellations.v1.json" \
-      "$PACKAGED_RESOURCE_BUNDLE_NAME/de442s-ephemeris.v1.json" \
       "$PACKAGED_RESOURCE_BUNDLE_NAME/de442s-manifest.v1.json" \
+      "$PACKAGED_RESOURCE_BUNDLE_NAME/events/event-candidates-manifest.v1.json" \
       "$PACKAGED_RESOURCE_BUNDLE_NAME/iers-finals2000a-eop.v1.json" \
-      "$PACKAGED_RESOURCE_BUNDLE_NAME/sofa-diurnal-aberration.v1.json" \
-      "$PACKAGED_RESOURCE_BUNDLE_NAME/sofa-solar-light-deflection.v1.json" \
-      "$PACKAGED_RESOURCE_BUNDLE_NAME/sofa-solar-position.v1.json" \
       "$PACKAGED_RESOURCE_BUNDLE_NAME/star-names.v1.json" \
       "$PACKAGED_RESOURCE_BUNDLE_NAME/truncated-earth-heliocentric.v1.json"
     while IFS= read -r resource_name; do
@@ -287,6 +339,14 @@ verify_staged_bundle() (
       /usr/bin/jq -r \
         '.chunks[].file | split("/")[-1]' \
         "$PACKAGED_RESOURCE_BUNDLE/de442s-manifest.v1.json"
+    )
+    while IFS= read -r resource_name; do
+      printf '%s\n' \
+        "$PACKAGED_RESOURCE_BUNDLE_NAME/events/chunks/$resource_name"
+    done < <(
+      /usr/bin/jq -r \
+        '.chunks[].file | split("/")[-1]' \
+        "$PACKAGED_RESOURCE_BUNDLE/events/event-candidates-manifest.v1.json"
     )
   } | LC_ALL=C sort >"$expected_resources_file"
 
@@ -312,6 +372,33 @@ verify_staged_bundle() (
       "$actual_resources_file" >&2 || true
     exit 1
   fi
+
+  maximum_bundle_size="$(
+    /usr/bin/jq -er \
+      'select(
+        .schemaVersion == 1
+        and (.maximumLogicalAppBytes | type) == "number"
+        and .maximumLogicalAppBytes > 0
+        and .maximumLogicalAppBytes <= 9007199254740991
+        and (.maximumLogicalAppBytes | floor)
+          == .maximumLogicalAppBytes
+      ) | .maximumLogicalAppBytes' \
+      "$MACOS_BUDGETS"
+  )"
+  actual_bundle_size=0
+  while IFS= read -r -d '' resource_path; do
+    actual_size="$(/usr/bin/stat -f '%z' "$resource_path")"
+    actual_bundle_size=$((actual_bundle_size + actual_size))
+  done < <(find "$APP_BUNDLE" -type f -print0)
+
+  if ((actual_bundle_size > maximum_bundle_size)); then
+    echo \
+      "app logical size ${actual_bundle_size} bytes exceeds budget ${maximum_bundle_size} bytes" \
+      >&2
+    exit 1
+  fi
+  echo \
+    "app logical size: ${actual_bundle_size}/${maximum_bundle_size} bytes"
 )
 
 case "$MODE" in

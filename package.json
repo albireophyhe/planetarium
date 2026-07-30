@@ -31,11 +31,14 @@
     "data:check:dut1": "npm run data:check:eop",
     "data:build:de442s": "node script/build_de442s_ephemeris.mjs",
     "data:check:de442s": "node script/build_de442s_ephemeris.mjs --check",
+    "data:build:events": "node script/build_event_candidates.mjs",
+    "data:check:events": "node script/build_event_candidates.mjs --check",
     "data:validate": "node script/validate_schemas.mjs && node script/validate_data.mjs && npm run data:test:eop && npm run data:check:eop",
     "scripts:lint": "eslint script && bash -n script/*.sh",
     "privacy:check": "node script/check_privacy.mjs",
     "web:dev": "npm run dev --workspace=@planetarium/web",
     "web:build": "npm run build --workspace=@planetarium/web",
+    "web:bench:events": "npm run bench:events --workspace=@planetarium/web",
     "web:bench:precision": "npm run bench:precision --workspace=@planetarium/web",
     "web:bench:precision:soak": "npm run bench:precision:soak --workspace=@planetarium/web",
     "web:test": "npm run test --workspace=@planetarium/web",
@@ -48,6 +51,7 @@
     "web:preview": "npm run preview --workspace=@planetarium/web",
     "mac:build": "swift build",
     "mac:test": "swift test",
+    "events:bench": "./script/benchmark_event_forecasts.sh",
     "check": "npm run doctor && npm run icons:check && npm run scripts:lint && npm run data:validate && npm run privacy:check && npm run web:check && npm run web:budget && npm run cloudflare:check && npm run mac:test"
   },
   "allowScripts": {

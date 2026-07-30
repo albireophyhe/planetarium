@@ -2,7 +2,7 @@
  * applyAnnualAberration is a TypeScript derived work based on the IAU SOFA
  * 2023-10-11 C routine ab. It is not software provided by or endorsed by
  * SOFA. The default ephemeris is a separately implemented, explicitly
- * reported 100-term truncation of the VSOP2000 position series.
+ * reported 200-term truncation of the VSOP2000 position series.
  */
 import {
   SOLAR_SCHWARZSCHILD_RADIUS_AU,

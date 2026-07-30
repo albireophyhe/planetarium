@@ -62,6 +62,9 @@ private struct DefaultTAIResultV2 {
     let warnings: [PrecisionWarningCode]
 }
 
+private let maximumAbsoluteDUT1SecondsV2 = 3_600.0
+private let maximumDUT1UncertaintySecondsV2 = 3_600.0
+
 public enum TAIMinusUTCAssumptionV2:
     Hashable,
     Sendable
@@ -141,7 +144,9 @@ public extension Astronomy {
         guard dut1Seconds.isFinite else {
             throw PrecisionModelError.nonFiniteValue("DUT1")
         }
-        guard abs(dut1Seconds) <= 1 else {
+        guard abs(dut1Seconds)
+            <= maximumAbsoluteDUT1SecondsV2
+        else {
             throw PrecisionModelError.dut1OutOfRange
         }
         let dut1Source: DUT1SourceV2 =
@@ -161,7 +166,9 @@ public extension Astronomy {
                     "DUT1 uncertainty"
                 )
             }
-            guard (0...1).contains(dut1UncertaintySeconds) else {
+            guard (0...maximumDUT1UncertaintySecondsV2)
+                .contains(dut1UncertaintySeconds)
+            else {
                 throw PrecisionModelError.dut1UncertaintyOutOfRange
             }
         }

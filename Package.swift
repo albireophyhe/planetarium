@@ -19,6 +19,7 @@ let package = Package(
             path: "shared",
             exclude: [
                 "catalog/README.md",
+                "catalog/bright-stars.v1.json",
                 "catalog/bright-stars.lock.v1.json",
                 "catalog/bright-stars.lock.v2.json",
                 "eop/README.md",
@@ -29,12 +30,12 @@ let package = Package(
                 "eop/source",
                 "ephemeris/README.md",
                 "ephemeris/de442s/README.md",
+                "fixtures",
                 "schema",
             ],
             sources: ["swift"],
             resources: [
                 .copy("licenses/IAU-SOFA-derived-work-notice.md"),
-                .copy("catalog/bright-stars.v1.json"),
                 .copy("catalog/bright-stars.v2.json"),
                 .copy("catalog/cities.v1.json"),
                 .copy("catalog/constellations.v1.json"),
@@ -44,12 +45,7 @@ let package = Package(
                 .copy("ephemeris/truncated-earth-heliocentric.v1.json"),
                 .copy("ephemeris/de442s/de442s-manifest.v1.json"),
                 .copy("ephemeris/de442s/chunks"),
-                .copy("fixtures/astro-test-vectors.v1.json"),
-                .copy("fixtures/astro-test-vectors.v2.json"),
-                .copy("fixtures/de442s-ephemeris.v1.json"),
-                .copy("fixtures/sofa-diurnal-aberration.v1.json"),
-                .copy("fixtures/sofa-solar-light-deflection.v1.json"),
-                .copy("fixtures/sofa-solar-position.v1.json"),
+                .copy("events"),
             ]
         ),
         .target(

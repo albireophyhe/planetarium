@@ -11,7 +11,7 @@ date representation, error handling, and composition:
   `pfw06`, `fw2m`, `era00`, and `gmst06`. It combines IAU 2006
   bias/precession with abridged IAU 2000B nutation and uses only the leading
   equation-of-equinoxes term for apparent sidereal time.
-- `EarthEphemerisV2.swift` evaluates the shared 100-term coefficient artifact
+- `EarthEphemerisV2.swift` evaluates the shared 200-term coefficient artifact
   derived from the Sun-to-Earth position series, orientation matrix, and
   analytic derivative in `epv00`. It uses TT as a TDB proxy and omits the
   SSB-to-Sun position and velocity and the Earth-center-to-observing-site
@@ -23,7 +23,7 @@ date representation, error handling, and composition:
   expression and near-Sun limiter in `ld` and `ldsun`. It accepts prepared
   Sun-to-observer geometry, validates finite unit-vector inputs, and
   explicitly normalizes the result. Its default geometry comes from the same
-  shared 100-term heliocentric `epv00` truncation; planetary-body deflection
+  shared 200-term heliocentric `epv00` truncation; planetary-body deflection
   remains outside this routine.
 - `RefractionV2.swift` adapts `refco`, limits the public API to visual
   wavelengths, rejects values outside application guardrails, and numerically

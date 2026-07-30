@@ -2,16 +2,23 @@
 
 この文書はリリース候補ごとに実行するテンプレートです。機能が実装済みでも、
 その候補で再実行していない項目は`[ ]`のままにし、実装状況の記録には
-`docs/plans/precision-interaction-plan.md`と`docs/progress/iterations.md`を使います。
+`docs/plans/precision-interaction-plan.md`、
+`docs/plans/event-forecast-plan.md`、`docs/progress/iterations.md`を使います。
 
 ## ソースとデータ
 
 - [ ] 意図した変更だけが含まれ、秘密値、位置履歴、生成物が追跡対象にない
-- [ ] 星表、固有名、星座線、都市、IERS DUT1・極運動、共有100項地球暦、共有フィクスチャのschemaVersionと参照が有効
+- [ ] 星表、固有名、星座線、都市、IERS DUT1・極運動、共有200項地球暦、共有フィクスチャのschemaVersionと参照が有効
 - [ ] データ出典、取得日、SHA-256、再配布条件を確認
-- [ ] 公式`epv00.c`から100 / 1,323項の選定規則、元ファイル・archiveのSHA-256、回転行列を保ったまま共有地球暦を再現できる
+- [ ] 公式`epv00.c`から200 / 1,323項の選定規則、元ファイル・archiveのSHA-256、回転行列を保ったまま共有地球暦を再現できる
 - [ ] 精密星表v2、天文モデルv2、対応期間、既知の近似を変更内容と一致させた
 - [ ] SOFA由来コードのnoticeと、独立実装・外部データの出典を確認
+- [ ] DE442s manifestと41 chunk、イベント候補manifestとchunk、IERS EOP、
+  各strict schema、元データhash、coverage、byte長、再配布条件が一致する
+- [ ] NASA日食・月食、イベント地球自転、位置角、年端coverageの共有fixtureを
+  WebとSwiftが同じschemaVersionと意味で読む
+- [ ] 恒星位置の誤差予算、イベント境界、平均月縁、連続UTCシナリオ、
+  年端coverageを変更内容と一致させ、表示桁を保証精度として説明しない
 
 ## 自動ゲート
 
@@ -35,17 +42,33 @@ git diff --cached --check
 
 - [ ] 固定Python 3.12.3と固定requirementsで、同梱WOFF2をbyte単位に再現できる
 - [ ] `npm ci`が未審査install scriptをhard failし、IBM Plex telemetryを拒否し、固定版の`esbuild`・`workerd`・`fsevents`だけを許可する
-- [ ] Web lint、316テスト、本番ビルド、gzip・raw予算。現行基準の初期12ファイル730.5KiB gzip、最大初期`catalog-v1` 523.0KiB rawから説明できない増加がない
+- [ ] Web lint、全テスト、本番ビルド、gzip・raw予算が成功し、最終出力の
+  テスト件数と初期／遅延asset実測値をリリース記録へ残す
 - [ ] `npm run icons:check`と固定librsvgでの`npm run icons:reproduce`が、Web 180/192/512px PNGとmacOS ICNSをbyte単位で検証する
 - [ ] 最大初期JavaScript 600KiB raw、全JavaScript各720KiB rawを満たし、トップレベルと拡張子別の全予算値が正のsafe integerとして検査される
 - [ ] Webの2D/3Dが共通のdevice pixel ratio helperを使い、1–2倍へ制限し、非有限値、0、負値を1倍へ戻すテストが成功する
 - [ ] Cloudflare設定検査とdeploy dry-run
 - [ ] Swiftテスト、アプリバンドル、plist、同梱JSON、署名、起動
-- [ ] 将来のTAI−UTCを37秒に固定した8件のSOFA太陽fixtureをWebとSwiftで読み、地心赤道方向とWGS84 topocenterのENU方向を分け、地球暦方向3秒角、距離0.00001 AU、全経路5秒角未満を満たす
+- [ ] 将来のTAI−UTCを37秒に固定した8件のSOFA太陽fixtureをWebとSwiftで読み、地心赤道方向とWGS84 topocenterのENU方向を分け、地球暦方向1秒角、距離0.000003 AU、全経路2秒角未満を満たす
 - [ ] Web成果物の静的boot shellに目的と`東京・現在時刻を準備中`があり、CSP互換の同一origin `boot-shell.css`がsourceとbyte一致し、inline style/scriptや第三者資産を使わず、React起動後は通常画面へ置換される
 - [ ] JavaScript無効時の`noscript`が「表示にはJavaScriptが必要」と同一originの再読み込み導線を示し、hrefが安全に`index.html`へ解決される
 - [ ] 本番相当WranglerとCSPでReactが起動してboot shellを置換し、precisionDataとEOPを取得でき、新規console errorがない
 - [ ] 生成`.assetsignore`が`wrangler.json`、`.dev.vars`、`.wrangler`を除外し、成果物検査が成功する
+- [ ] 初期画面のbase fontと現象／ヘルプ専用supplementがbyte再現でき、
+  各機能を開く前に対応する遅延CSS・fontを取得しない
+- [ ] 現象を開く前に候補・DE442sを取得しない
+- [ ] 恒星位置のSOFA parity、BSC5P／地球暦／EOP誤差予算、WebGL
+  Float32変換が回帰上限内で、画面は収録内の1〜数秒角級と
+  現行整数うるう秒UTC下のDUT1=0秒fallback上限約13.5秒角を混同せず、
+  1972年以前・将来UTC制度、地点、時計、実際の大気を総合上限へ含めない
+- [ ] NASA日食・月食、IOTA由来の掩蔽例、物理境界と地平線の独立状態、
+  局地／全球分類、掩蔽対象名の整形がWebとSwiftで成功する
+- [ ] 接触／最接近位置角がCIRSの天の北0°・東回り規約、共有fixture、
+  USNOの日食・月食照合値、退化入力のnil契約を満たす
+- [ ] 安全なイベント受信時刻端と1900／2100年のoffset別coverage gapが
+  共有fixtureどおりで、1901〜2099年にはgapを返さない
+- [ ] macOSの共有resource loadが同時caller、待機側取消、失敗、再試行、
+  成功値cacheの契約を満たす
 
 固定したNode.js・同じ端末の性能基準と比較し、公式`epv00.c`を用意して
 地球暦のbyte再現も確認します。
@@ -54,10 +77,15 @@ git diff --cached --check
 ASDF_NODEJS_VERSION=24.18.0 npm run data:build:ephemeris -- --source /path/to/epv00.c --check
 ASDF_NODEJS_VERSION=24.18.0 npm run web:bench:precision
 ASDF_NODEJS_VERSION=24.18.0 npm run web:bench:precision:soak
+./script/benchmark_event_forecasts.sh 2026 1932
 ```
 
 - [ ] context、1,630星、8,404星の性能に説明できない退行がない
 - [ ] 10,000 frame・16,300,000位置が全て有限で、retained heapが32 MiB guard内
+- [ ] 代表年と候補最多タイの年で、候補／暦／EOP読込、solver、heap／resident
+  memoryに説明できない退行がない
+- [ ] A→隣接年→Aのwarm navigationで戻った年のasset再読込が0であり、
+  warm時間とcold loadを分けて記録する
 
 ## 主要操作
 
@@ -83,6 +111,24 @@ ASDF_NODEJS_VERSION=24.18.0 npm run web:bench:precision:soak
 - [ ] Webの240px・390px・200%、キーボード、reduced-motion、高コントラスト
 - [ ] Webのdevice pixel ratio 1倍・2倍・4倍で2D/3Dの描画と操作を確認し、4倍では物理解像度を意図どおり2倍へ抑える
 - [ ] macOSのメニュー、ショートカット、大きな文字、VoiceOver
+- [ ] 「現象」を開くと、観測地点の現地年、種類、地平線下toggle、理由別空状態、
+  選択維持、前年／翌年／観測日時の年への移動がWebとmacOSで一致する
+- [ ] 観測年では局地最大が観測日時以後の最初の表示対象、全件過去では最新、
+  別年では先頭がWebとmacOSで選択される
+- [ ] 日食・月食・恒星掩蔽の局地分類、現地／UTC、最大／最接近、接触の
+  高度・方位・位置角、星図時刻への移動と復帰が一致する
+- [ ] 物理境界では発生未確定と中心食分類未確定を区別し、断定できない接触を
+  表示せず、地平線状態を別に示す
+- [ ] 1900／2100年の収録範囲注意が必要な地点だけに欠落時間を示し、
+  その時間を「現象なし」と説明しない
+- [ ] 日食の安全注意、恒星掩蔽の参考計算、平均月縁、EOP／ΔT、
+  地点精度、全球候補と局地分類の違いへ画面から到達できる
+- [ ] 現在地取得は明示操作時だけ精度を優先して一回行い、返された水平精度が
+  日食・掩蔽の境界判定と再現情報へ反映される
+- [ ] Webのnative filter、listbox、結果件数、完了／時刻変更の一度だけの
+  `polite`通知、復帰focus、200%、forced-colorsを確認する
+- [ ] macOSのnative Picker、構造化一覧、Announcement、復帰focus、
+  大きな文字、VoiceOver読み順を確認する
 
 ## 配布
 

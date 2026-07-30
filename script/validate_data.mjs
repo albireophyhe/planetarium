@@ -1493,8 +1493,8 @@ if (
   earthEphemeris.schemaVersion !== 1 ||
   earthEphemeris.model !== "truncated-vsop2000-earth-heliocentric" ||
   earthEphemeris.truncation?.fullTermCount !== 1_323 ||
-  earthEphemeris.truncation?.retainedTermCount !== 100 ||
-  retainedEphemerisTerms !== 100 ||
+  earthEphemeris.truncation?.retainedTermCount !== 200 ||
+  retainedEphemerisTerms !== 200 ||
   earthEphemeris.source?.sourceFileSha256 !==
     "939d57fb2556dcd065370e090df962a7d459a89d972e7fe1b9b250306fe73c8a"
 ) {

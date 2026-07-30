@@ -2,10 +2,26 @@ import { describe, expect, it } from "vitest";
 import {
   formatZonedDateTime,
   formatZonedDateTimeInput,
+  timeZoneOffsetSecondsAtLocalDateTime,
   zonedLocalToDate
 } from "./index";
 
 describe("time-zone conversion", () => {
+  it("resolves whole-second offsets at local year boundaries", () => {
+    expect(
+      timeZoneOffsetSecondsAtLocalDateTime(
+        "1900-01-01T00:00:00.000",
+        "UTC"
+      )
+    ).toBe(0);
+    expect(
+      timeZoneOffsetSecondsAtLocalDateTime(
+        "1900-01-01T00:00:00.000",
+        "Asia/Tokyo"
+      )
+    ).toBe(9 * 60 * 60);
+  });
+
   it("converts a Tokyo wall time to its instant", () => {
     expect(
       zonedLocalToDate("2026-07-29T12:34", "Asia/Tokyo").toISOString()

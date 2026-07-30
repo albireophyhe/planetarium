@@ -6,8 +6,8 @@ import XCTest
 
 final class PrecisionAstronomyTests: XCTestCase {
     private let fixture: PrecisionAstronomyFixture = {
-        let data = try! SharedResources.data(
-            for: .astronomyTestVectorsV2
+        let data = try! TestFixtureData.data(
+            at: "shared/fixtures/astro-test-vectors.v2.json"
         )
         return try! JSONDecoder().decode(
             PrecisionAstronomyFixture.self,
@@ -1540,7 +1540,7 @@ final class PrecisionAstronomyTests: XCTestCase {
             try Astronomy.resolveTimeScalesV2(
                 at: date("2026-07-29T00:00:00Z"),
                 options: EarthOrientationOptionsV2(
-                    dut1Seconds: 2
+                    dut1Seconds: 3_601
                 )
             )
         )
@@ -1569,7 +1569,9 @@ final class PrecisionAstronomyTests: XCTestCase {
             from: SharedResources.data(for: .brightStarsV2)
         )
         let legacyStars = try PlanetariumData.decodeBrightStars(
-            from: SharedResources.data(for: .brightStars)
+            from: TestFixtureData.data(
+                at: "shared/catalog/bright-stars.v1.json"
+            )
         )
         XCTAssertEqual(precisionStars.count, 8_404)
         XCTAssertEqual(legacyStars.count, 8_404)

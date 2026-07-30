@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "bench:events": "node --expose-gc ../../node_modules/vitest/vitest.mjs bench --run src/domain/events/eventForecastYear.bench.ts --pool=threads --maxWorkers=1",
     "bench:precision": "vitest bench --run src/app/precisionPipeline.bench.ts --pool=threads --maxWorkers=1",
     "bench:precision:soak": "node --expose-gc ../../node_modules/vitest/vitest.mjs bench --run src/app/precisionPipelineSoak.bench.ts --pool=threads --maxWorkers=1",
     "lint": "eslint .",

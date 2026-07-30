@@ -10,7 +10,7 @@
  *
  *   https://www.iausofa.org/2023-10-11c
  *
- * Planetarium deliberately uses a 100-term truncation of the heliocentric
+ * Planetarium deliberately uses a 200-term truncation of the heliocentric
  * position series, omits the SSB-to-Sun velocity, and uses IAU 2000B
  * nutation. These vectors are therefore independent comparison targets
  * rather than byte-for-byte outputs of the application algorithm.

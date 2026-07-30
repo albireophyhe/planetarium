@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/event-candidates-chunk.schema.json",
+  "title": "Offline eclipse candidate chunk",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "model",
+    "id",
+    "coverage",
+    "events"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "model": { "const": "de442s-mean-sphere-eclipse-candidates-v1" },
+    "id": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{4}$" },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "startYear",
+        "endYear",
+        "endIsExclusive",
+        "timeScale"
+      ],
+      "properties": {
+        "startYear": {
+          "type": "integer",
+          "minimum": 1900,
+          "maximum": 2100
+        },
+        "endYear": {
+          "type": "integer",
+          "minimum": 1901,
+          "maximum": 2101
+        },
+        "endIsExclusive": { "const": true },
+        "timeScale": { "const": "TDB" }
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/solarCandidate" },
+          { "$ref": "#/$defs/lunarCandidate" },
+          { "$ref": "#/$defs/occultationCandidate" }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "baseProperties": {
+      "id": {
+        "type": "string",
+        "pattern": "^(se|le)-[0-9]{8}$"
+      },
+      "classificationHint": {
+        "type": "string",
+        "minLength": 1
+      },
+      "maximumJulianDateTdb": {
+        "type": "number",
+        "minimum": 2415020.5,
+        "maximum": 2488434.5
+      },
+      "maximumIsoTdb": {
+        "type": "string",
+        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3} TDB$"
+      },
+      "searchStartJulianDateTdb": { "type": "number" },
+      "searchEndJulianDateTdb": { "type": "number" },
+      "centerSeparationRadians": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 0.1
+      }
+    },
+    "solarCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "classificationHint",
+        "maximumJulianDateTdb",
+        "maximumIsoTdb",
+        "searchStartJulianDateTdb",
+        "searchEndJulianDateTdb",
+        "centerSeparationRadians",
+        "centralityHint",
+        "axisDistanceKilometers",
+        "candidateLimitKilometers",
+        "clearanceKilometers"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/baseProperties/id" },
+        "kind": { "const": "solar-eclipse" },
+        "classificationHint": {
+          "enum": [
+            "partial",
+            "annular",
+            "total",
+            "hybrid"
+          ]
+        },
+        "centralityHint": {
+          "enum": ["partial", "central", "non-central"]
+        },
+        "maximumJulianDateTdb": {
+          "$ref": "#/$defs/baseProperties/maximumJulianDateTdb"
+        },
+        "maximumIsoTdb": {
+          "$ref": "#/$defs/baseProperties/maximumIsoTdb"
+        },
+        "searchStartJulianDateTdb": {
+          "$ref": "#/$defs/baseProperties/searchStartJulianDateTdb"
+        },
+        "searchEndJulianDateTdb": {
+          "$ref": "#/$defs/baseProperties/searchEndJulianDateTdb"
+        },
+        "centerSeparationRadians": {
+          "$ref": "#/$defs/baseProperties/centerSeparationRadians"
+        },
+        "axisDistanceKilometers": {
+          "type": "number",
+          "minimum": 0
+        },
+        "candidateLimitKilometers": {
+          "type": "number",
+          "exclusiveMinimum": 6378
+        },
+        "clearanceKilometers": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "lunarCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "classificationHint",
+        "maximumJulianDateTdb",
+        "maximumIsoTdb",
+        "searchStartJulianDateTdb",
+        "searchEndJulianDateTdb",
+        "centerSeparationRadians",
+        "candidateLimitRadians",
+        "clearanceRadians"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/baseProperties/id" },
+        "kind": { "const": "lunar-eclipse" },
+        "classificationHint": {
+          "enum": ["penumbral", "partial", "total"]
+        },
+        "maximumJulianDateTdb": {
+          "$ref": "#/$defs/baseProperties/maximumJulianDateTdb"
+        },
+        "maximumIsoTdb": {
+          "$ref": "#/$defs/baseProperties/maximumIsoTdb"
+        },
+        "searchStartJulianDateTdb": {
+          "$ref": "#/$defs/baseProperties/searchStartJulianDateTdb"
+        },
+        "searchEndJulianDateTdb": {
+          "$ref": "#/$defs/baseProperties/searchEndJulianDateTdb"
+        },
+        "centerSeparationRadians": {
+          "$ref": "#/$defs/baseProperties/centerSeparationRadians"
+        },
+        "candidateLimitRadians": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 0.1
+        },
+        "clearanceRadians": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.1
+        }
+      }
+    },
+    "occultationCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "classificationHint",
+        "maximumJulianDateTdb",
+        "maximumIsoTdb",
+        "searchStartJulianDateTdb",
+        "searchEndJulianDateTdb",
+        "centerSeparationRadians",
+        "candidateLimitRadians",
+        "clearanceRadians",
+        "target"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^lo-[0-9]{8}-hr[0-9]{4}$"
+        },
+        "kind": { "const": "lunar-occultation" },
+        "classificationHint": { "const": "occultation" },
+        "maximumJulianDateTdb": {
+          "$ref": "#/$defs/baseProperties/maximumJulianDateTdb"
+        },
+        "maximumIsoTdb": {
+          "$ref": "#/$defs/baseProperties/maximumIsoTdb"
+        },
+        "searchStartJulianDateTdb": {
+          "$ref": "#/$defs/baseProperties/searchStartJulianDateTdb"
+        },
+        "searchEndJulianDateTdb": {
+          "$ref": "#/$defs/baseProperties/searchEndJulianDateTdb"
+        },
+        "centerSeparationRadians": {
+          "$ref": "#/$defs/baseProperties/centerSeparationRadians"
+        },
+        "candidateLimitRadians": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 0.1
+        },
+        "clearanceRadians": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.1
+        },
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "catalog",
+            "hr",
+            "hd",
+            "label",
+            "labelJa",
+            "vMagnitude"
+          ],
+          "properties": {
+            "catalog": { "const": "BSC5P" },
+            "hr": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9999
+            },
+            "hd": {
+              "type": ["integer", "null"],
+              "minimum": 1
+            },
+            "label": { "type": "string", "minLength": 1 },
+            "labelJa": {
+              "type": ["string", "null"],
+              "minLength": 1
+            },
+            "vMagnitude": {
+              "type": "number",
+              "minimum": -2,
+              "maximum": 3
+            }
+          }
+        }
+      }
+    }
+  }
+}

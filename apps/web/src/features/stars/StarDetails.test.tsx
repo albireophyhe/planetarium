@@ -114,6 +114,11 @@ describe("StarDetails time-scale provenance", () => {
         "+0.206265″ / −0.412530″（IERS予測値・IERS公表誤差 xp±0.000206″ / yp±0.000413″）",
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/IERS収録期間内では概ね1〜数秒角級です/),
+    ).toHaveTextContent(
+      "星表・真空計算部分の目安で、地点・時計・実際の大気との差は別です",
+    );
   });
 
   it("keeps the zero-DUT1 fallback explicit", () => {
@@ -135,5 +140,20 @@ describe("StarDetails time-scale provenance", () => {
     expect(
       screen.getByText("xp=0 / yp=0（IERSデータ未取得のため近似）"),
     ).toBeInTheDocument();
+    const accuracySummary = screen.getByText(
+      /DUT1=0秒・xp\/yp=0近似/,
+    );
+    expect(accuracySummary).toHaveTextContent(
+      "整数うるう秒UTCが維持される期間",
+    );
+    expect(accuracySummary).toHaveTextContent(
+      "DUT1だけで時角に最大約13.5秒角相当",
+    );
+    expect(accuracySummary).toHaveTextContent(
+      "1972年以前と将来のUTC制度",
+    );
+    expect(accuracySummary).toHaveTextContent(
+        "星表・真空計算部分の目安で、地点・時計・実際の大気との差は別です",
+    );
   });
 });

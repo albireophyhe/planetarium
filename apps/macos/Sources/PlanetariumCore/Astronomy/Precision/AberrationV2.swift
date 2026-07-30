@@ -4,7 +4,7 @@ import Foundation
  * `applyAnnualAberrationV2` is a Swift derived work based on the vector
  * expression in the IAU SOFA 2023-10-11 C routine `ab`. It is not software
  * provided by or endorsed by SOFA. The default state comes from the separate
- * shared 100-term VSOP2000 heliocentric Earth approximation and is reported
+ * shared 200-term VSOP2000 heliocentric Earth approximation and is reported
  * as such.
  *
  * Differences and the full license are documented in `SOFA-NOTICE.md`;

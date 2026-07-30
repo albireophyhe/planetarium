@@ -41,6 +41,16 @@ TEXT_EXTENSIONS = {
     ".webmanifest",
 }
 
+# Test and benchmark copy is not shipped to browsers. Including it in the
+# glyph inventory silently grows both production font weights whenever an
+# assertion gains new Japanese wording.
+NON_RUNTIME_SOURCE_SUFFIXES = (
+    ".bench.ts",
+    ".bench.tsx",
+    ".test.ts",
+    ".test.tsx",
+)
+
 EXPECTED_PYTHON = (3, 12, 3)
 EXPECTED_TOOL_VERSIONS = {
     "fonttools": "4.59.0",
@@ -49,6 +59,31 @@ EXPECTED_TOOL_VERSIONS = {
 }
 FAMILY_NAME = "Planetarium Sans JP"
 COMPACT_FAMILY_NAME = "PlanetariumSansJP"
+FONT_ASSET_ROOT = Path("apps/web/src/assets/fonts")
+FONT_GROUPS = {
+    "Base": {
+        "asset_prefix": "PlanetariumSansJP",
+        "asset_url_prefix": "../assets/fonts",
+        "description": "initial UI and catalogs",
+        "stylesheet": Path("apps/web/src/styles/index.css"),
+    },
+    "Event": {
+        "asset_prefix": "PlanetariumSansJP-Event",
+        "asset_url_prefix": "../../assets/fonts",
+        "description": "lazy event-only supplement",
+        "stylesheet": Path(
+            "apps/web/src/features/events/EventExplorer.css"
+        ),
+    },
+    "Help": {
+        "asset_prefix": "PlanetariumSansJP-Help",
+        "asset_url_prefix": "../../assets/fonts",
+        "description": "lazy help-only supplement",
+        "stylesheet": Path(
+            "apps/web/src/features/help/HelpDialog.css"
+        ),
+    },
+}
 PRESERVED_METADATA_NAME_IDS = {
     0,   # copyright
     5,   # upstream version
@@ -104,26 +139,90 @@ def validate_environment() -> list[str]:
     return errors
 
 
-def source_characters(project_root: Path) -> set[int]:
-    codepoints = set(range(0x20, 0x7F))
-    roots = [
+def is_runtime_text_file(project_root: Path, path: Path) -> bool:
+    return (
+        path.is_file()
+        and path.suffix in TEXT_EXTENSIONS
+        and not path.name.endswith(NON_RUNTIME_SOURCE_SUFFIXES)
+        and "test" not in path.relative_to(project_root).parts
+    )
+
+
+def characters_from_paths(
+    project_root: Path,
+    paths: list[Path],
+) -> set[int]:
+    codepoints = set()
+    for path in sorted(set(paths)):
+        if not is_runtime_text_file(project_root, path):
+            continue
+        for character in path.read_text(encoding="utf-8"):
+            codepoint = ord(character)
+            if codepoint >= 0x20 and codepoint not in {0x7F, 0xFEFF}:
+                codepoints.add(codepoint)
+    return codepoints
+
+
+def source_character_inventories(
+    project_root: Path,
+) -> dict[str, set[int]]:
+    web_source_root = project_root / "apps/web/src"
+    event_source_roots = [
+        web_source_root / "domain/events",
+        web_source_root / "features/events",
+    ]
+    help_source_roots = [
+        web_source_root / "features/help",
+    ]
+    lazy_source_roots = event_source_roots + help_source_roots
+
+    def is_lazy_source(path: Path) -> bool:
+        return any(root in path.parents for root in lazy_source_roots)
+
+    base_paths = [
         project_root / "apps/web/index.html",
         project_root / "apps/web/public/manifest.webmanifest",
-        project_root / "apps/web/src",
-        project_root / "shared/catalog",
     ]
+    base_paths.extend(
+        path
+        for path in web_source_root.rglob("*")
+        if not is_lazy_source(path)
+    )
+    base_paths.extend((project_root / "shared/catalog").rglob("*"))
 
-    for root in roots:
-        paths = [root] if root.is_file() else root.rglob("*")
-        for path in sorted(paths):
-            if not path.is_file() or path.suffix not in TEXT_EXTENSIONS:
-                continue
-            for character in path.read_text(encoding="utf-8"):
-                codepoint = ord(character)
-                if codepoint >= 0x20 and codepoint not in {0x7F, 0xFEFF}:
-                    codepoints.add(codepoint)
+    event_paths = []
+    for root in event_source_roots:
+        event_paths.extend(root.rglob("*"))
+    # Candidate data contains localized target labels which are rendered by
+    # the lazy event explorer, so it participates in the event coverage
+    # contract even though Vite distributes it outside the JavaScript graph.
+    event_paths.extend((project_root / "shared/events").rglob("*"))
+    help_paths = []
+    for root in help_source_roots:
+        help_paths.extend(root.rglob("*"))
 
-    return codepoints
+    base_codepoints = set(range(0x20, 0x7F))
+    base_codepoints.update(
+        characters_from_paths(project_root, base_paths)
+    )
+    all_event_codepoints = characters_from_paths(
+        project_root,
+        event_paths,
+    )
+    all_help_codepoints = characters_from_paths(
+        project_root,
+        help_paths,
+    )
+    # Separate lazy features must each carry glyphs they share with one
+    # another because opening either feature cannot depend on the other's CSS.
+    # Both remain disjoint from the initial base inventory.
+    event_only_codepoints = all_event_codepoints - base_codepoints
+    help_only_codepoints = all_help_codepoints - base_codepoints
+    return {
+        "Base": base_codepoints,
+        "Event": event_only_codepoints,
+        "Help": help_only_codepoints,
+    }
 
 
 def name_values(font: TTFont, name_id: int) -> set[str]:
@@ -210,6 +309,16 @@ def build_subset(
     subsetter = subset.Subsetter(options=options)
     subsetter.populate(unicodes=sorted(codepoints))
     subsetter.subset(font)
+    # Layout closure can retain a second Unicode mapping for a glyph needed
+    # by the requested inventory (for example U+2039 alongside U+203A).
+    # Prune those aliases so each generated face's declared unicode-range
+    # remains an exact, non-overlapping description of its cmap.
+    for cmap_table in font["cmap"].tables:
+        cmap_table.cmap = {
+            codepoint: glyph_name
+            for codepoint, glyph_name in cmap_table.cmap.items()
+            if codepoint in codepoints
+        }
     rename_font(font, subfamily)
     destination.parent.mkdir(parents=True, exist_ok=True)
     subset.save_font(font, str(destination), options)
@@ -277,21 +386,194 @@ def validate_dependency(project_root: Path) -> list[str]:
     return errors
 
 
-def validate_css_contract(project_root: Path) -> list[str]:
-    stylesheet_path = project_root / "apps/web/src/styles/index.css"
-    try:
-        stylesheet = stylesheet_path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return [f"missing font stylesheet: {stylesheet_path}"]
+def font_block_markers(group: str) -> tuple[str, str]:
+    identifier = group.casefold()
+    return (
+        f"/* planetarium-fonts:{identifier}:start */",
+        f"/* planetarium-fonts:{identifier}:end */",
+    )
 
+
+def validate_css_marker_contract(project_root: Path) -> list[str]:
     errors = []
-    face_blocks = re.findall(
-        r"@font-face\s*\{(?P<body>[^}]*)\}",
+    for group, metadata in FONT_GROUPS.items():
+        relative_path = metadata["stylesheet"]
+        stylesheet_path = project_root / relative_path
+        try:
+            stylesheet = stylesheet_path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            errors.append(f"missing font stylesheet: {stylesheet_path}")
+            continue
+        start_marker, end_marker = font_block_markers(group)
+        if stylesheet.splitlines()[:1] != [start_marker]:
+            errors.append(
+                f"{relative_path} must begin with {start_marker!r}"
+            )
+        if stylesheet.count(start_marker) != 1:
+            errors.append(
+                f"{relative_path} must contain exactly one "
+                f"{start_marker!r}"
+            )
+        if stylesheet.count(end_marker) != 1:
+            errors.append(
+                f"{relative_path} must contain exactly one "
+                f"{end_marker!r}"
+            )
+    return errors
+
+
+def compact_unicode_ranges(codepoints: set[int]) -> list[str]:
+    if not codepoints:
+        return []
+    ordered = sorted(codepoints)
+    ranges = []
+    start = previous = ordered[0]
+    for codepoint in ordered[1:]:
+        if codepoint == previous + 1:
+            previous = codepoint
+            continue
+        ranges.append((start, previous))
+        start = previous = codepoint
+    ranges.append((start, previous))
+    return [
+        (
+            f"U+{start:04X}"
+            if start == end
+            else f"U+{start:04X}-{end:04X}"
+        )
+        for start, end in ranges
+    ]
+
+
+def format_unicode_range_declaration(codepoints: set[int]) -> str:
+    tokens = compact_unicode_ranges(codepoints)
+    if not tokens:
+        raise ValueError("a font face must cover at least one codepoint")
+    lines = []
+    current = "    "
+    for index, token in enumerate(tokens):
+        suffix = ";" if index == len(tokens) - 1 else ","
+        item = f"{token}{suffix}"
+        separator = "" if current == "    " else " "
+        if len(current) + len(separator) + len(item) > 78:
+            lines.append(current)
+            current = f"    {item}"
+        else:
+            current += f"{separator}{item}"
+    lines.append(current)
+    return "\n".join(lines)
+
+
+def font_stylesheet_block(
+    group: str,
+    supported_codepoints: set[int],
+) -> str:
+    metadata = FONT_GROUPS[group]
+    start_marker, end_marker = font_block_markers(group)
+    unicode_range = format_unicode_range_declaration(
+        supported_codepoints
+    )
+    blocks = [
+        start_marker,
+        "/* Generated by script/subset_fonts.py. Do not edit. */",
+    ]
+    for weight, weight_metadata in WEIGHTS.items():
+        filename = f"{metadata['asset_prefix']}-{weight}.woff2"
+        blocks.append(
+            "\n".join(
+                [
+                    "@font-face {",
+                    "  font-display: swap;",
+                    f'  font-family: "{FAMILY_NAME}";',
+                    "  font-style: normal;",
+                    (
+                        "  font-weight: "
+                        f"{weight_metadata['weight_class']};"
+                    ),
+                    (
+                        f'  src: url("{metadata["asset_url_prefix"]}/'
+                        f'{filename}") format("woff2");'
+                    ),
+                    "  unicode-range:",
+                    unicode_range,
+                    "}",
+                ]
+            )
+        )
+    blocks.append(end_marker)
+    return "\n\n".join(blocks) + "\n"
+
+
+def extract_font_stylesheet_block(
+    stylesheet: str,
+    group: str,
+) -> str | None:
+    start_marker, end_marker = font_block_markers(group)
+    match = re.search(
+        re.escape(start_marker)
+        + r".*?"
+        + re.escape(end_marker)
+        + r"\n?",
         stylesheet,
         flags=re.DOTALL,
     )
+    return match.group(0) if match else None
+
+
+def write_font_stylesheet_block(
+    stylesheet_path: Path,
+    group: str,
+    supported_codepoints: set[int],
+) -> None:
+    stylesheet = stylesheet_path.read_text(encoding="utf-8")
+    current_block = extract_font_stylesheet_block(stylesheet, group)
+    if current_block is None:
+        raise ValueError(
+            f"{stylesheet_path} is missing generated font markers"
+        )
+    expected_block = font_stylesheet_block(
+        group,
+        supported_codepoints,
+    )
+    stylesheet_path.write_text(
+        stylesheet.replace(current_block, expected_block, 1),
+        encoding="utf-8",
+    )
+
+
+def validate_font_stylesheet_block(
+    stylesheet_path: Path,
+    group: str,
+    supported_codepoints: set[int],
+) -> list[str]:
+    try:
+        stylesheet = stylesheet_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return [f"missing generated font stylesheet: {stylesheet_path}"]
+
+    errors = []
+    expected_block = font_stylesheet_block(group, supported_codepoints)
+    actual_block = extract_font_stylesheet_block(stylesheet, group)
+    if actual_block != expected_block:
+        errors.append(
+            f"{stylesheet_path} does not contain the exact generated CSS "
+            f"block for "
+            f"the {group.lower()} glyph inventory"
+        )
+    face_blocks = re.findall(
+        r"@font-face\s*\{(?P<body>[^}]*)\}",
+        actual_block or "",
+        flags=re.DOTALL,
+    )
+    if len(face_blocks) != len(WEIGHTS):
+        errors.append(
+            f"{stylesheet_path.name} must contain exactly "
+            f"{len(WEIGHTS)} @font-face blocks"
+        )
     for weight, metadata in WEIGHTS.items():
-        filename = f"PlanetariumSansJP-{weight}.woff2"
+        filename = (
+            f"{FONT_GROUPS[group]['asset_prefix']}-{weight}.woff2"
+        )
         matching = [
             block for block in face_blocks if filename in block
         ]
@@ -306,6 +588,11 @@ def validate_css_contract(project_root: Path) -> list[str]:
             "font-display: swap",
             "font-style: normal",
             f"font-weight: {metadata['weight_class']}",
+            (
+                f'url("{FONT_GROUPS[group]["asset_url_prefix"]}/'
+                f'{filename}")'
+            ),
+            "unicode-range:",
         ]
         for requirement in requirements:
             if requirement not in block:
@@ -319,10 +606,11 @@ def validate_font(
     source_path: Path,
     generated_path: Path,
     codepoints: set[int],
+    font_label: str,
     subfamily: str,
     weight_class: int,
     budget: dict,
-) -> tuple[list[str], set[int]]:
+) -> tuple[list[str], set[int], set[int]]:
     errors = []
     source_font = TTFont(source_path)
     generated_font = TTFont(generated_path)
@@ -332,21 +620,21 @@ def validate_font(
     unsupported = codepoints - source_cmap
 
     missing_supported = expected_cmap - generated_cmap
-    foreign_codepoints = generated_cmap - source_cmap
+    unexpected_codepoints = generated_cmap - expected_cmap
     if missing_supported:
         errors.append(
-            f"{subfamily}: {len(missing_supported)} source-supported "
+            f"{font_label}: {len(missing_supported)} source-supported "
             "codepoints are missing"
         )
-    if foreign_codepoints:
+    if unexpected_codepoints:
         formatted = ", ".join(
             f"U+{codepoint:04X}" for codepoint in sorted(
-                foreign_codepoints
+                unexpected_codepoints
             )
         )
         errors.append(
-            f"{subfamily}: generated cmap contains codepoints absent from "
-            f"the source ({formatted})"
+            f"{font_label}: generated cmap contains codepoints outside "
+            f"the requested supported inventory ({formatted})"
         )
     unreviewed_fallbacks = unsupported - KNOWN_FALLBACK_CODEPOINTS
     if unreviewed_fallbacks:
@@ -356,7 +644,7 @@ def validate_font(
             )
         )
         errors.append(
-            f"{subfamily}: unsupported codepoints need an explicit "
+            f"{font_label}: unsupported codepoints need an explicit "
             f"fallback decision: {formatted}"
         )
 
@@ -389,7 +677,7 @@ def validate_font(
         actual = name_values(generated_font, name_id)
         if actual != expected:
             errors.append(
-                f"{subfamily}: name ID {name_id} is {sorted(actual)!r}; "
+                f"{font_label}: name ID {name_id} is {sorted(actual)!r}; "
                 f"expected {sorted(expected)!r}"
             )
     unique_ids = name_values(generated_font, 3)
@@ -397,13 +685,13 @@ def validate_font(
         postscript_name in value for value in unique_ids
     ):
         errors.append(
-            f"{subfamily}: name ID 3 does not identify the renamed font"
+            f"{font_label}: name ID 3 does not identify the renamed font"
         )
     for name_id in PRIMARY_NAME_IDS:
         for value in name_values(generated_font, name_id):
             if "plex" in value.casefold():
                 errors.append(
-                    f"{subfamily}: Reserved Font Name remains in primary "
+                    f"{font_label}: Reserved Font Name remains in primary "
                     f"name ID {name_id}: {value!r}"
                 )
 
@@ -412,18 +700,18 @@ def validate_font(
         generated_values = name_values(generated_font, name_id)
         if generated_values != source_values:
             errors.append(
-                f"{subfamily}: upstream metadata name ID {name_id} "
+                f"{font_label}: upstream metadata name ID {name_id} "
                 "changed during subsetting"
             )
 
     if generated_font.flavor != "woff2":
         errors.append(
-            f"{subfamily}: output flavor is {generated_font.flavor!r}"
+            f"{font_label}: output flavor is {generated_font.flavor!r}"
         )
     actual_weight = generated_font["OS/2"].usWeightClass
     if actual_weight != weight_class:
         errors.append(
-            f"{subfamily}: OS/2 weight is {actual_weight}; "
+            f"{font_label}: OS/2 weight is {actual_weight}; "
             f"expected {weight_class}"
         )
     if (
@@ -431,7 +719,7 @@ def validate_font(
         or generated_font["post"].italicAngle != 0
     ):
         errors.append(
-            f"{subfamily}: output must remain upright with normal "
+            f"{font_label}: output must remain upright with normal "
             "style flags"
         )
 
@@ -447,15 +735,15 @@ def validate_font(
     gzip_limit = budget["perExtensionGzipBytes"][".woff2"]
     if raw > raw_limit:
         errors.append(
-            f"{subfamily}: raw size {raw} exceeds budget {raw_limit}"
+            f"{font_label}: raw size {raw} exceeds budget {raw_limit}"
         )
     if compressed > gzip_limit:
         errors.append(
-            f"{subfamily}: gzip size {compressed} exceeds budget "
+            f"{font_label}: gzip size {compressed} exceeds budget "
             f"{gzip_limit}"
         )
 
-    return errors, unsupported
+    return errors, unsupported, generated_cmap
 
 
 def describe_codepoints(codepoints: set[int]) -> str:
@@ -491,7 +779,7 @@ def main() -> None:
     preflight_errors = validate_environment()
     preflight_errors.extend(validate_dependency(project_root))
     preflight_errors.extend(validate_license(project_root))
-    preflight_errors.extend(validate_css_contract(project_root))
+    preflight_errors.extend(validate_css_marker_contract(project_root))
     if preflight_errors:
         raise SystemExit(
             "Font build preflight failed:\n"
@@ -502,8 +790,8 @@ def main() -> None:
         project_root
         / "node_modules/@ibm/plex-sans-jp/fonts/complete/woff2/hinted"
     )
-    output_root = project_root / "apps/web/src/assets/fonts"
-    codepoints = source_characters(project_root)
+    output_root = project_root / FONT_ASSET_ROOT
+    inventories = source_character_inventories(project_root)
     budget = json.loads(
         (
             project_root / "config/web-budgets.json"
@@ -519,49 +807,97 @@ def main() -> None:
         temporary_directory = None
         build_root = output_root
 
-    unsupported_codepoints = set()
-    for weight, metadata in WEIGHTS.items():
-        source = package_fonts / metadata["source"]
-        if not source.exists():
-            raise FileNotFoundError(
-                f"{source} is missing; run npm install before subsetting"
+    for group in FONT_GROUPS:
+        if group == "Base":
+            continue
+        overlap = inventories["Base"] & inventories[group]
+        if overlap:
+            errors.append(
+                f"base and {group.lower()} font inventories must be "
+                f"disjoint: {describe_codepoints(overlap)}"
             )
-        destination = build_root / f"PlanetariumSansJP-{weight}.woff2"
-        build_subset(
-            source,
-            destination,
-            codepoints,
-            metadata["subfamily"],
-        )
-        font_errors, unsupported = validate_font(
-            source,
-            destination,
-            codepoints,
-            metadata["subfamily"],
-            metadata["weight_class"],
-            budget,
-        )
-        errors.extend(font_errors)
-        unsupported_codepoints.update(unsupported)
-        print(
-            f"PlanetariumSansJP-{weight}.woff2 "
-            f"{destination.stat().st_size} bytes"
-        )
-        if arguments.check:
-            committed = output_root / destination.name
-            if not committed.exists():
-                errors.append(f"missing committed font: {committed}")
-            elif committed.read_bytes() != destination.read_bytes():
-                errors.append(
-                    f"{committed.relative_to(project_root)} is stale; "
-                    "run the subset command after all UI copy is final"
-                )
 
-    supported_count = len(codepoints - unsupported_codepoints)
-    print(
-        f"Subset character inventory: {len(codepoints)} requested / "
-        f"{supported_count} supplied by IBM Plex Sans JP"
-    )
+    unsupported_codepoints = set()
+    for group, group_metadata in FONT_GROUPS.items():
+        codepoints = inventories[group]
+        if not codepoints:
+            errors.append(
+                f"{group} font inventory must contain at least one "
+                "codepoint"
+            )
+            continue
+        group_cmaps = []
+        group_unsupported = set()
+        for weight, metadata in WEIGHTS.items():
+            source = package_fonts / metadata["source"]
+            if not source.exists():
+                raise FileNotFoundError(
+                    f"{source} is missing; run npm install before "
+                    "subsetting"
+                )
+            filename = (
+                f"{group_metadata['asset_prefix']}-{weight}.woff2"
+            )
+            destination = build_root / filename
+            build_subset(
+                source,
+                destination,
+                codepoints,
+                metadata["subfamily"],
+            )
+            font_errors, unsupported, generated_cmap = validate_font(
+                source,
+                destination,
+                codepoints,
+                f"{group} {weight}",
+                metadata["subfamily"],
+                metadata["weight_class"],
+                budget,
+            )
+            errors.extend(font_errors)
+            group_unsupported.update(unsupported)
+            group_cmaps.append(generated_cmap)
+            unsupported_codepoints.update(unsupported)
+            print(f"{filename} {destination.stat().st_size} bytes")
+            if arguments.check:
+                committed = output_root / destination.name
+                if not committed.exists():
+                    errors.append(f"missing committed font: {committed}")
+                elif committed.read_bytes() != destination.read_bytes():
+                    errors.append(
+                        f"{committed.relative_to(project_root)} is stale; "
+                        "run the subset command after all UI copy is final"
+                    )
+
+        supported_codepoints = codepoints - group_unsupported
+        if any(cmap != supported_codepoints for cmap in group_cmaps):
+            errors.append(
+                f"{group} Regular and SemiBold cmap coverage must exactly "
+                "match the supported source inventory"
+            )
+
+        stylesheet_destination = (
+            project_root / group_metadata["stylesheet"]
+        )
+        if not arguments.check:
+            write_font_stylesheet_block(
+                stylesheet_destination,
+                group,
+                supported_codepoints,
+            )
+        errors.extend(
+            validate_font_stylesheet_block(
+                stylesheet_destination,
+                group,
+                supported_codepoints,
+            )
+        )
+        print(
+            f"{group} subset character inventory: "
+            f"{len(codepoints)} requested / "
+            f"{len(supported_codepoints)} supplied by IBM Plex Sans JP"
+        )
+
     if unsupported_codepoints:
         print(
             "System fallback codepoints: "

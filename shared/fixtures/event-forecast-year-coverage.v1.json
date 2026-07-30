@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "safeReceptionCoverage": {
+    "startUtc": "1900-01-01T00:09:27.817Z",
+    "endUtc": "2100-12-31T23:58:50.816Z",
+    "interval": "closed"
+  },
+  "cases": [
+    {
+      "id": "lower-edge-utc-plus-14",
+      "year": 1900,
+      "utcOffsetSecondsAtYearStart": 50400,
+      "utcOffsetSecondsAtNextYearStart": 50400,
+      "expected": {
+        "edge": "local-year-start",
+        "resourceBoundaryUtc": "1900-01-01T00:09:27.817Z",
+        "missingDurationMilliseconds": 50967817,
+        "approximateMinutes": 850
+      }
+    },
+    {
+      "id": "lower-edge-utc",
+      "year": 1900,
+      "utcOffsetSecondsAtYearStart": 0,
+      "utcOffsetSecondsAtNextYearStart": 0,
+      "expected": {
+        "edge": "local-year-start",
+        "resourceBoundaryUtc": "1900-01-01T00:09:27.817Z",
+        "missingDurationMilliseconds": 567817,
+        "approximateMinutes": 10
+      }
+    },
+    {
+      "id": "lower-edge-utc-minus-1",
+      "year": 1900,
+      "utcOffsetSecondsAtYearStart": -3600,
+      "utcOffsetSecondsAtNextYearStart": -3600,
+      "expected": null
+    },
+    {
+      "id": "interior-1901-utc-plus-14",
+      "year": 1901,
+      "utcOffsetSecondsAtYearStart": 50400,
+      "utcOffsetSecondsAtNextYearStart": 50400,
+      "expected": null
+    },
+    {
+      "id": "interior-2099-utc-minus-12",
+      "year": 2099,
+      "utcOffsetSecondsAtYearStart": -43200,
+      "utcOffsetSecondsAtNextYearStart": -43200,
+      "expected": null
+    },
+    {
+      "id": "upper-edge-utc-plus-1",
+      "year": 2100,
+      "utcOffsetSecondsAtYearStart": 3600,
+      "utcOffsetSecondsAtNextYearStart": 3600,
+      "expected": null
+    },
+    {
+      "id": "upper-edge-utc",
+      "year": 2100,
+      "utcOffsetSecondsAtYearStart": 0,
+      "utcOffsetSecondsAtNextYearStart": 0,
+      "expected": {
+        "edge": "local-year-end",
+        "resourceBoundaryUtc": "2100-12-31T23:58:50.816Z",
+        "missingDurationMilliseconds": 69184,
+        "approximateMinutes": 2
+      }
+    },
+    {
+      "id": "upper-edge-utc-minus-12",
+      "year": 2100,
+      "utcOffsetSecondsAtYearStart": -43200,
+      "utcOffsetSecondsAtNextYearStart": -43200,
+      "expected": {
+        "edge": "local-year-end",
+        "resourceBoundaryUtc": "2100-12-31T23:58:50.816Z",
+        "missingDurationMilliseconds": 43269184,
+        "approximateMinutes": 722
+      }
+    }
+  ]
+}

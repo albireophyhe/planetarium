@@ -6,6 +6,7 @@
   "defaultFileGzipBytes": 65536,
   "defaultFileRawBytes": 524288,
   "perExtensionGzipBytes": {
+    ".bin": 131072,
     ".css": 51200,
     ".html": 16384,
     ".js": 327680,
@@ -15,10 +16,11 @@
     ".webmanifest": 16384
   },
   "perExtensionRawBytes": {
+    ".bin": 131072,
     ".css": 131072,
     ".html": 32768,
     ".js": 737280,
-    ".json": 262144,
+    ".json": 393216,
     ".svg": 65536,
     ".woff2": 262144,
     ".webmanifest": 32768

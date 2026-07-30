@@ -85,6 +85,44 @@ const contracts = [
   {
     data: "shared/fixtures/de442s-ephemeris.v1.json",
     schema: "shared/schema/de442s-ephemeris-fixture.schema.json"
+  },
+  {
+    data:
+      "shared/fixtures/eclipse-contact-position-angles.v1.json",
+    schema:
+      "shared/schema/eclipse-contact-position-angles.schema.json"
+  },
+  {
+    data: "shared/events/event-candidates-manifest.v1.json",
+    schema: "shared/schema/event-candidates-manifest.schema.json"
+  },
+  {
+    data: "shared/fixtures/event-candidates.v1.json",
+    schema: "shared/schema/event-candidates-fixture.schema.json"
+  },
+  {
+    data:
+      "shared/fixtures/event-earth-rotation-model.v1.json",
+    schema:
+      "shared/schema/event-earth-rotation-model.schema.json"
+  },
+  {
+    data:
+      "shared/fixtures/event-forecast-year-coverage.v1.json",
+    schema:
+      "shared/schema/event-forecast-year-coverage.schema.json"
+  },
+  {
+    data:
+      "shared/fixtures/nasa-solar-eclipses-2021-2030.v1.json",
+    schema:
+      "shared/schema/nasa-solar-eclipses-2021-2030.schema.json"
+  },
+  {
+    data:
+      "shared/fixtures/nasa-lunar-eclipses-2021-2030.v1.json",
+    schema:
+      "shared/schema/nasa-lunar-eclipses-2021-2030.schema.json"
   }
 ];
 
@@ -112,6 +150,17 @@ for (const chunk of eopManifest.chunks ?? []) {
     data: chunk.file,
     schema:
       "shared/schema/iers-finals2000a-eop-chunk.schema.json"
+  });
+}
+
+const eventCandidateManifest = await readJson(
+  "shared/events/event-candidates-manifest.v1.json"
+);
+for (const chunk of eventCandidateManifest.chunks ?? []) {
+  contracts.push({
+    data: chunk.file,
+    schema:
+      "shared/schema/event-candidates-chunk.schema.json"
   });
 }
 

@@ -7,7 +7,7 @@
  * solar case (q=p and one solar mass), uses an application-specific prepared
  * context, rejects non-finite/non-unit inputs, and explicitly normalizes the
  * result. The surrounding pipeline supplies either caller geometry or a
- * separately implemented 100-term VSOP2000 Earth approximation; it does not
+ * separately implemented 200-term VSOP2000 Earth approximation; it does not
  * call the original SOFA routine.
  */
 import { SOLAR_SCHWARZSCHILD_RADIUS_AU } from "./constants";

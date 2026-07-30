@@ -168,7 +168,7 @@ struct StarInspectorView: View {
             Label(
                 store.selectedStarAnnualParallaxMode
                     == .truncatedVSOP2000HeliocentricEarth
-                    ? "年周視差：VSOP2000 100項暦で適用"
+                    ? "年周視差：VSOP2000 200項暦で適用"
                     : "年周視差：正の星表視差値なし",
                 systemImage: "arrow.left.and.right.circle"
             )
@@ -188,6 +188,17 @@ struct StarInspectorView: View {
             )
             .font(.caption)
             .foregroundStyle(.secondary)
+
+            Label(
+                starPositionAccuracySummary,
+                systemImage: "scope"
+            )
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .fixedSize(
+                horizontal: false,
+                vertical: true
+            )
         }
 
         Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
@@ -317,7 +328,7 @@ struct StarInspectorView: View {
             Text(annualParallaxExplanation)
             Text(solarLightDeflectionExplanation)
             Text("日周光行差は地球自転による東向き速度をWGS84で求め、地点の楕円体高を0 mと仮定して適用しています。")
-            Text("BSC5PのFK5座標はJ2000回転・フレームスピンでHipparcos/ICRSへ接続します。既定の共有地球暦はVSOP2000由来100項をTT（TDBのproxy）で評価し、解析微分を年周光行差の速度に使いますが、太陽系重心に対する太陽の速度は加えません。BSC5Pの格納分解能、FK5のゾーン誤差、この切り詰めと近似が精度を制限します。既定の年周視差は厳密な太陽系重心暦と実観測地点の変位を含まず、恒星の日周視差、惑星による光の曲がり、日内の極運動潮汐、天候、光害、地形も含みません。太陽の水平位置だけはWGS84地点変位による日周視差を含みます。サブ秒角精度や望遠鏡導入を保証しません。星の大きさと色は見分けやすくした表現です。")
+            Text("BSC5PのFK5座標はJ2000回転・フレームスピンでHipparcos/ICRSへ接続します。既定の共有地球暦はVSOP2000由来200項をTT（TDBのproxy）で評価し、解析微分を年周光行差の速度に使いますが、太陽系重心に対する太陽の速度は加えません。BSC5Pの格納分解能、FK5のゾーン誤差、この切り詰めと近似が精度を制限します。既定の年周視差は厳密な太陽系重心暦と実観測地点の変位を含まず、恒星の日周視差、惑星による光の曲がり、日内の極運動潮汐、天候、光害、地形も含みません。太陽の水平位置だけはWGS84地点変位による日周視差を含みます。サブ秒角精度や望遠鏡導入を保証しません。星の大きさと色は見分けやすくした表現です。")
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -328,9 +339,9 @@ struct StarInspectorView: View {
         switch store.selectedStarAnnualParallaxMode {
         case .truncatedVSOP2000HeliocentricEarth:
             if store.selectedStarRadialVelocityAssumedZero {
-                return "正の星表視差を使い、共有するVSOP2000由来100項の太陽中心地球位置を観測者位置のproxyとして年周視差を近似しています。視線速度が未収録のため0 km/sを仮定し、未知の遠近加速度は含みません。"
+                return "正の星表視差を使い、共有するVSOP2000由来200項の太陽中心地球位置を観測者位置のproxyとして年周視差を近似しています。視線速度が未収録のため0 km/sを仮定し、未知の遠近加速度は含みません。"
             }
-            return "正の星表視差を使い、共有するVSOP2000由来100項の太陽中心地球位置を観測者位置のproxyとして年周視差を近似しています。"
+            return "正の星表視差を使い、共有するVSOP2000由来200項の太陽中心地球位置を観測者位置のproxyとして年周視差を近似しています。"
         case .unavailable:
             return "この星には正の星表視差値がないため、年周視差を計算できません。これは変位がゼロという意味ではありません。"
         case .disabled:
@@ -344,10 +355,18 @@ struct StarInspectorView: View {
         }
     }
 
+    private var starPositionAccuracySummary: String {
+        StarPositionAccuracySummary.text(
+            hasBundledEarthOrientation:
+                store.currentDUT1Estimate != nil
+                && store.currentPolarMotionEstimate != nil
+        )
+    }
+
     private var solarLightDeflectionLabel: String {
         switch store.selectedStarSolarLightDeflectionMode {
         case .truncatedVSOP2000HeliocentricEarth:
-            "太陽重力光偏向：VSOP2000 100項暦で適用"
+            "太陽重力光偏向：VSOP2000 200項暦で適用"
         case .callerSunObserverGeometry:
             "太陽重力光偏向：外部指定幾何で適用"
         case .disabled:
@@ -362,7 +381,7 @@ struct StarInspectorView: View {
     private var solarLightDeflectionValue: String {
         switch store.selectedStarSolarLightDeflectionMode {
         case .truncatedVSOP2000HeliocentricEarth:
-            "適用（VSOP2000 100項・太陽中心地球暦）"
+            "適用（VSOP2000 200項・太陽中心地球暦）"
         case .callerSunObserverGeometry:
             "適用（外部指定幾何）"
         case .disabled:
@@ -383,7 +402,7 @@ struct StarInspectorView: View {
     private var solarLightDeflectionExplanation: String {
         switch store.selectedStarSolarLightDeflectionMode {
         case .truncatedVSOP2000HeliocentricEarth:
-            "太陽重力光偏向は共有するVSOP2000由来100項の太陽中心地球暦から求めた太陽—観測者幾何で適用します。惑星による光偏向は含みません。"
+            "太陽重力光偏向は共有するVSOP2000由来200項の太陽中心地球暦から求めた太陽—観測者幾何で適用します。惑星による光偏向は含みません。"
         case .callerSunObserverGeometry:
             "太陽重力光偏向は外部から指定された太陽—観測者幾何で適用します。惑星による光偏向は含みません。"
         case .disabled:

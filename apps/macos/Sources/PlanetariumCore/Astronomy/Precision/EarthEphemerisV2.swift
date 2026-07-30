@@ -8,7 +8,7 @@ import PlanetariumShared
  *
  * Differences from the original routine:
  * - only the heliocentric Sun-to-Earth position is evaluated;
- * - 100 of 1,323 position terms are retained using the documented
+ * - 200 of 1,323 position terms are retained using the documented
  *   century-wide contribution rule in the shared canonical artifact;
  * - TT is used as a TDB proxy;
  * - the implementation and identifiers are native Swift.
@@ -185,9 +185,9 @@ enum TruncatedEarthEphemerisDecoderV1 {
         "e2x", "e2y", "e2z",
     ]
     private static let expectedSeriesCounts = [
-        43, 44, 2,
-        4, 3, 3,
-        0, 0, 1,
+        90, 88, 6,
+        4, 4, 3,
+        2, 2, 1,
     ]
     private static let expectedOrientationMatrix = [
         [1.0, 0.000_000_211_284, -0.000_000_091_603],
@@ -301,7 +301,7 @@ enum TruncatedEarthEphemerisDecoderV1 {
               artifact.truncation.referenceSpanJulianYears
                 == 100,
               artifact.truncation.fullTermCount == 1_323,
-              artifact.truncation.retainedTermCount == 100,
+              artifact.truncation.retainedTermCount == 200,
               artifact.units.amplitude == "au",
               artifact.units.phase == "radian",
               artifact.units.frequency
@@ -310,7 +310,7 @@ enum TruncatedEarthEphemerisDecoderV1 {
                 == expectedOrientationMatrix,
               artifact.series.all.map(\.count)
                 == expectedSeriesCounts,
-              artifact.retainedTermCount == 100
+              artifact.retainedTermCount == 200
         else {
             throw TruncatedEarthEphemerisErrorV1
                 .invalidArtifact(
@@ -506,7 +506,7 @@ private func evaluateTruncatedEarthHeliocentricStateV2(
 
 public extension Astronomy {
     /**
-     Heliocentric Sun-to-Earth state from the shared 100-term VSOP2000
+     Heliocentric Sun-to-Earth state from the shared 200-term VSOP2000
      truncation, loaded and strictly validated once, then evaluated in
      BCRS-oriented axes.
 

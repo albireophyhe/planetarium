@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/event-earth-rotation-model.schema.json",
+  "title": "Shared event earth-rotation parity fixture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "purpose",
+    "bundledEopCoverage",
+    "tolerances",
+    "fallbackCases",
+    "nasaPolynomialBoundaryCases"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "purpose": {
+      "const": "Cross-runtime regression contract for the Web and Swift event earth-rotation fallback; this is not an independent scientific oracle."
+    },
+    "bundledEopCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "firstSampleUtc",
+        "lastSampleUtc",
+        "interval"
+      ],
+      "properties": {
+        "firstSampleUtc": {
+          "const": "1973-01-02T00:00:00.000Z"
+        },
+        "lastSampleUtc": {
+          "const": "2027-07-31T00:00:00.000Z"
+        },
+        "interval": { "const": "closed" }
+      }
+    },
+    "tolerances": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seconds",
+        "kilometers",
+        "polynomialSeconds"
+      ],
+      "properties": {
+        "seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "kilometers": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "polynomialSeconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "fallbackCases": {
+      "type": "array",
+      "minItems": 10,
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/fallbackCase" }
+    },
+    "nasaPolynomialBoundaryCases": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/polynomialBoundaryCase" }
+    }
+  },
+  "$defs": {
+    "fallbackCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "observedAtUtc", "expected"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "observedAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "expected": {
+          "oneOf": [
+            { "$ref": "#/$defs/fallbackExpected" },
+            { "$ref": "#/$defs/coverageErrorExpected" }
+          ]
+        }
+      }
+    },
+    "fallbackExpected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "deltaTSeconds",
+        "dut1Seconds",
+        "deltaTUncertaintySeconds",
+        "pathUncertaintyKilometers",
+        "assumedTaiMinusUtcSeconds",
+        "eopId",
+        "deltaTModel"
+      ],
+      "properties": {
+        "outcome": { "const": "fallback" },
+        "deltaTSeconds": { "type": "number" },
+        "dut1Seconds": { "type": "number" },
+        "deltaTUncertaintySeconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "pathUncertaintyKilometers": {
+          "type": "number",
+          "minimum": 0
+        },
+        "assumedTaiMinusUtcSeconds": {
+          "type": "integer",
+          "enum": [0, 37]
+        },
+        "eopId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "deltaTModel": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "coverageErrorExpected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome"],
+      "properties": {
+        "outcome": {
+          "const": "inside-bundled-eop-coverage-error"
+        }
+      }
+    },
+    "polynomialBoundaryCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "boundaryDecimalYear",
+        "epsilonYears",
+        "expectedSeconds"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^nasa-piece-[0-9]{4}$"
+        },
+        "boundaryDecimalYear": {
+          "type": "integer",
+          "enum": [1920, 1941, 1961, 1986, 2005, 2050]
+        },
+        "epsilonYears": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "expectedSeconds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["before", "at", "after"],
+          "properties": {
+            "before": { "type": "number" },
+            "at": { "type": "number" },
+            "after": { "type": "number" }
+          }
+        }
+      }
+    }
+  }
+}

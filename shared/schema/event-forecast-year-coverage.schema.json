@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Event forecast local-year coverage parity fixture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "safeReceptionCoverage",
+    "cases"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "safeReceptionCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "startUtc",
+        "endUtc",
+        "interval"
+      ],
+      "properties": {
+        "startUtc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "endUtc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "interval": {
+          "const": "closed"
+        }
+      }
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "year",
+          "utcOffsetSecondsAtYearStart",
+          "utcOffsetSecondsAtNextYearStart",
+          "expected"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "year": {
+            "type": "integer",
+            "minimum": 1900,
+            "maximum": 2100
+          },
+          "utcOffsetSecondsAtYearStart": {
+            "type": "integer",
+            "minimum": -43200,
+            "maximum": 50400
+          },
+          "utcOffsetSecondsAtNextYearStart": {
+            "type": "integer",
+            "minimum": -43200,
+            "maximum": 50400
+          },
+          "expected": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "edge",
+                  "resourceBoundaryUtc",
+                  "missingDurationMilliseconds",
+                  "approximateMinutes"
+                ],
+                "properties": {
+                  "edge": {
+                    "enum": [
+                      "local-year-start",
+                      "local-year-end"
+                    ]
+                  },
+                  "resourceBoundaryUtc": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "missingDurationMilliseconds": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "approximateMinutes": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

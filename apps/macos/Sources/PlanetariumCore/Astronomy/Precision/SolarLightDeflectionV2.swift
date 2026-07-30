@@ -9,7 +9,7 @@ import Foundation
  * solar case (q=p and one solar mass), uses an application-specific prepared
  * context, rejects non-finite/non-unit inputs, and explicitly normalizes the
  * result. The surrounding pipeline supplies either caller geometry or the
- * separately implemented shared 100-term VSOP2000 heliocentric Earth
+ * separately implemented shared 200-term VSOP2000 heliocentric Earth
  * approximation.
  */
 

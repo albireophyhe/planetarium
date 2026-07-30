@@ -25,9 +25,15 @@ struct PlanetariumApp: App {
     @State
     private var store = SkyStore()
 
+    @State
+    private var eventStore = EventForecastStore()
+
     var body: some Scene {
         WindowGroup("Planetarium", id: "main") {
-            ContentView(store: store)
+            ContentView(
+                store: store,
+                eventStore: eventStore
+            )
                 .frame(minWidth: 980, minHeight: 680)
                 .preferredColorScheme(.dark)
         }

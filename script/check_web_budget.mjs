@@ -163,6 +163,42 @@ try {
       );
     }
   }
+  const lazyHelpContracts = [
+    {
+      expectedCount: 1,
+      label: "ヘルプJavaScript",
+      pattern: /^assets\/HelpDialog-[A-Za-z0-9_-]+\.js$/
+    },
+    {
+      expectedCount: 1,
+      label: "ヘルプCSS",
+      pattern: /^assets\/HelpDialog-[A-Za-z0-9_-]+\.css$/
+    },
+    {
+      expectedCount: 2,
+      label: "ヘルプ専用フォント",
+      pattern:
+        /^assets\/PlanetariumSansJP-Help-(?:Regular|SemiBold)-[A-Za-z0-9_-]+\.woff2$/
+    }
+  ];
+  for (const contract of lazyHelpContracts) {
+    const matches = [...byRelativePath.keys()].filter((path) =>
+      contract.pattern.test(path)
+    );
+    if (matches.length !== contract.expectedCount) {
+      violations.push(
+        `${contract.label}は遅延成果物${contract.expectedCount}件が必要です` +
+          `（実際: ${matches.length}件）`
+      );
+    }
+    for (const match of matches) {
+      if (initialPaths.has(match)) {
+        violations.push(
+          `${contract.label} ${match} を初期アセットへ含めないでください`
+        );
+      }
+    }
+  }
 
   const sizes = await Promise.all(
     allFiles.map(async (file) => {

@@ -55,7 +55,7 @@
         },
         "referenceSpanJulianYears": { "const": 100 },
         "fullTermCount": { "const": 1323 },
-        "retainedTermCount": { "const": 100 }
+        "retainedTermCount": { "const": 200 }
       }
     },
     "units": {

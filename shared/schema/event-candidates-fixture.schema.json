@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/event-candidates-fixture.schema.json",
+  "title": "Offline eclipse candidate fixture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "model",
+    "oracle",
+    "manifestSha256",
+    "sourceSha256",
+    "knownCases",
+    "knownOccultationCases",
+    "centuryCounts",
+    "checks"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "model": { "const": "de442s-mean-sphere-eclipse-candidates-v1" },
+    "oracle": { "type": "string", "minLength": 1 },
+    "manifestSha256": { "$ref": "#/$defs/sha256" },
+    "sourceSha256": { "$ref": "#/$defs/sha256" },
+    "knownCases": {
+      "type": "array",
+      "minItems": 2,
+      "items": { "$ref": "#/$defs/knownCase" }
+    },
+    "knownOccultationCases": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/knownOccultationCase" }
+    },
+    "centuryCounts": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": { "$ref": "#/$defs/centuryCount" }
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allCenturyCountsMatch",
+        "allKnownCasesWithinTolerance",
+        "allKnownOccultationsPresent",
+        "nasaIndependentVerificationCommand",
+        "nasaVerification"
+      ],
+      "properties": {
+        "allCenturyCountsMatch": { "const": true },
+        "allKnownCasesWithinTolerance": { "const": true },
+        "allKnownOccultationsPresent": { "const": true },
+        "nasaIndependentVerificationCommand": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nasaVerification": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "knownCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "candidateId",
+        "expectedKind",
+        "expectedClassificationHint",
+        "nasaMaximumJulianDateTd",
+        "maximumDifferenceToleranceSeconds",
+        "sourceUrl",
+        "actualMaximumJulianDateTdb",
+        "actualMaximumIsoTdb",
+        "maximumDifferenceSeconds"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "candidateId": {
+          "type": "string",
+          "pattern": "^se-[0-9]{8}$"
+        },
+        "expectedKind": { "const": "solar-eclipse" },
+        "expectedClassificationHint": { "const": "total" },
+        "nasaMaximumJulianDateTd": { "type": "number" },
+        "maximumDifferenceToleranceSeconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "sourceUrl": { "type": "string", "format": "uri" },
+        "actualMaximumJulianDateTdb": { "type": "number" },
+        "actualMaximumIsoTdb": { "type": "string", "minLength": 1 },
+        "maximumDifferenceSeconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "centuryCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "startYear",
+        "endYear",
+        "expectedCount",
+        "actualCount",
+        "sourceUrl"
+      ],
+      "properties": {
+        "kind": {
+          "enum": ["solar-eclipse", "lunar-eclipse"]
+        },
+        "startYear": { "enum": [1901, 2001] },
+        "endYear": { "enum": [2000, 2100] },
+        "expectedCount": { "type": "integer", "minimum": 200 },
+        "actualCount": { "type": "integer", "minimum": 200 },
+        "sourceUrl": { "type": "string", "format": "uri" }
+      }
+    },
+    "knownOccultationCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "candidateId",
+        "targetHr",
+        "expectedUtcDate",
+        "sourceUrl",
+        "actualMaximumJulianDateTdb",
+        "actualMaximumIsoTdb",
+        "targetLabel"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "candidateId": {
+          "type": "string",
+          "pattern": "^lo-[0-9]{8}-hr[0-9]{4}$"
+        },
+        "targetHr": { "const": 1457 },
+        "expectedUtcDate": {
+          "type": "string",
+          "pattern": "^2017-03-05$"
+        },
+        "sourceUrl": { "type": "string", "format": "uri" },
+        "actualMaximumJulianDateTdb": { "type": "number" },
+        "actualMaximumIsoTdb": { "type": "string", "minLength": 1 },
+        "targetLabel": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

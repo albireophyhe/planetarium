@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  loadIersEarthOrientationSnapshot,
   loadIersEarthOrientationService,
   lookupIersEarthOrientation
 } from "./earthOrientationDataLoader";
@@ -56,7 +57,8 @@ describe("bundled integrated IERS Earth-orientation service", () => {
     expect(estimate?.dut1).toEqual({
       seconds: 0.808418,
       reportedErrorSeconds: 0.000271,
-      source: "observed"
+      source: "observed",
+      quality: "observed"
     });
     expect(estimate?.polarMotion).toEqual({
       xpRadians: 0.120733 * ARCSECONDS_TO_RADIANS,
@@ -66,7 +68,8 @@ describe("bundled integrated IERS Earth-orientation service", () => {
       ypReportedErrorRadians:
         0.015902 * ARCSECONDS_TO_RADIANS,
       source: "observed",
-      usesPrediction: false
+      usesPrediction: false,
+      quality: "observed"
     });
   });
 
@@ -85,6 +88,8 @@ describe("bundled integrated IERS Earth-orientation service", () => {
     expect(exactObserved?.polarMotion.source).toBe("observed");
     expect(interpolated?.dut1.source).toBe("predicted");
     expect(interpolated?.polarMotion.source).toBe("predicted");
+    expect(interpolated?.dut1.quality).toBe("mixed");
+    expect(interpolated?.polarMotion.quality).toBe("mixed");
     expect(
       interpolated?.polarMotion.usesPrediction
     ).toBe(true);
@@ -102,5 +107,34 @@ describe("bundled integrated IERS Earth-orientation service", () => {
     expect(
       await lookupIersEarthOrientation(dateFromMjd(61_617.001))
     ).toBeNull();
+  });
+
+  it("loads a real chunk-boundary interval for synchronous lookup", async () => {
+    const start = dateFromMjd(45_779.75);
+    const end = dateFromMjd(45_780.25);
+    const snapshot = await loadIersEarthOrientationSnapshot(
+      start,
+      end
+    );
+
+    expect(Object.isFrozen(snapshot)).toBe(true);
+    expect(snapshot.sourceSha256).toBe(
+      (await loadIersEarthOrientationService()).source.sourceSha256
+    );
+    expect(snapshot.retrievedAt).toBe(
+      (await loadIersEarthOrientationService()).source.retrievedAt
+    );
+    expect(
+      snapshot.lookup(dateFromMjd(45_779.9))
+    ).toEqual(
+      await lookupIersEarthOrientation(dateFromMjd(45_779.9))
+    );
+    expect(
+      snapshot.lookup(dateFromMjd(45_780.1))
+    ).toEqual(
+      await lookupIersEarthOrientation(dateFromMjd(45_780.1))
+    );
+    expect(snapshot.lookup(dateFromMjd(45_779.7))).toBeNull();
+    expect(snapshot.lookup(dateFromMjd(45_780.3))).toBeNull();
   });
 });

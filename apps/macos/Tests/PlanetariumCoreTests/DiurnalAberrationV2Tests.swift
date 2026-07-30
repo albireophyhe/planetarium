@@ -6,8 +6,8 @@ import XCTest
 
 final class DiurnalAberrationV2Tests: XCTestCase {
     private let fixture: SOFADiurnalAberrationFixture = {
-        let data = try! SharedResources.data(
-            for: .sofaDiurnalAberrationVectors
+        let data = try! TestFixtureData.data(
+            at: "shared/fixtures/sofa-diurnal-aberration.v1.json"
         )
         return try! JSONDecoder().decode(
             SOFADiurnalAberrationFixture.self,

@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "title": "Lunar Eclipses: 2021 - 2030",
+    "publisher": "NASA Goddard Space Flight Center",
+    "url": "https://eclipse.gsfc.nasa.gov/LEdecade/LEdecade2021.html",
+    "attribution": "Eclipse Predictions by Fred Espenak, NASA's GSFC",
+    "accessedAt": "2026-07-30"
+  },
+  "timeScale": "TD (treated as TT for this validation)",
+  "tolerances": {
+    "maximumUtcSeconds": 3,
+    "umbralMagnitude": 0.005
+  },
+  "events": [
+    {
+      "id": "le-20210526",
+      "greatestEclipseTd": "2021-05-26T11:19:53",
+      "classification": "total",
+      "umbralMagnitude": 1.009
+    },
+    {
+      "id": "le-20211119",
+      "greatestEclipseTd": "2021-11-19T09:04:06",
+      "classification": "partial",
+      "umbralMagnitude": 0.974
+    },
+    {
+      "id": "le-20220516",
+      "greatestEclipseTd": "2022-05-16T04:12:42",
+      "classification": "total",
+      "umbralMagnitude": 1.414
+    },
+    {
+      "id": "le-20221108",
+      "greatestEclipseTd": "2022-11-08T11:00:22",
+      "classification": "total",
+      "umbralMagnitude": 1.359
+    },
+    {
+      "id": "le-20230505",
+      "greatestEclipseTd": "2023-05-05T17:24:05",
+      "classification": "penumbral",
+      "umbralMagnitude": -0.046
+    },
+    {
+      "id": "le-20231028",
+      "greatestEclipseTd": "2023-10-28T20:15:18",
+      "classification": "partial",
+      "umbralMagnitude": 0.122
+    },
+    {
+      "id": "le-20240325",
+      "greatestEclipseTd": "2024-03-25T07:13:59",
+      "classification": "penumbral",
+      "umbralMagnitude": -0.132
+    },
+    {
+      "id": "le-20240918",
+      "greatestEclipseTd": "2024-09-18T02:45:25",
+      "classification": "partial",
+      "umbralMagnitude": 0.085
+    },
+    {
+      "id": "le-20250314",
+      "greatestEclipseTd": "2025-03-14T06:59:56",
+      "classification": "total",
+      "umbralMagnitude": 1.178
+    },
+    {
+      "id": "le-20250907",
+      "greatestEclipseTd": "2025-09-07T18:12:58",
+      "classification": "total",
+      "umbralMagnitude": 1.362
+    },
+    {
+      "id": "le-20260303",
+      "greatestEclipseTd": "2026-03-03T11:34:52",
+      "classification": "total",
+      "umbralMagnitude": 1.151
+    },
+    {
+      "id": "le-20260828",
+      "greatestEclipseTd": "2026-08-28T04:14:04",
+      "classification": "partial",
+      "umbralMagnitude": 0.93
+    },
+    {
+      "id": "le-20270220",
+      "greatestEclipseTd": "2027-02-20T23:14:06",
+      "classification": "penumbral",
+      "umbralMagnitude": -0.057
+    },
+    {
+      "id": "le-20270718",
+      "greatestEclipseTd": "2027-07-18T16:04:09",
+      "classification": "penumbral",
+      "umbralMagnitude": -1.068
+    },
+    {
+      "id": "le-20270817",
+      "greatestEclipseTd": "2027-08-17T07:14:59",
+      "classification": "penumbral",
+      "umbralMagnitude": -0.525
+    },
+    {
+      "id": "le-20280112",
+      "greatestEclipseTd": "2028-01-12T04:14:13",
+      "classification": "partial",
+      "umbralMagnitude": 0.066
+    },
+    {
+      "id": "le-20280706",
+      "greatestEclipseTd": "2028-07-06T18:20:57",
+      "classification": "partial",
+      "umbralMagnitude": 0.389
+    },
+    {
+      "id": "le-20281231",
+      "greatestEclipseTd": "2028-12-31T16:53:15",
+      "classification": "total",
+      "umbralMagnitude": 1.246
+    },
+    {
+      "id": "le-20290626",
+      "greatestEclipseTd": "2029-06-26T03:23:22",
+      "classification": "total",
+      "umbralMagnitude": 1.844
+    },
+    {
+      "id": "le-20291220",
+      "greatestEclipseTd": "2029-12-20T22:43:12",
+      "classification": "total",
+      "umbralMagnitude": 1.117
+    },
+    {
+      "id": "le-20300615",
+      "greatestEclipseTd": "2030-06-15T18:34:34",
+      "classification": "partial",
+      "umbralMagnitude": 0.502
+    },
+    {
+      "id": "le-20301209",
+      "greatestEclipseTd": "2030-12-09T22:28:51",
+      "classification": "penumbral",
+      "umbralMagnitude": -0.163
+    }
+  ]
+}
