@@ -16,12 +16,12 @@ const EVENT_EOP_FIRST_SAMPLE_MILLISECONDS = Date.parse(
   "1973-01-02T00:00:00.000Z",
 );
 const EVENT_EOP_LAST_SAMPLE_MILLISECONDS = Date.parse(
-  "2027-07-31T00:00:00.000Z",
+  "2027-08-07T00:00:00.000Z",
 );
 
 /**
  * The final paired DUT1/polar-motion prediction sample in the bundled
- * finals2000A snapshot (MJD 61617).
+ * finals2000A snapshot (MJD 61624).
  */
 export const EVENT_EOP_LAST_SAMPLE_UTC = new Date(
   EVENT_EOP_LAST_SAMPLE_MILLISECONDS,
@@ -29,9 +29,9 @@ export const EVENT_EOP_LAST_SAMPLE_UTC = new Date(
 
 /**
  * ΔT = TT−UT1 at the final bundled EOP sample:
- * TAI−UTC (37 s) + 32.184 s − DUT1 (−0.047694 s).
+ * TAI−UTC (37 s) + 32.184 s − DUT1 (−0.055965 s).
  */
-export const EVENT_EOP_ANCHOR_DELTA_T_SECONDS = 69.231_694;
+export const EVENT_EOP_ANCHOR_DELTA_T_SECONDS = 69.239_965;
 
 const EVENT_EOP_ANCHOR_REPORTED_ERROR_SECONDS = 0.025_410;
 
@@ -298,7 +298,7 @@ export function eventEarthRotationFallback(
       ) +
       EVENT_EOP_ANCHOR_REPORTED_ERROR_SECONDS;
     deltaTModel =
-      "NASA-2004-polynomial-anchored-to-IERS-EOP-2027-07-31";
+      "NASA-2004-polynomial-anchored-to-IERS-EOP-2027-08-07";
     dominantContributors = Object.freeze([
       "NASA ΔT多項式（同梱IERS予測最終sampleへ連続補正）",
       "DE442s月永年加速度への補正",

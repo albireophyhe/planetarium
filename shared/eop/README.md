@@ -25,13 +25,13 @@ USNOの配布ページは
 unlimited.”と明記しています。これはオープンソースライセンス名ではないため、
 公式原本、format、checksum、取得情報、attributionを一緒に保持します。
 
-同梱スナップショットは2026-07-29T09:10:13.165Z取得、原本の
-`Last-Modified`は2026-07-23T17:46:35Zです。
+同梱スナップショットは2026-07-30T23:12:41.229Z取得、原本の
+`Last-Modified`は2026-07-30T17:43:11Zです。
 
 - 原本SHA-256:
-  `f707ea5031a467f1a3b2f0645fac2f627095ed0cb41d34c515b495cb81a5a25d`
+  `4b828090fc94114168014b61439fa5e6ec0bdfda518075a32baffea90110954d`
 - USNO公式SHA-512:
-  `b5e8afa4a628c395025c118f9f48102ead13bdca22c79b89ab74d03b10a34493169438b313ef427ac803edb6258b81772ee381d408a129bfc79c3fc488478ec5`
+  `ab5d92505408dbe5f7900dcc1068c445dcc1227d2078c9623fd2c5a6804adefde59d3c564d08c8df150103f0a41938559774980e734ddfb9fca3fcc42f6506d8`
 
 ## 原本列と収録範囲
 
@@ -51,10 +51,10 @@ PMとUT1のflagは現在のスナップショットでは一致しますが、�
 `dut1QualityRanges`を別々に保持し、一方から他方を推定しません。`I`は公式の
 “IERS” flag、`P`はpredictionです。
 
-正規化範囲はMJD 41684–61617（1973-01-02 00:00 UTCから
-2027-07-31 00:00 UTCまでのsample）の19,934日です。PM、UT1とも
-`I=19,561`、`P=373`で、IERS値の最終sampleはMJD 61244、予測開始sampleは
-MJD 61245です。原本19,984行の末尾50行はPMとUT1がともに欠測しており、
+正規化範囲はMJD 41684–61624（1973-01-02 00:00 UTCから
+2027-08-07 00:00 UTCまでのsample）の19,941日です。PM、UT1とも
+`I=19,568`、`P=373`で、IERS値の最終sampleはMJD 61251、予測開始sampleは
+MJD 61252です。原本19,991行の末尾50行はPMとUT1がともに欠測しており、
 observable別の`missingTailRows`としてmanifestとlockへ保存します。
 
 原本の列名は単に`error`であり、信頼水準や共分散を規定していません。
@@ -91,9 +91,9 @@ artifactとruntime契約では`reportedError`と呼び、1σとは主張しま�
 
 現行スナップショットのサイズは次の通りです。
 
-- manifest: 4,253 bytes raw / 1,714 bytes gzip。
+- manifest: 4,253 bytes raw / 1,712 bytes gzip。
 - 最大chunk: 109,788 bytes raw / 42,608 bytes gzip。
-- manifestと全chunk: 485,094 bytes raw / 185,984 bytes gzip。
+- manifestと全chunk: 485,258 bytes raw / 186,045 bytes gzip。
 
 生成・検証はmanifestと各chunkをJSON 256 KiB／gzip 64 KiB、全生成物を
 raw 900 KiB／gzip 300 KiB、原本を4,000,000 bytes、recordを22,000件に

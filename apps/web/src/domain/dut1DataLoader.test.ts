@@ -23,41 +23,65 @@ describe("bundled IERS DUT1 service", () => {
     expect(Object.isFrozen(service.source)).toBe(true);
     expect(service.coverage).toMatchObject({
       firstMjdUtc: 41_684,
-      lastMjdUtc: 61_617,
-      observedThroughMjdUtc: 61_244,
-      predictionStartsMjdUtc: 61_245,
-      recordCount: 19_934,
-      observedCount: 19_561,
+      lastMjdUtc: 61_624,
+      observedThroughMjdUtc: 61_251,
+      predictionStartsMjdUtc: 61_252,
+      recordCount: 19_941,
+      observedCount: 19_568,
       predictedCount: 373,
     });
     expect(service.source.sourceSha256).toBe(
-      "f707ea5031a467f1a3b2f0645fac2f627095ed0cb41d34c515b495cb81a5a25d",
+      "4b828090fc94114168014b61439fa5e6ec0bdfda518075a32baffea90110954d",
     );
   });
 
   it("returns official quantized values and null outside coverage", async () => {
-    expect(await lookupIersDut1(dateFromMjd(41_684))).toEqual({
+    const { coverage } = await loadIersDut1Service();
+    expect(
+      await lookupIersDut1(dateFromMjd(coverage.firstMjdUtc)),
+    ).toEqual({
       dut1Seconds: 0.808418,
       source: "observed",
       uncertaintySeconds: 0.000271,
     });
-    expect(await lookupIersDut1(dateFromMjd(41_683.999))).toBeNull();
-    expect(await lookupIersDut1(dateFromMjd(61_617.001))).toBeNull();
+    expect(
+      await lookupIersDut1(
+        dateFromMjd(coverage.firstMjdUtc - 0.001),
+      ),
+    ).toBeNull();
+    expect(
+      await lookupIersDut1(
+        dateFromMjd(coverage.lastMjdUtc + 0.001),
+      ),
+    ).toBeNull();
   });
 
   it("treats the observed-to-predicted boundary conservatively", async () => {
-    expect(await lookupIersDut1(dateFromMjd(61_244))).toEqual({
-      dut1Seconds: 0.009371,
+    const { coverage } = await loadIersDut1Service();
+    expect(
+      await lookupIersDut1(
+        dateFromMjd(coverage.observedThroughMjdUtc),
+      ),
+    ).toEqual({
+      dut1Seconds: 0.012961,
       source: "observed",
-      uncertaintySeconds: 0.000015,
+      uncertaintySeconds: 0.00001,
     });
-    expect(await lookupIersDut1(dateFromMjd(61_244.5))).toEqual({
-      dut1Seconds: 0.0095515,
+    expect(
+      await lookupIersDut1(
+        dateFromMjd(coverage.observedThroughMjdUtc + 0.5),
+      ),
+    ).toEqual({
+      dut1Seconds: 0.0129515,
       source: "predicted",
       uncertaintySeconds: 0.000108,
     });
-    expect(await lookupIersDut1(dateFromMjd(61_245))).toEqual({
-      dut1Seconds: 0.009732,
+    expect(
+      await lookupIersDut1(
+        dateFromMjd(coverage.predictionStartsMjdUtc),
+      ),
+    ).toEqual({
+      dut1Seconds: 0.012942,
       source: "predicted",
       uncertaintySeconds: 0.000108,
     });

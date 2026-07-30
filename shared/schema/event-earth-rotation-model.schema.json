@@ -30,7 +30,7 @@
           "const": "1973-01-02T00:00:00.000Z"
         },
         "lastSampleUtc": {
-          "const": "2027-07-31T00:00:00.000Z"
+          "const": "2027-08-07T00:00:00.000Z"
         },
         "interval": { "const": "closed" }
       }

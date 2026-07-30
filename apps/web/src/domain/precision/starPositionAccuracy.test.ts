@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import catalog from "../../../../../shared/catalog/bright-stars.v2.json";
 import fixtures from "../../../../../shared/fixtures/astro-test-vectors.v2.json";
-import { lookupIersEarthOrientation } from "../earthOrientationDataLoader";
+import {
+  loadIersEarthOrientationService,
+  lookupIersEarthOrientation,
+} from "../earthOrientationDataLoader";
 import type { IersEarthOrientationEstimateV1 } from "../earthOrientation";
 import { precisionStarByHR } from "../precisionData";
 import {
@@ -16,6 +19,14 @@ const RADIANS_TO_MILLIARCSECONDS =
 const RADIANS_TO_ARCSECONDS = (180 * 3_600) / Math.PI;
 const SIDEREAL_ARCSECONDS_PER_UT1_SECOND =
   15 * 1.0027378119113546;
+const MILLISECONDS_PER_DAY = 86_400_000;
+const UNIX_EPOCH_MJD = 40_587;
+
+function dateFromMjd(mjd: number): Date {
+  return new Date(
+    (mjd - UNIX_EPOCH_MJD) * MILLISECONDS_PER_DAY,
+  );
+}
 
 function wrappedAngleDifference(left: number, right: number): number {
   return (
@@ -173,21 +184,28 @@ describe("star-position accuracy budget", () => {
   });
 
   it("locks the current bundled EOP reported-error envelope", async () => {
+    const service = await loadIersEarthOrientationService();
+    const observedThroughMjd =
+      service.coverage.dut1.iersThroughMjdUtc;
+    expect(service.coverage.polarMotion.iersThroughMjdUtc).toBe(
+      observedThroughMjd,
+    );
+
     const estimateAtMidnight = await lookupIersEarthOrientation(
-      new Date("2026-07-30T00:00:00.000Z"),
+      dateFromMjd(observedThroughMjd),
     );
     const estimateAtNoon = await lookupIersEarthOrientation(
-      new Date("2026-07-30T12:00:00.000Z"),
+      dateFromMjd(observedThroughMjd + 0.5),
     );
     const estimateAtCoverageEnd = await lookupIersEarthOrientation(
-      new Date("2027-07-31T00:00:00.000Z"),
+      dateFromMjd(service.coverage.lastSampleMjdUtc),
     );
     if (
       !estimateAtMidnight ||
       !estimateAtNoon ||
       !estimateAtCoverageEnd
     ) {
-      throw new Error("Missing bundled EOP for MJD 61251");
+      throw new Error("Missing bundled EOP accuracy samples");
     }
 
     const xpReportedErrorArcseconds =
@@ -203,27 +221,31 @@ describe("star-position accuracy budget", () => {
     const coverageEndEnvelopeArcseconds =
       eopReportedErrorEnvelopeArcseconds(estimateAtCoverageEnd);
 
-    expect(estimateAtMidnight.dut1.source).toBe("predicted");
-    expect(estimateAtMidnight.polarMotion.source).toBe("predicted");
+    expect(estimateAtMidnight.dut1.source).toBe("observed");
+    expect(estimateAtMidnight.polarMotion.source).toBe("observed");
+    expect(estimateAtNoon.dut1.source).toBe("predicted");
+    expect(estimateAtNoon.dut1.quality).toBe("mixed");
+    expect(estimateAtNoon.polarMotion.source).toBe("predicted");
+    expect(estimateAtNoon.polarMotion.quality).toBe("mixed");
     expect(estimateAtMidnight.dut1.reportedErrorSeconds).toBe(
-      0.000701,
+      0.00001,
     );
-    expect(xpReportedErrorArcseconds).toBeCloseTo(0.001819, 12);
-    expect(ypReportedErrorArcseconds).toBeCloseTo(0.001624, 12);
+    expect(xpReportedErrorArcseconds).toBeCloseTo(0.00009, 12);
+    expect(ypReportedErrorArcseconds).toBeCloseTo(0.00009, 12);
     // The source does not define a confidence level or covariance, so this
     // is a linear reported-error envelope rather than a statistical sigma.
     expect(conservativeEnvelopeArcseconds).toBeCloseTo(
-      0.013986788,
-      8,
+      0.000330410672,
+      12,
     );
-    expect(conservativeEnvelopeArcseconds).toBeLessThan(0.014);
+    expect(conservativeEnvelopeArcseconds).toBeLessThan(0.00034);
     expect(interpolatedEnvelopeArcseconds).toBeCloseTo(
-      0.015775238,
-      8,
+      0.002451747755,
+      12,
     );
-    expect(interpolatedEnvelopeArcseconds).toBeLessThan(0.016);
+    expect(interpolatedEnvelopeArcseconds).toBeLessThan(0.0025);
     expect(coverageEndEnvelopeArcseconds).toBeCloseTo(
-      0.428165517,
+      0.432298517,
       8,
     );
   });

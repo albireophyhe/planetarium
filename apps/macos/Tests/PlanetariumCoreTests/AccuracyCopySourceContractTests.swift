@@ -47,6 +47,13 @@ final class AccuracyCopySourceContractTests: XCTestCase {
         )
 
         XCTAssertTrue(text.contains("時角の最大約13.5秒角"))
+        XCTAssertTrue(text.contains("2026年7月31日取得"))
+        XCTAssertTrue(
+            text.contains(
+                "収録範囲は1973-01-02〜2027-08-07 UTC"
+            )
+        )
+        XCTAssertTrue(text.contains("2026-07-30までは観測値"))
         XCTAssertTrue(
             text.contains(
                 "現行の整数うるう秒UTCを前提にした"

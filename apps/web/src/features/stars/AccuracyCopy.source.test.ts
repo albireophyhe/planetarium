@@ -37,4 +37,15 @@ describe("star-position accuracy copy source contract", () => {
       expect(source).toContain("将来は既知最後の37秒を仮定するUTC近似");
     }
   });
+
+  it("keeps the bundled EOP coverage copy current", () => {
+    const normalizedHelpSource = helpSource.replace(/\s+/gu, "");
+    expect(normalizedHelpSource).toContain(
+      "1973年1月2日〜2027年8月7日",
+    );
+    expect(normalizedHelpSource).toContain("2026年7月31日取得版");
+    expect(normalizedHelpSource).toContain(
+      "2026年7月30日までが観測値",
+    );
+  });
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { lookupIersEarthOrientation } from "../earthOrientationDataLoader";
 import { resolveTimeScales } from "../precision";
 import {
   EVENT_EOP_ANCHOR_DELTA_T_SECONDS,
@@ -94,17 +95,55 @@ describe("eventEarthRotationFallback", () => {
     ).toBe("outside-IERS-coverage-future-delta-t-model");
   });
 
-  it("anchors future values continuously to the final bundled EOP sample", () => {
+  it("derives the anchor from the final bundled EOP sample and stays continuous", async () => {
+    const finalEstimate = await lookupIersEarthOrientation(
+      EVENT_EOP_LAST_SAMPLE_UTC,
+    );
+    expect(finalEstimate).not.toBeNull();
+    expect(finalEstimate?.dut1.seconds).toBeCloseTo(
+      -0.055_965,
+      12,
+    );
+    expect(finalEstimate?.dut1.reportedErrorSeconds).toBeCloseTo(
+      0.025_410,
+      12,
+    );
+    const finalScales = resolveTimeScales(
+      EVENT_EOP_LAST_SAMPLE_UTC,
+      {
+        dut1Seconds: finalEstimate!.dut1.seconds,
+        dut1Source: "iers-predicted",
+        dut1UncertaintySeconds:
+          finalEstimate!.dut1.reportedErrorSeconds,
+      },
+    );
+    const derivedAnchorDeltaT =
+      finalScales.taiMinusUtcSeconds +
+      32.184 -
+      finalScales.dut1Seconds;
     const immediatelyAfter = eventEarthRotationFallback(
       new Date(EVENT_EOP_LAST_SAMPLE_UTC.getTime() + 1),
     );
 
+    expect(derivedAnchorDeltaT).toBeCloseTo(
+      EVENT_EOP_ANCHOR_DELTA_T_SECONDS,
+      12,
+    );
     expect(immediatelyAfter.deltaTSeconds).toBeCloseTo(
       EVENT_EOP_ANCHOR_DELTA_T_SECONDS,
-      6,
+      12,
     );
-    expect(immediatelyAfter.deltaTModel).toContain(
-      "anchored-to-IERS",
+    expect(immediatelyAfter.dut1Seconds).toBeCloseTo(
+      finalEstimate!.dut1.seconds,
+      12,
+    );
+    expect(
+      await lookupIersEarthOrientation(
+        new Date(EVENT_EOP_LAST_SAMPLE_UTC.getTime() + 1),
+      ),
+    ).toBeNull();
+    expect(immediatelyAfter.deltaTModel).toBe(
+      "NASA-2004-polynomial-anchored-to-IERS-EOP-2027-08-07",
     );
   });
 
@@ -117,27 +156,27 @@ describe("eventEarthRotationFallback", () => {
     );
 
     expect(at2050.deltaTSeconds).toBeCloseTo(
-      86.261_907_565_724,
+      86.217_707_700_690,
       9,
     );
     expect(at2100.deltaTSeconds).toBeCloseTo(
-      195.945_273_317_19,
+      195.901_073_452_156,
       9,
     );
     expect(at2050.deltaTUncertaintySeconds).toBeCloseTo(
-      16.856_265_525_244,
+      16.870_141_442_608,
       10,
     );
     expect(at2100.deltaTUncertaintySeconds).toBeCloseTo(
-      49.308_650_402_183,
+      49.322_526_319_546,
       10,
     );
     expect(at2050.pathUncertaintyKilometers).toBeCloseTo(
-      7.839_867_637_683,
+      7.846_321_342_112,
       10,
     );
     expect(at2100.pathUncertaintyKilometers).toBeCloseTo(
-      22.933_507_541_571,
+      22.939_961_246,
       10,
     );
     expect(at2100.deltaTUncertaintySeconds).toBeGreaterThan(
@@ -145,7 +184,7 @@ describe("eventEarthRotationFallback", () => {
     );
     expect(at2100.assumedTaiMinusUtcSeconds).toBe(37);
     expect(at2100.dut1Seconds).toBeCloseTo(
-      -126.761_273_317_19,
+      -126.717_073_452_156,
       9,
     );
     expect(at2100.warnings.join(" ")).toContain(
@@ -178,13 +217,13 @@ describe("eventEarthRotationFallback", () => {
   });
 
   it("uses NASA's published month-centered decimal year convention", () => {
-    const date = new Date("2027-07-31T23:59:59Z");
+    const date = new Date("2027-08-07T23:59:59Z");
     const decimalYear = nasaDeltaTDecimalYear(date);
 
-    expect(decimalYear).toBeCloseTo(2027 + 6.5 / 12, 12);
+    expect(decimalYear).toBeCloseTo(2027 + 7.5 / 12, 12);
     expect(
       nasaDeltaTPolynomialSeconds(decimalYear),
-    ).toBeCloseTo(76.032_597_828, 8);
+    ).toBeCloseTo(76.085_139_203_125, 10);
   });
 
   it("locks every NASA piece boundary on both sides", () => {

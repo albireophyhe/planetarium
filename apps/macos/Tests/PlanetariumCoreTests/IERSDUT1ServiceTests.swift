@@ -218,49 +218,79 @@ final class IERSDUT1ServiceTests: XCTestCase {
         throws
     {
         let service = try IERSDUT1ServiceV1.loadBundled()
+        let coverage = service.coverage
 
-        XCTAssertEqual(service.coverage.firstMjdUtc, 41_684)
-        XCTAssertEqual(service.coverage.lastMjdUtc, 61_617)
+        XCTAssertEqual(coverage.firstMjdUtc, 41_684)
+        XCTAssertEqual(coverage.lastMjdUtc, 61_624)
         XCTAssertEqual(
-            service.coverage.observedThroughMjdUtc,
-            61_244
+            coverage.observedThroughMjdUtc,
+            61_251
         )
         XCTAssertEqual(
-            service.coverage.predictionStartsMjdUtc,
-            61_245
+            coverage.predictionStartsMjdUtc,
+            61_252
         )
-        XCTAssertEqual(service.coverage.recordCount, 19_934)
+        XCTAssertEqual(coverage.recordCount, 19_941)
         XCTAssertEqual(service.source.title, "IERS Bulletin A finals2000A")
 
         assertEstimate(
-            service.lookup(at: dateFromMjd(41_684)),
+            service.lookup(
+                at: dateFromMjd(
+                    Double(coverage.firstMjdUtc)
+                )
+            ),
             dut1Seconds: 0.808_418,
             source: .observed,
             uncertaintySeconds: 0.000_271
         )
         assertEstimate(
-            service.lookup(at: dateFromMjd(61_244)),
-            dut1Seconds: 0.009_371,
+            service.lookup(
+                at: dateFromMjd(
+                    Double(
+                        coverage.observedThroughMjdUtc
+                    )
+                )
+            ),
+            dut1Seconds: 0.012_961,
             source: .observed,
-            uncertaintySeconds: 0.000_015
+            uncertaintySeconds: 0.000_010
         )
         assertEstimate(
-            service.lookup(at: dateFromMjd(61_244.5)),
-            dut1Seconds: 0.009_551_5,
+            service.lookup(
+                at: dateFromMjd(
+                    Double(coverage.observedThroughMjdUtc)
+                        + 0.5
+                )
+            ),
+            dut1Seconds: 0.012_951_5,
             source: .predicted,
             uncertaintySeconds: 0.000_108
         )
         assertEstimate(
-            service.lookup(at: dateFromMjd(61_245)),
-            dut1Seconds: 0.009_732,
+            service.lookup(
+                at: dateFromMjd(
+                    Double(
+                        coverage.predictionStartsMjdUtc
+                    )
+                )
+            ),
+            dut1Seconds: 0.012_942,
             source: .predicted,
             uncertaintySeconds: 0.000_108
         )
         XCTAssertNil(
-            service.lookup(at: dateFromMjd(41_683.999))
+            service.lookup(
+                at: dateFromMjd(
+                    Double(coverage.firstMjdUtc) - 0.001
+                )
+            )
         )
         XCTAssertNil(
-            service.lookup(at: dateFromMjd(61_617.001))
+            service.lookup(
+                at: dateFromMjd(
+                    Double(coverage.lastMjdUtc) + 0.001
+                )
+            )
         )
     }
 
@@ -268,20 +298,25 @@ final class IERSDUT1ServiceTests: XCTestCase {
         throws
     {
         let service = try IERSDUT1ServiceV1.loadBundled()
+        let coverage = service.coverage
         let observedOptions = service.earthOrientationOptionsV2(
-            at: dateFromMjd(61_244)
+            at: dateFromMjd(
+                Double(coverage.observedThroughMjdUtc)
+            )
         )
-        XCTAssertEqual(observedOptions.dut1Seconds, 0.009_371)
+        XCTAssertEqual(observedOptions.dut1Seconds, 0.012_961)
         XCTAssertEqual(observedOptions.dut1Source, .iersObserved)
         XCTAssertEqual(
             observedOptions.dut1UncertaintySeconds,
-            0.000_015
+            0.000_010
         )
 
         let predictedOptions = service.earthOrientationOptionsV2(
-            at: dateFromMjd(61_245)
+            at: dateFromMjd(
+                Double(coverage.predictionStartsMjdUtc)
+            )
         )
-        XCTAssertEqual(predictedOptions.dut1Seconds, 0.009_732)
+        XCTAssertEqual(predictedOptions.dut1Seconds, 0.012_942)
         XCTAssertEqual(predictedOptions.dut1Source, .iersPredicted)
         XCTAssertEqual(
             predictedOptions.dut1UncertaintySeconds,
@@ -306,7 +341,9 @@ final class IERSDUT1ServiceTests: XCTestCase {
         )
 
         let postCoverageOptions = service.earthOrientationOptionsV2(
-            at: dateFromMjd(61_618)
+            at: dateFromMjd(
+                Double(coverage.lastMjdUtc + 1)
+            )
         )
         XCTAssertNil(postCoverageOptions.dut1Seconds)
         XCTAssertNil(postCoverageOptions.dut1Source)

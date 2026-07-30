@@ -74,15 +74,15 @@ public enum EventEarthRotationModelV1 {
 
     /// Final paired DUT1/polar-motion prediction in the bundled EOP snapshot.
     public static let eopLastSampleUTC = Date(
-        timeIntervalSince1970: 1_816_992_000
+        timeIntervalSince1970: 1_817_596_800
     )
 
     /**
-     ΔT = TAI−UTC + 32.184 − DUT1 at MJD 61617:
-     37 + 32.184 − (−0.047694) seconds.
+     ΔT = TAI−UTC + 32.184 − DUT1 at MJD 61624:
+     37 + 32.184 − (−0.055965) seconds.
      */
     public static let eopAnchorDeltaTSeconds =
-        69.231_694
+        69.239_965
 
     private static let eopAnchorReportedErrorSeconds =
         0.025_410
@@ -325,7 +325,7 @@ public enum EventEarthRotationModelV1 {
                 )
                 + eopAnchorReportedErrorSeconds
             model =
-                "NASA-2004-polynomial-anchored-to-IERS-EOP-2027-07-31"
+                "NASA-2004-polynomial-anchored-to-IERS-EOP-2027-08-07"
             contributors = [
                 "NASA ΔT多項式（同梱IERS予測最終sampleへ連続補正）",
                 "DE442s月永年加速度への補正",

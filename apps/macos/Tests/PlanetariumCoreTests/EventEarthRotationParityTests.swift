@@ -32,7 +32,7 @@ struct EventEarthRotationParityTests {
                     firstSampleUtc:
                         "1973-01-02T00:00:00.000Z",
                     lastSampleUtc:
-                        "2027-07-31T00:00:00.000Z",
+                        "2027-08-07T00:00:00.000Z",
                     interval: "closed"
                 )
         )

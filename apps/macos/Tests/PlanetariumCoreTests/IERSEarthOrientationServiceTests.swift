@@ -195,28 +195,46 @@ final class IERSEarthOrientationServiceTests:
         let service =
             try IERSEarthOrientationServiceV1
                 .loadBundled()
+        let coverage = service.coverage
         XCTAssertEqual(
-            service.coverage.firstSampleMjdUtc,
+            coverage.firstSampleMjdUtc,
             41_684
         )
         XCTAssertEqual(
-            service.coverage.lastSampleMjdUtc,
-            61_617
+            coverage.lastSampleMjdUtc,
+            61_624
         )
-        XCTAssertEqual(service.coverage.recordCount, 19_934)
+        XCTAssertEqual(coverage.recordCount, 19_941)
         XCTAssertEqual(
-            service.coverage.polarMotion
+            coverage.polarMotion
                 .iersThroughMjdUtc,
-            61_244
+            61_251
         )
         XCTAssertEqual(
-            service.coverage.dut1
+            coverage.polarMotion
+                .predictionStartsMjdUtc,
+            61_252
+        )
+        XCTAssertEqual(
+            coverage.dut1.iersThroughMjdUtc,
+            61_251
+        )
+        XCTAssertEqual(
+            coverage.dut1.predictionStartsMjdUtc,
+            61_252
+        )
+        XCTAssertEqual(
+            coverage.dut1
                 .leapSecondBoundaryCount,
             25
         )
 
         let first = try XCTUnwrap(
-            service.lookup(at: dateFromMjd(41_684))
+            service.lookup(
+                at: dateFromMjd(
+                    Double(coverage.firstSampleMjdUtc)
+                )
+            )
         )
         XCTAssertEqual(
             first.dut1.dut1Seconds,
@@ -252,11 +270,17 @@ final class IERSEarthOrientationServiceTests:
         )
 
         let boundary = try XCTUnwrap(
-            service.lookup(at: dateFromMjd(61_244.5))
+            service.lookup(
+                at: dateFromMjd(
+                    Double(
+                        coverage.dut1.iersThroughMjdUtc
+                    ) + 0.5
+                )
+            )
         )
         XCTAssertEqual(
             boundary.dut1.dut1Seconds,
-            0.009_551_5,
+            0.012_951_5,
             accuracy: 1e-12
         )
         XCTAssertEqual(
@@ -267,24 +291,24 @@ final class IERSEarthOrientationServiceTests:
         XCTAssertEqual(boundary.dut1.source, .predicted)
         XCTAssertEqual(
             boundary.polarMotion.xpRadians,
-            radians(microarcseconds: 218_293.8125),
+            radians(microarcseconds: 219_758.625),
             accuracy: 1e-20
         )
         XCTAssertEqual(
             boundary.polarMotion.ypRadians,
-            radians(microarcseconds: 369_899.6875),
+            radians(microarcseconds: 365_522.625),
             accuracy: 1e-20
         )
         XCTAssertEqual(
             boundary.polarMotion
                 .xpReportedErrorRadians,
-            radians(microarcseconds: 449.5),
+            radians(microarcseconds: 478.25),
             accuracy: 1e-20
         )
         XCTAssertEqual(
             boundary.polarMotion
                 .ypReportedErrorRadians,
-            radians(microarcseconds: 322.4375),
+            radians(microarcseconds: 349.0625),
             accuracy: 1e-20
         )
         XCTAssertEqual(
@@ -293,11 +317,18 @@ final class IERSEarthOrientationServiceTests:
         )
 
         XCTAssertNotNil(
-            try service.lookup(at: dateFromMjd(61_617))
+            try service.lookup(
+                at: dateFromMjd(
+                    Double(coverage.lastSampleMjdUtc)
+                )
+            )
         )
         XCTAssertNil(
             try service.lookup(
-                at: dateFromMjd(61_617.001)
+                at: dateFromMjd(
+                    Double(coverage.lastSampleMjdUtc)
+                        + 0.001
+                )
             )
         )
         let fallback =
@@ -451,15 +482,31 @@ final class IERSEarthOrientationServiceTests:
             manifest["chunks"] as? [[String: Any]]
         )
         var fifth = try XCTUnwrap(chunks.popLast())
-        fifth["endMjdUtc"] = 62_163
-        fifth["recordCount"] = 4_096
-        fifth["polarMotionPredictedCount"] = 919
-        fifth["dut1PredictedCount"] = 919
+        let fifthStartMjdUtc = try XCTUnwrap(
+            fifth["startMjdUtc"] as? Int
+        )
+        let fifthPolarMotionIersCount = try XCTUnwrap(
+            fifth["polarMotionIersCount"] as? Int
+        )
+        let fifthDut1IersCount = try XCTUnwrap(
+            fifth["dut1IersCount"] as? Int
+        )
+        let fullChunkRecordCount = 4_096
+        let sixthStartMjdUtc =
+            fifthStartMjdUtc + fullChunkRecordCount
+        fifth["endMjdUtc"] = sixthStartMjdUtc - 1
+        fifth["recordCount"] = fullChunkRecordCount
+        fifth["polarMotionPredictedCount"] =
+            fullChunkRecordCount
+            - fifthPolarMotionIersCount
+        fifth["dut1PredictedCount"] =
+            fullChunkRecordCount - fifthDut1IersCount
         chunks.append(fifth)
         chunks.append([
-            "file": "shared/eop/eop/62164.v1.json",
-            "startMjdUtc": 62_164,
-            "endMjdUtc": 62_164,
+            "file":
+                "shared/eop/eop/\(sixthStartMjdUtc).v1.json",
+            "startMjdUtc": sixthStartMjdUtc,
+            "endMjdUtc": sixthStartMjdUtc,
             "recordCount": 1,
             "polarMotionIersCount": 0,
             "polarMotionPredictedCount": 1,
@@ -474,18 +521,34 @@ final class IERSEarthOrientationServiceTests:
         var coverage = try XCTUnwrap(
             manifest["coverage"] as? [String: Any]
         )
-        coverage["lastSampleMjdUtc"] = 62_164
-        coverage["recordCount"] = 20_481
-        coverage["sourceRowCount"] = 20_531
+        let originalRecordCount = try XCTUnwrap(
+            coverage["recordCount"] as? Int
+        )
+        let originalSourceRowCount = try XCTUnwrap(
+            coverage["sourceRowCount"] as? Int
+        )
+        let expandedRecordCount = chunks.compactMap {
+            $0["recordCount"] as? Int
+        }.reduce(0, +)
+        XCTAssertEqual(chunks.count, 6)
+        coverage["lastSampleMjdUtc"] = sixthStartMjdUtc
+        coverage["recordCount"] = expandedRecordCount
+        coverage["sourceRowCount"] =
+            expandedRecordCount
+            + originalSourceRowCount - originalRecordCount
         var polar = try XCTUnwrap(
             coverage["polarMotion"] as? [String: Any]
         )
-        polar["predictedCount"] = 920
+        polar["predictedCount"] = chunks.compactMap {
+            $0["polarMotionPredictedCount"] as? Int
+        }.reduce(0, +)
         coverage["polarMotion"] = polar
         var dut1 = try XCTUnwrap(
             coverage["dut1"] as? [String: Any]
         )
-        dut1["predictedCount"] = 920
+        dut1["predictedCount"] = chunks.compactMap {
+            $0["dut1PredictedCount"] as? Int
+        }.reduce(0, +)
         coverage["dut1"] = dut1
         manifest["coverage"] = coverage
 
@@ -497,9 +560,12 @@ final class IERSEarthOrientationServiceTests:
         )
         XCTAssertEqual(
             service.coverage.lastSampleMjdUtc,
-            62_164
+            sixthStartMjdUtc
         )
-        XCTAssertEqual(service.coverage.recordCount, 20_481)
+        XCTAssertEqual(
+            service.coverage.recordCount,
+            expandedRecordCount
+        )
     }
 
     func testBundleContainsIntegratedEOPWithoutLegacyDuplicate()

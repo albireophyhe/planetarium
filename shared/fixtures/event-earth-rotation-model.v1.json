@@ -3,7 +3,7 @@
   "purpose": "Cross-runtime regression contract for the Web and Swift event earth-rotation fallback; this is not an independent scientific oracle.",
   "bundledEopCoverage": {
     "firstSampleUtc": "1973-01-02T00:00:00.000Z",
-    "lastSampleUtc": "2027-07-31T00:00:00.000Z",
+    "lastSampleUtc": "2027-08-07T00:00:00.000Z",
     "interval": "closed"
   },
   "tolerances": {
@@ -70,30 +70,30 @@
     },
     {
       "id": "eop-last-sample-minus-1ms",
-      "observedAtUtc": "2027-07-30T23:59:59.999Z",
+      "observedAtUtc": "2027-08-06T23:59:59.999Z",
       "expected": {
         "outcome": "inside-bundled-eop-coverage-error"
       }
     },
     {
       "id": "eop-last-sample",
-      "observedAtUtc": "2027-07-31T00:00:00.000Z",
+      "observedAtUtc": "2027-08-07T00:00:00.000Z",
       "expected": {
         "outcome": "inside-bundled-eop-coverage-error"
       }
     },
     {
       "id": "eop-last-sample-plus-1ms",
-      "observedAtUtc": "2027-07-31T00:00:00.001Z",
+      "observedAtUtc": "2027-08-07T00:00:00.001Z",
       "expected": {
         "outcome": "fallback",
-        "deltaTSeconds": 69.23169400000002,
-        "dut1Seconds": -0.04769400000002122,
-        "deltaTUncertaintySeconds": 6.826313828125044,
-        "pathUncertaintyKilometers": 3.1749260704061686,
+        "deltaTSeconds": 69.239965,
+        "dut1Seconds": -0.05596500000000049,
+        "deltaTUncertaintySeconds": 6.870584203124998,
+        "pathUncertaintyKilometers": 3.19551627051606,
         "assumedTaiMinusUtcSeconds": 37,
         "eopId": "outside-IERS-coverage-future-delta-t-model",
-        "deltaTModel": "NASA-2004-polynomial-anchored-to-IERS-EOP-2027-07-31"
+        "deltaTModel": "NASA-2004-polynomial-anchored-to-IERS-EOP-2027-08-07"
       }
     },
     {
@@ -101,13 +101,13 @@
       "observedAtUtc": "2050-01-01T00:00:00.000Z",
       "expected": {
         "outcome": "fallback",
-        "deltaTSeconds": 86.26190756572355,
-        "dut1Seconds": -17.07790756572355,
-        "deltaTUncertaintySeconds": 16.85626552524444,
-        "pathUncertaintyKilometers": 7.839867637683266,
+        "deltaTSeconds": 86.21770770068983,
+        "dut1Seconds": -17.03370770068983,
+        "deltaTUncertaintySeconds": 16.870141442607604,
+        "pathUncertaintyKilometers": 7.846321342112383,
         "assumedTaiMinusUtcSeconds": 37,
         "eopId": "outside-IERS-coverage-future-delta-t-model",
-        "deltaTModel": "NASA-2004-polynomial-anchored-to-IERS-EOP-2027-07-31"
+        "deltaTModel": "NASA-2004-polynomial-anchored-to-IERS-EOP-2027-08-07"
       }
     },
     {
@@ -115,13 +115,13 @@
       "observedAtUtc": "2100-01-01T00:00:00.000Z",
       "expected": {
         "outcome": "fallback",
-        "deltaTSeconds": 195.94527331719019,
-        "dut1Seconds": -126.76127331719019,
-        "deltaTUncertaintySeconds": 49.30865040218279,
-        "pathUncertaintyKilometers": 22.93350754157066,
+        "deltaTSeconds": 195.90107345215645,
+        "dut1Seconds": -126.71707345215646,
+        "deltaTUncertaintySeconds": 49.32252631954596,
+        "pathUncertaintyKilometers": 22.939961245999775,
         "assumedTaiMinusUtcSeconds": 37,
         "eopId": "outside-IERS-coverage-future-delta-t-model",
-        "deltaTModel": "NASA-2004-polynomial-anchored-to-IERS-EOP-2027-07-31"
+        "deltaTModel": "NASA-2004-polynomial-anchored-to-IERS-EOP-2027-08-07"
       }
     }
   ],

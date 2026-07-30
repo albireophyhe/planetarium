@@ -78,8 +78,11 @@ expectRejected("部分欠測の極運動固定幅列", () =>
 );
 
 const independentQualityLines = source.trimEnd().split(/\n/);
+const polarMotionIersThroughMjdUtc =
+  manifest.coverage.polarMotion.iersThroughMjdUtc;
 const boundaryIndex = independentQualityLines.findIndex(
-  (line) => Number(line.slice(7, 15)) === 61_244
+  (line) =>
+    Number(line.slice(7, 15)) === polarMotionIersThroughMjdUtc
 );
 if (boundaryIndex < 0) {
   throw new Error("EOP防御検査のI/P境界fixtureがありません");
@@ -92,9 +95,9 @@ const independentlyParsed = parseFinals2000AEop(
 );
 if (
   independentlyParsed.coverage.polarMotion
-    .predictionStartsMjdUtc !== 61_244 ||
+    .predictionStartsMjdUtc !== polarMotionIersThroughMjdUtc ||
   independentlyParsed.coverage.dut1.predictionStartsMjdUtc !==
-    61_245
+    manifest.coverage.dut1.predictionStartsMjdUtc
 ) {
   throw new Error("EOP防御検査でPM/UT1品質flagが混同されました");
 }

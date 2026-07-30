@@ -59,7 +59,7 @@ describe("event earth-rotation shared parity fixture", () => {
     expect(fixture.schemaVersion).toBe(1);
     expect(fixture.bundledEopCoverage).toEqual({
       firstSampleUtc: "1973-01-02T00:00:00.000Z",
-      lastSampleUtc: "2027-07-31T00:00:00.000Z",
+      lastSampleUtc: "2027-08-07T00:00:00.000Z",
       interval: "closed",
     });
     expect(fixture.fallbackCases.map(({ id }) => id)).toEqual([

@@ -153,7 +153,7 @@ const SOLAR_CIRCUMSTANCES: LocalCircumstances = {
     eopId: "iers-finals-2026-07-29",
     eopRetrievedAt: "2026-07-29T04:05:06.000Z",
     eopSourceSha256:
-      "f707ea5031a467f1a3b2f0645fac2f627095ed0cb41d34c515b495cb81a5a25d",
+      "4b828090fc94114168014b61439fa5e6ec0bdfda518075a32baffea90110954d",
     ephemerisId: "JPL DE440s",
     ephemerisSourceSha256:
       "c1b942ea6c6d79f2491f03446a95ca8eb3ea36765c0513d234ac6e70d5c2c704",
@@ -230,7 +230,7 @@ function readySceneSampling(): {
     resource: {
       eopRetrievedAt: "2026-07-29T04:05:06.000Z",
       eopSourceSha256:
-        "f707ea5031a467f1a3b2f0645fac2f627095ed0cb41d34c515b495cb81a5a25d",
+        "4b828090fc94114168014b61439fa5e6ec0bdfda518075a32baffea90110954d",
       ephemerisId: "JPL DE440s",
       ephemerisSourceSha256:
         "c1b942ea6c6d79f2491f03446a95ca8eb3ea36765c0513d234ac6e70d5c2c704",

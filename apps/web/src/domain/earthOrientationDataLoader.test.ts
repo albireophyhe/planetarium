@@ -28,24 +28,24 @@ describe("bundled integrated IERS Earth-orientation service", () => {
     expect(Object.isFrozen(service.coverage.dut1)).toBe(true);
     expect(service.coverage).toMatchObject({
       firstSampleMjdUtc: 41_684,
-      lastSampleMjdUtc: 61_617,
-      recordCount: 19_934,
+      lastSampleMjdUtc: 61_624,
+      recordCount: 19_941,
       polarMotion: {
-        iersThroughMjdUtc: 61_244,
-        predictionStartsMjdUtc: 61_245,
-        iersCount: 19_561,
+        iersThroughMjdUtc: 61_251,
+        predictionStartsMjdUtc: 61_252,
+        iersCount: 19_568,
         predictedCount: 373
       },
       dut1: {
-        iersThroughMjdUtc: 61_244,
-        predictionStartsMjdUtc: 61_245,
-        iersCount: 19_561,
+        iersThroughMjdUtc: 61_251,
+        predictionStartsMjdUtc: 61_252,
+        iersCount: 19_568,
         predictedCount: 373,
         leapSecondBoundaryCount: 25
       }
     });
     expect(service.source.sourceSha256).toBe(
-      "f707ea5031a467f1a3b2f0645fac2f627095ed0cb41d34c515b495cb81a5a25d"
+      "4b828090fc94114168014b61439fa5e6ec0bdfda518075a32baffea90110954d"
     );
   });
 
@@ -74,14 +74,27 @@ describe("bundled integrated IERS Earth-orientation service", () => {
   });
 
   it("uses conservative prediction provenance at the I/P boundary", async () => {
+    const coverage =
+      (await loadIersEarthOrientationService()).coverage;
+    const observedThrough =
+      coverage.dut1.iersThroughMjdUtc;
+    const predictionStarts =
+      coverage.dut1.predictionStartsMjdUtc;
+    expect(coverage.polarMotion.iersThroughMjdUtc).toBe(
+      observedThrough
+    );
+    expect(coverage.polarMotion.predictionStartsMjdUtc).toBe(
+      predictionStarts
+    );
+
     const exactObserved = await lookupIersEarthOrientation(
-      dateFromMjd(61_244)
+      dateFromMjd(observedThrough)
     );
     const interpolated = await lookupIersEarthOrientation(
-      dateFromMjd(61_244.5)
+      dateFromMjd(observedThrough + 0.5)
     );
     const exactPredicted = await lookupIersEarthOrientation(
-      dateFromMjd(61_245)
+      dateFromMjd(predictionStarts)
     );
 
     expect(exactObserved?.dut1.source).toBe("observed");
@@ -98,14 +111,22 @@ describe("bundled integrated IERS Earth-orientation service", () => {
   });
 
   it("fails closed outside the last exact sample", async () => {
+    const coverage =
+      (await loadIersEarthOrientationService()).coverage;
     expect(
-      await lookupIersEarthOrientation(dateFromMjd(41_683.999))
+      await lookupIersEarthOrientation(
+        dateFromMjd(coverage.firstSampleMjdUtc - 0.001)
+      )
     ).toBeNull();
     expect(
-      await lookupIersEarthOrientation(dateFromMjd(61_617))
+      await lookupIersEarthOrientation(
+        dateFromMjd(coverage.lastSampleMjdUtc)
+      )
     ).not.toBeNull();
     expect(
-      await lookupIersEarthOrientation(dateFromMjd(61_617.001))
+      await lookupIersEarthOrientation(
+        dateFromMjd(coverage.lastSampleMjdUtc + 0.001)
+      )
     ).toBeNull();
   });
 

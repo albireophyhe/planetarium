@@ -146,6 +146,38 @@ struct EventEarthRotationModelTests {
     func futureModelIsContinuousAtEOPAnchor()
         throws
     {
+        let service =
+            try IERSEarthOrientationServiceV1
+                .loadBundled()
+        let finalEstimate = try #require(
+            try service.lookup(
+                at: EventEarthRotationModelV1
+                    .eopLastSampleUTC
+            )
+        )
+        #expect(
+            abs(
+                finalEstimate.dut1.dut1Seconds
+                    - (-0.055_965)
+            ) < 0.000_000_000_001
+        )
+        #expect(
+            abs(
+                finalEstimate.dut1.uncertaintySeconds
+                    - 0.025_410
+            ) < 0.000_000_000_001
+        )
+        let finalScales =
+            try Astronomy.resolveTimeScalesV2(
+                at: EventEarthRotationModelV1
+                    .eopLastSampleUTC,
+                options: finalEstimate
+                    .earthOrientationOptionsV2
+            )
+        let derivedAnchorDeltaT =
+            finalScales.taiMinusUTCSeconds
+            + 32.184
+            - finalScales.dut1Seconds
         let estimate = try EventEarthRotationModelV1
             .fallback(
                 at: EventEarthRotationModelV1
@@ -155,14 +187,34 @@ struct EventEarthRotationModelTests {
 
         #expect(
             abs(
+                derivedAnchorDeltaT
+                - EventEarthRotationModelV1
+                    .eopAnchorDeltaTSeconds
+            ) < 0.000_000_000_001
+        )
+        #expect(
+            abs(
                 estimate.deltaTSeconds
                 - EventEarthRotationModelV1
                     .eopAnchorDeltaTSeconds
-            ) < 0.000_001
+            ) < 0.000_000_000_001
+        )
+        #expect(
+            abs(
+                estimate.dut1Seconds
+                - finalEstimate.dut1.dut1Seconds
+            ) < 0.000_000_000_001
+        )
+        #expect(
+            try service.lookup(
+                at: EventEarthRotationModelV1
+                    .eopLastSampleUTC
+                    .addingTimeInterval(0.001)
+            ) == nil
         )
         #expect(
             estimate.deltaTModel
-                .contains("anchored-to-IERS")
+                == "NASA-2004-polynomial-anchored-to-IERS-EOP-2027-08-07"
         )
     }
 
@@ -191,37 +243,37 @@ struct EventEarthRotationModelTests {
         #expect(
             abs(
                 at2050.deltaTSeconds
-                - 86.261_907_565_724
+                - 86.217_707_700_690
             ) < 0.000_000_001
         )
         #expect(
             abs(
                 at2100.deltaTSeconds
-                - 195.945_273_317_19
+                - 195.901_073_452_156
             ) < 0.000_000_001
         )
         #expect(
             abs(
                 at2050.deltaTUncertaintySeconds
-                - 16.856_265_525_244
+                - 16.870_141_442_608
             ) < 0.000_000_001
         )
         #expect(
             abs(
                 at2100.deltaTUncertaintySeconds
-                - 49.308_650_402_183
+                - 49.322_526_319_546
             ) < 0.000_000_001
         )
         #expect(
             abs(
                 at2050.pathUncertaintyKilometers
-                - 7.839_867_637_683
+                - 7.846_321_342_112
             ) < 0.000_000_001
         )
         #expect(
             abs(
                 at2100.pathUncertaintyKilometers
-                - 22.933_507_541_571
+                - 22.939_961_246
             ) < 0.000_000_001
         )
         #expect(
@@ -232,7 +284,7 @@ struct EventEarthRotationModelTests {
         #expect(
             abs(
                 at2100.dut1Seconds
-                - (-126.761_273_317_19)
+                - (-126.717_073_452_156)
             ) < 0.000_000_001
         )
         #expect(
