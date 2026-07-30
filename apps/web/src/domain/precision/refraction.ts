@@ -75,20 +75,20 @@ export function refractionCoefficients(
     );
   }
   const waterVaporPressure =
-    pressure > 0 && humidity > 0
+    pressure > 0
       ? (humidity * saturationPressure) /
         vaporPressureDenominator
       : 0;
   if (
-    (humidity > 0 &&
+    (pressure > 0 &&
       (!Number.isFinite(vaporPressureDenominator) ||
         vaporPressureDenominator <= 1e-12)) ||
     !Number.isFinite(waterVaporPressure) ||
     waterVaporPressure < 0 ||
-    waterVaporPressure > pressure
+    (pressure > 0 && waterVaporPressure >= pressure)
   ) {
     throw new RangeError(
-      "Water-vapor pressure must be finite and no greater than total pressure"
+      "Water-vapor pressure must be finite and less than total pressure"
     );
   }
   const temperatureKelvin = temperature + 273.15;
@@ -109,8 +109,10 @@ export function refractionCoefficients(
     refractivity < 0 ||
     !Number.isFinite(tangent) ||
     tangent < 0 ||
+    (pressure > 0 && tangent <= 0) ||
     !Number.isFinite(tangentCubed) ||
-    tangentCubed > 0
+    tangentCubed > 0 ||
+    Math.abs(tangentCubed) > tangent
   ) {
     throw new RangeError(
       "Atmospheric state produced non-physical refraction coefficients"
@@ -152,7 +154,8 @@ export function applyVisualRefractionWithCoefficients(
     !Number.isFinite(coefficients.tangent) ||
     coefficients.tangent < 0 ||
     !Number.isFinite(coefficients.tangentCubed) ||
-    coefficients.tangentCubed > 0
+    coefficients.tangentCubed > 0 ||
+    Math.abs(coefficients.tangentCubed) > coefficients.tangent
   ) {
     throw new RangeError(
       "Refraction coefficients must be finite and physically signed"

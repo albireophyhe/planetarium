@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { ChevronDownIcon } from "lucide-react";
 import type {
   ObserverLocation,
+  RefractionInputSource,
   StarViewModel,
 } from "../../app/types";
 import type {
@@ -17,6 +18,7 @@ import {
   formatRightAscension,
   formatSignedDegrees,
 } from "../../app/astronomicalFormatting";
+import { atmosphereValueSummary } from "../../app/standardAtmosphere";
 import { formatZonedDateTimeInput } from "../../domain";
 import {
   type AppliedPolarMotionSnapshot,
@@ -34,6 +36,7 @@ type StarDetailsProps = {
   onPausePlayback?: () => void;
   polarMotionSnapshot?: AppliedPolarMotionSnapshot | null;
   refractionAtmosphere?: Atmosphere | null;
+  refractionInputSource?: RefractionInputSource | null;
   star: StarViewModel | null;
   timeScales?: ResolvedTimeScales | null;
 };
@@ -68,12 +71,17 @@ function arcsecondsPerYear(value: number | null) {
     : `${formatDecimal(value, 3)}″/年`;
 }
 
-function refractionLabel(star: StarViewModel) {
+function refractionLabel(
+  star: StarViewModel,
+  inputSource: RefractionInputSource | null,
+) {
+  const configuredModel =
+    inputSource === "manual" ? "手動大気差" : "標準大気差";
   switch (star.refractionMode) {
     case "applied":
-      return "標準大気差を適用";
+      return `${configuredModel}を適用`;
     case "below-model-altitude":
-      return "幾何高度（大気差の適用域外）";
+      return `幾何高度（${configuredModel}の適用域外）`;
     case "disabled":
       return "幾何高度（大気差なし）";
     case null:
@@ -238,6 +246,7 @@ type StarPointingSnapshot = {
   observationDate: Date;
   polarMotionSnapshot: AppliedPolarMotionSnapshot | null;
   refractionAtmosphere: Atmosphere | null;
+  refractionInputSource: RefractionInputSource | null;
   star: StarViewModel;
   timeScales: ResolvedTimeScales | null;
 };
@@ -283,6 +292,7 @@ function starPointingSnapshotSignature(
       observationDateUtc: snapshot.observationDate.toISOString(),
       polarMotionSnapshot: snapshot.polarMotionSnapshot,
       refractionAtmosphere: snapshot.refractionAtmosphere,
+      refractionInputSource: snapshot.refractionInputSource,
       star: snapshot.star,
       timeScales: snapshot.timeScales,
     }),
@@ -298,6 +308,7 @@ export function StarDetails({
   onPausePlayback,
   polarMotionSnapshot = null,
   refractionAtmosphere = null,
+  refractionInputSource = null,
   star,
   timeScales = null,
 }: StarDetailsProps) {
@@ -318,6 +329,7 @@ export function StarDetails({
           observationDate,
           polarMotionSnapshot,
           refractionAtmosphere,
+          refractionInputSource,
           star,
           timeScales,
         })
@@ -333,6 +345,7 @@ export function StarDetails({
       observationDate,
       polarMotionSnapshot,
       refractionAtmosphere,
+      refractionInputSource,
       star,
       timeScales,
     });
@@ -374,6 +387,7 @@ export function StarDetails({
             refractionAtmosphere: refractionAtmosphere
               ? { ...refractionAtmosphere }
               : null,
+            refractionInputSource,
             star: { ...star, aliases: [...star.aliases] },
             timeScales: timeScales
               ? {
@@ -493,7 +507,14 @@ export function StarDetails({
             </div>
             <div>
               <dt>大気差</dt>
-              <dd>{refractionLabel(star)}</dd>
+              <dd>
+                {refractionLabel(star, refractionInputSource)}
+                {refractionAtmosphere ? (
+                  <small>
+                    {atmosphereValueSummary(refractionAtmosphere)}
+                  </small>
+                ) : null}
+              </dd>
             </div>
           </dl>
           <div className="star-details__pointing-copy">
@@ -656,7 +677,9 @@ export function StarDetails({
           </div>
           <div>
             <dt>高度モデル</dt>
-            <dd>{refractionLabel(star)}</dd>
+            <dd>
+              {refractionLabel(star, refractionInputSource)}
+            </dd>
           </div>
           <div>
             <dt>年周視差</dt>

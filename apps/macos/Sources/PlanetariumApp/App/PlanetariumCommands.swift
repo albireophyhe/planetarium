@@ -197,7 +197,7 @@ struct PlanetariumCommands: Commands {
         CommandGroup(after: .toolbar) {
             Divider()
             Toggle(
-                "標準大気差（高度5°以上）",
+                "大気差（ONは標準大気）",
                 isOn: Binding(
                     get: {
                         store.useStandardAtmosphericRefraction

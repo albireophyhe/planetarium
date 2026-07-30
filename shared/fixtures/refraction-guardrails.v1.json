@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "description": "Cross-platform acceptance contract for user-supplied optical-refraction atmospheres.",
+  "cases": [
+    {
+      "id": "standard-visual-atmosphere",
+      "atmosphere": {
+        "pressureHpa": 1013.25,
+        "temperatureCelsius": 10,
+        "relativeHumidity": 0.5,
+        "wavelengthMicrometers": 0.55,
+        "minimumGeometricAltitudeDegrees": 5
+      },
+      "expected": "accepted",
+      "rationale": "The documented standard visual atmosphere."
+    },
+    {
+      "id": "zero-pressure-vacuum-limit",
+      "atmosphere": {
+        "pressureHpa": 0,
+        "temperatureCelsius": 10,
+        "relativeHumidity": 1,
+        "wavelengthMicrometers": 0.55,
+        "minimumGeometricAltitudeDegrees": 5
+      },
+      "expected": "accepted",
+      "rationale": "Zero total pressure produces zero refraction without a vapor-pressure division."
+    },
+    {
+      "id": "inclusive-documented-upper-limits",
+      "atmosphere": {
+        "pressureHpa": 1100,
+        "temperatureCelsius": 60,
+        "relativeHumidity": 1,
+        "wavelengthMicrometers": 2,
+        "minimumGeometricAltitudeDegrees": 30
+      },
+      "expected": "accepted",
+      "rationale": "Finite physical coefficients at every documented inclusive upper limit."
+    },
+    {
+      "id": "dry-low-pressure-vapor-denominator",
+      "atmosphere": {
+        "pressureHpa": 1,
+        "temperatureCelsius": 60,
+        "relativeHumidity": 0,
+        "wavelengthMicrometers": 0.55,
+        "minimumGeometricAltitudeDegrees": 5
+      },
+      "expected": "rejected",
+      "rationale": "The SOFA-derived vapor-pressure denominator is non-positive even though humidity is zero."
+    },
+    {
+      "id": "saturation-pressure-exceeds-total-pressure",
+      "atmosphere": {
+        "pressureHpa": 1,
+        "temperatureCelsius": 10,
+        "relativeHumidity": 1,
+        "wavelengthMicrometers": 0.55,
+        "minimumGeometricAltitudeDegrees": 5
+      },
+      "expected": "rejected",
+      "rationale": "Water-vapor partial pressure must remain strictly below total pressure."
+    },
+    {
+      "id": "near-singular-vapor-denominator",
+      "atmosphere": {
+        "pressureHpa": 6.13374770562797,
+        "temperatureCelsius": 10,
+        "relativeHumidity": 0.5,
+        "wavelengthMicrometers": 0.55,
+        "minimumGeometricAltitudeDegrees": 5
+      },
+      "expected": "rejected",
+      "rationale": "A denominator at or below 1e-12 is too ill-conditioned for a stable refraction input."
+    },
+    {
+      "id": "minimum-altitude-below-model-domain",
+      "atmosphere": {
+        "pressureHpa": 1013.25,
+        "temperatureCelsius": 10,
+        "relativeHumidity": 0.5,
+        "wavelengthMicrometers": 0.55,
+        "minimumGeometricAltitudeDegrees": 4.999
+      },
+      "expected": "rejected",
+      "rationale": "The visual polynomial is not exposed below a five-degree geometric altitude."
+    }
+  ]
+}

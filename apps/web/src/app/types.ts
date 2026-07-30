@@ -1,12 +1,20 @@
 import type {
   AberrationMode,
   AnnualParallaxMode,
+  Atmosphere,
   DiurnalAberrationMode,
   PolarMotionMode,
   RefractionMode,
   SolarLightDeflectionMode,
   SpaceMotionMode,
 } from "../domain";
+
+export type RefractionInputSource = "standard" | "manual";
+
+export type AppliedRefraction = Readonly<{
+  atmosphere: Atmosphere;
+  inputSource: RefractionInputSource;
+}>;
 
 export type StarViewModel = {
   aliases: readonly string[];

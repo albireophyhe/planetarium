@@ -26,6 +26,10 @@
     "applied-without-matching-estimate-metadata",
     "invalid-assumed-zero-value"
   ],
+  "refractionInputSources": [
+    "standard",
+    "manual"
+  ],
   "omittedCorrectionTokens": [
     "annual-parallax",
     "stellar-diurnal-parallax",

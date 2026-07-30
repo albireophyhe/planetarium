@@ -102,6 +102,10 @@ ASDF_NODEJS_VERSION=24.18.0 npm run web:bench:precision:soak
 - [ ] Web 3Dの300px以下で回転4方向・reset・zoomが横一段になり、240pxでは各28px、天球中心の遮蔽なし、横overflow 0を確認する
 - [ ] 2D/3D/一覧/詳細で時刻、選択、星座線、星名、ナイトモードが同期する
 - [ ] 年周視差、太陽光偏向、年周・日周光行差、WGS84楕円体高0 m仮定、IERS DUT1・極運動の観測／予測／公表誤差、収録外0近似、外部暦、大気差の適用範囲を過大評価しない表示になっている
+- [ ] 大気差はOFF／標準／手動を区別し、手動の気圧・気温・相対湿度・波長・
+  適用下限高度を一括検証する。無効または編集中のdraftで星図・軌跡・詳細・
+  コピー座標を変えず、適用後は全経路とJSONの`inputSource`・数値が一致する。
+  手動値が標準値と同じ場合も`manual`のままで、再起動後は手動値を復元しない
 - [ ] 選択星の人間向け本文とJSONコピーが同じ固定snapshot・再生停止・
   最新操作・完了状態の契約を使い、JSONは
   `planetarium.precision-pointing.full-v1`／`schemaVersion: 1`、

@@ -458,31 +458,44 @@ enum StarPointingJSONProfileV1 {
     ) -> [String: Any] {
         let mode = precision.position.refractionMode
         let atmosphere = precision.atmosphere
+        let parameters: Any
+        if let atmosphere,
+           let inputSource =
+            precision.atmosphereInputSource
+        {
+            parameters = refractionParameters(
+                atmosphere,
+                inputSource: inputSource
+            )
+        } else {
+            parameters = NSNull()
+        }
         return [
             "mode": mode.rawValue,
             "status":
                 refractionCoordinateStatus(mode),
             "description":
-                refractionDescription(mode),
+                refractionDescription(
+                    mode,
+                    inputSource:
+                        precision
+                            .atmosphereInputSource
+                ),
             "parametersStatus":
                 atmosphere == nil
                 ? "not-configured"
                 : "configured",
-            "parameters":
-                atmosphere.map {
-                    refractionParameters($0)
-                } ?? NSNull(),
+            "parameters": parameters,
         ]
     }
 
     private static func refractionParameters(
-        _ atmosphere: AtmosphereV2
+        _ atmosphere: AtmosphereV2,
+        inputSource:
+            AtmosphericRefractionInputSource
     ) -> [String: Any] {
         [
-            "inputSource":
-                atmosphere == .standardVisual
-                ? "standard"
-                : "manual",
+            "inputSource": inputSource.rawValue,
             "pressureHpa": atmosphere.pressureHPA,
             "temperatureCelsius":
                 atmosphere.temperatureCelsius,
@@ -533,7 +546,7 @@ enum StarPointingJSONProfileV1 {
     private static func refractionCoordinateStatus(
         _ mode: RefractionModeV2
     ) -> String {
-        switch mode {
+        return switch mode {
         case .applied:
             "refraction-applied"
         case .belowModelAltitude:
@@ -557,13 +570,19 @@ enum StarPointingJSONProfileV1 {
     }
 
     private static func refractionDescription(
-        _ mode: RefractionModeV2
+        _ mode: RefractionModeV2,
+        inputSource:
+            AtmosphericRefractionInputSource?
     ) -> String {
-        switch mode {
+        let configuredSource =
+            inputSource == .manual
+            ? "手動入力の大気差"
+            : "標準大気差"
+        return switch mode {
         case .applied:
-            "標準大気差を適用"
+            "\(configuredSource)を適用"
         case .belowModelAltitude:
-            "幾何高度（標準大気差の適用域外）"
+            "幾何高度（\(configuredSource)の適用域外）"
         case .disabled:
             "幾何高度（大気差なし）"
         }

@@ -68,6 +68,10 @@ const contracts = [
     schema: "shared/schema/astro-test-vectors-v2.schema.json"
   },
   {
+    data: "shared/fixtures/refraction-guardrails.v1.json",
+    schema: "shared/schema/refraction-guardrails.schema.json"
+  },
+  {
     data: "shared/fixtures/sofa-diurnal-aberration.v1.json",
     schema: "shared/schema/sofa-diurnal-aberration.schema.json"
   },

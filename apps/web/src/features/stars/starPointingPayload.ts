@@ -1,17 +1,29 @@
-import type { ObserverLocation, StarViewModel } from "../../app/types";
+import type {
+  ObserverLocation,
+  RefractionInputSource,
+  StarViewModel,
+} from "../../app/types";
 import {
   formatAzimuthDegrees,
   formatDeclination,
   formatRightAscension,
   formatSignedDegrees,
 } from "../../app/astronomicalFormatting";
+import {
+  atmosphereValueSummary,
+  STANDARD_VISUAL_ATMOSPHERE,
+} from "../../app/standardAtmosphere";
 import type {
   Atmosphere,
   IersEarthOrientationEstimateV1,
   PolarMotionMode,
   ResolvedTimeScales,
 } from "../../domain";
-import { formatZonedDateTimeInput } from "../../domain";
+import {
+  applyVisualRefractionWithCoefficients,
+  formatZonedDateTimeInput,
+  refractionCoefficients,
+} from "../../domain";
 
 export type StarPointingPayloadInput = {
   earthOrientationEstimate: IersEarthOrientationEstimateV1 | null;
@@ -20,6 +32,7 @@ export type StarPointingPayloadInput = {
   observationDate: Date;
   polarMotionSnapshot?: AppliedPolarMotionSnapshot | null;
   refractionAtmosphere: Atmosphere | null;
+  refractionInputSource: RefractionInputSource | null;
   star: StarViewModel;
   timeScales: ResolvedTimeScales | null;
 };
@@ -82,12 +95,17 @@ function locationSourceLabel(
   }
 }
 
-function refractionLabel(star: StarViewModel) {
+function refractionLabel(
+  star: StarViewModel,
+  inputSource: RefractionInputSource | null,
+) {
+  const configuredModel =
+    inputSource === "manual" ? "手動大気差" : "標準大気差";
   switch (star.refractionMode) {
     case "applied":
-      return "標準大気差を適用";
+      return `${configuredModel}を適用`;
     case "below-model-altitude":
-      return "幾何高度（標準大気差の適用域外）";
+      return `幾何高度（${configuredModel}の適用域外）`;
     case "disabled":
       return "幾何高度（大気差なし）";
     case null:
@@ -99,6 +117,8 @@ export function buildStarPointingPayload({
   earthOrientationEstimate,
   location,
   observationDate,
+  refractionAtmosphere,
+  refractionInputSource,
   star,
   timeScales,
 }: StarPointingPayloadInput) {
@@ -136,7 +156,11 @@ export function buildStarPointingPayload({
         ? "水平精度は未指定"
         : `水平精度 ±${location.horizontalAccuracyMeters.toFixed(0)} m`
     }`,
-    `大気差: ${refractionLabel(star)}`,
+    `大気差: ${refractionLabel(star, refractionInputSource)}${
+      refractionAtmosphere
+        ? ` / ${atmosphereValueSummary(refractionAtmosphere)}`
+        : ""
+    }`,
     `見かけ赤経・赤緯（観測日）: ${apparent}`,
     `幾何高度・方位（真空）: ${horizontalLine(
       star.geometricAltitudeDeg,
@@ -244,20 +268,59 @@ function nullableValuesMatch(
         valuesMatch(left, right);
 }
 
+function standardAtmosphereMatches(
+  atmosphere: Atmosphere,
+) {
+  return (
+    atmosphere.pressureHpa ===
+      STANDARD_VISUAL_ATMOSPHERE.pressureHpa &&
+    atmosphere.temperatureCelsius ===
+      STANDARD_VISUAL_ATMOSPHERE.temperatureCelsius &&
+    atmosphere.relativeHumidity ===
+      STANDARD_VISUAL_ATMOSPHERE.relativeHumidity &&
+    atmosphere.wavelengthMicrometers ===
+      STANDARD_VISUAL_ATMOSPHERE.wavelengthMicrometers &&
+    (atmosphere.minimumGeometricAltitudeDegrees ?? 5) ===
+      (STANDARD_VISUAL_ATMOSPHERE.minimumGeometricAltitudeDegrees ??
+        5)
+  );
+}
+
+function isValidAppliedAtmosphere(atmosphere: Atmosphere) {
+  try {
+    const minimumGeometricAltitudeDegrees =
+      atmosphere.minimumGeometricAltitudeDegrees ?? 5;
+    applyVisualRefractionWithCoefficients(
+      (minimumGeometricAltitudeDegrees * Math.PI) / 180,
+      refractionCoefficients(atmosphere),
+      minimumGeometricAltitudeDegrees,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function hasFullPrecisionPointingSnapshot({
   location,
   observationDate,
   polarMotionSnapshot = null,
   refractionAtmosphere,
+  refractionInputSource,
   star,
   timeScales,
 }: StarPointingPayloadInput) {
   const refractionInputsMatch =
     star.refractionMode === "disabled"
-      ? refractionAtmosphere === null
+      ? refractionAtmosphere === null &&
+        refractionInputSource === null
       : (star.refractionMode === "applied" ||
             star.refractionMode === "below-model-altitude") &&
-          refractionAtmosphere !== null;
+          refractionAtmosphere !== null &&
+          refractionInputSource !== null &&
+          isValidAppliedAtmosphere(refractionAtmosphere) &&
+          (refractionInputSource === "manual" ||
+            standardAtmosphereMatches(refractionAtmosphere));
   return (
     star.calculationModel === "v2" &&
     star.apparentRaRad !== null &&
@@ -562,6 +625,7 @@ function earthOrientationProfile(
 function refractionProfile(
   star: StarViewModel,
   atmosphere: Atmosphere | null,
+  inputSource: RefractionInputSource | null,
 ) {
   const mode = star.refractionMode;
   if (star.calculationModel !== "v2") {
@@ -595,7 +659,7 @@ function refractionProfile(
       status: refractionCoordinateStatus(star),
     };
   }
-  if (!atmosphere) {
+  if (!atmosphere || !inputSource) {
     return {
       description:
         "大気差は計算済みですが、入力パラメータを利用できません",
@@ -606,7 +670,7 @@ function refractionProfile(
     };
   }
   const parameters = {
-    inputSource: "standard",
+    inputSource,
     minimumGeometricAltitudeDegrees: finiteOrNull(
       atmosphere.minimumGeometricAltitudeDegrees ?? 5,
     ),
@@ -630,7 +694,11 @@ function refractionProfile(
     parameters.minimumGeometricAltitudeDegrees;
   return {
     description: parametersAvailable
-      ? `標準大気モデル（真空幾何高度${cutoff}°以上で適用）`
+      ? `${
+          inputSource === "standard"
+            ? "標準大気モデル"
+            : "手動大気モデル"
+        }（真空幾何高度${cutoff}°以上で適用）`
       : "大気差入力パラメータが不正です",
     mode,
     parameters,
@@ -795,6 +863,7 @@ export function buildStarPointingJsonProfile({
   observationDate,
   polarMotionSnapshot = null,
   refractionAtmosphere,
+  refractionInputSource,
   star,
   timeScales,
 }: StarPointingPayloadInput) {
@@ -805,6 +874,7 @@ export function buildStarPointingJsonProfile({
     observationDate,
     polarMotionSnapshot,
     refractionAtmosphere,
+    refractionInputSource,
     star,
     timeScales,
   };
@@ -849,6 +919,7 @@ export function buildStarPointingJsonProfile({
   const refraction = refractionProfile(
     star,
     refractionAtmosphere,
+    refractionInputSource,
   );
   const warnings = precisionWarnings(
     star,

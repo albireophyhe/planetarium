@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/refraction-guardrails.v1.json",
+  "title": "Planetarium refraction guardrail parity fixture",
+  "type": "object",
+  "required": ["schemaVersion", "description", "cases"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "description": { "type": "string", "minLength": 1 },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "atmosphere", "expected", "rationale"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "atmosphere": {
+            "type": "object",
+            "required": [
+              "pressureHpa",
+              "temperatureCelsius",
+              "relativeHumidity",
+              "wavelengthMicrometers",
+              "minimumGeometricAltitudeDegrees"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "pressureHpa": { "type": "number" },
+              "temperatureCelsius": { "type": "number" },
+              "relativeHumidity": { "type": "number" },
+              "wavelengthMicrometers": { "type": "number" },
+              "minimumGeometricAltitudeDegrees": { "type": "number" }
+            }
+          },
+          "expected": {
+            "enum": ["accepted", "rejected"]
+          },
+          "rationale": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

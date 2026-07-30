@@ -134,19 +134,21 @@ final class SkyStore {
             )
         }
     }
+    private(set) var appliedAtmosphericRefraction:
+        AppliedAtmosphericRefraction?
+    private(set) var lastManualAtmosphere:
+        AtmosphereV2 = .standardVisual
+
+    /// Compatibility binding for the existing persisted ON/OFF preference.
+    /// Enabling through this Boolean always selects the standard preset.
     var useStandardAtmosphericRefraction: Bool {
-        didSet {
-            pausePlayback()
-            if !isClearingDisplayPreferences {
-                UserDefaults.standard.set(
-                    useStandardAtmosphericRefraction,
-                    forKey: PreferenceKey.standardRefraction
-                )
+        get { appliedAtmosphericRefraction != nil }
+        set {
+            if newValue {
+                applyStandardAtmosphericRefraction()
+            } else {
+                disableAtmosphericRefraction()
             }
-            recomputeSky()
-            statusMessage = useStandardAtmosphericRefraction
-                ? "標準大気差を高度5°以上の星へ適用しました。"
-                : "大気差を外し、幾何高度へ戻しました。"
         }
     }
     var showSelectedStarTrajectory: Bool {
@@ -292,9 +294,12 @@ final class SkyStore {
         nightMode = UserDefaults.standard.object(
             forKey: PreferenceKey.nightMode
         ) as? Bool ?? false
-        useStandardAtmosphericRefraction = UserDefaults.standard.object(
-            forKey: PreferenceKey.standardRefraction
-        ) as? Bool ?? false
+        appliedAtmosphericRefraction =
+            UserDefaults.standard.object(
+                forKey: PreferenceKey.standardRefraction
+            ) as? Bool == true
+            ? .standard
+            : nil
         showSelectedStarTrajectory = UserDefaults.standard.object(
             forKey: PreferenceKey.selectedStarTrajectory
         ) as? Bool ?? false
@@ -345,8 +350,8 @@ final class SkyStore {
                 currentEarthOrientationEstimate,
             solarLightDeflectionMode:
                 currentSolarLightDeflectionMode,
-            usesStandardAtmosphericRefraction:
-                useStandardAtmosphericRefraction
+            appliedAtmosphericRefraction:
+                appliedAtmosphericRefraction
         )
     }
 
@@ -385,9 +390,11 @@ final class SkyStore {
                         position: position,
                         frame: frame,
                         atmosphere:
-                            useStandardAtmosphericRefraction
-                            ? .standardVisual
-                            : nil,
+                            appliedAtmosphericRefraction?
+                                .atmosphere,
+                        atmosphereInputSource:
+                            appliedAtmosphericRefraction?
+                                .inputSource,
                         earthOrientationEstimate:
                             currentEarthOrientationEstimate,
                         earthOrientationSourceIdentifier:
@@ -1062,6 +1069,51 @@ final class SkyStore {
             : "選択星の軌跡を非表示にしました。"
     }
 
+    func applyStandardAtmosphericRefraction() {
+        commitAtmosphericRefraction(
+            .standard,
+            status:
+                "標準大気差を幾何高度5°以上の星へ適用しました。"
+        )
+    }
+
+    func applyManualAtmosphericRefraction(
+        _ atmosphere: AtmosphereV2
+    ) throws {
+        do {
+            try AtmosphericRefractionValidator
+                .validateForSkyRendering(
+                    atmosphere
+                )
+        } catch {
+            throw AtmosphericRefractionInputError
+                .translated(from: error)
+        }
+
+        lastManualAtmosphere = atmosphere
+        commitAtmosphericRefraction(
+            AppliedAtmosphericRefraction(
+                inputSource: .manual,
+                atmosphere: atmosphere
+            ),
+            status:
+                "手動入力の大気差を幾何高度"
+                + compactDegrees(
+                    atmosphere
+                        .minimumGeometricAltitudeDegrees
+                )
+                + "以上の星へ適用しました。"
+        )
+    }
+
+    func disableAtmosphericRefraction() {
+        commitAtmosphericRefraction(
+            nil,
+            status:
+                "大気差を外し、幾何高度へ戻しました。"
+        )
+    }
+
     /// Resets visual state without changing the user's location or observation time.
     func resetDisplay() {
         pausePlayback()
@@ -1434,9 +1486,10 @@ final class SkyStore {
     private var refractionConfiguration:
         RefractionConfigurationV2
     {
-        useStandardAtmosphericRefraction
-            ? .atmosphere(.standardVisual)
-            : .disabled
+        appliedAtmosphericRefraction.map {
+            .atmosphere($0.atmosphere)
+        }
+            ?? .disabled
     }
 
     private func relativeTimeText(_ minutes: Int) -> String {
@@ -1496,9 +1549,129 @@ final class SkyStore {
     }
 
     var pointingRefractionDescription: String {
-        useStandardAtmosphericRefraction
-            ? "標準大気モデル（真空幾何高度5°以上で適用）"
-            : "なし（観測座標は真空幾何座標と同値）"
+        guard let appliedAtmosphericRefraction else {
+            return "なし（観測座標は真空幾何座標と同値）"
+        }
+        let source =
+            appliedAtmosphericRefraction.inputSource
+                == .standard
+            ? "標準大気モデル"
+            : "手動入力の大気モデル"
+        let atmosphere =
+            appliedAtmosphericRefraction
+                .atmosphere
+        return source
+            + "（気圧 "
+            + compactValue(
+                atmosphere.pressureHPA,
+                maximumFractionDigits: 2
+            )
+            + " hPa・気温 "
+            + compactValue(
+                atmosphere.temperatureCelsius,
+                maximumFractionDigits: 2
+            )
+            + "°C・相対湿度 "
+            + compactValue(
+                atmosphere.relativeHumidity * 100,
+                maximumFractionDigits: 1
+            )
+            + "%・観測波長 "
+            + compactValue(
+                atmosphere.wavelengthMicrometers,
+                maximumFractionDigits: 3
+            )
+            + " µm・真空幾何高度 "
+            + compactDegrees(
+                atmosphere
+                    .minimumGeometricAltitudeDegrees
+            )
+            + "以上で適用）"
+    }
+
+    var atmosphericRefractionInputSource:
+        AtmosphericRefractionInputSource?
+    {
+        appliedAtmosphericRefraction?.inputSource
+    }
+
+    var appliedAtmosphere: AtmosphereV2? {
+        appliedAtmosphericRefraction?.atmosphere
+    }
+
+    var manualAtmosphereForEditor: AtmosphereV2 {
+        if appliedAtmosphericRefraction?.inputSource
+            == .manual
+        {
+            return appliedAtmosphericRefraction?
+                .atmosphere
+                ?? lastManualAtmosphere
+        }
+        return lastManualAtmosphere
+    }
+
+    var atmosphericRefractionSummary: String {
+        guard let appliedAtmosphericRefraction else {
+            return "OFF · 真空中の幾何高度"
+        }
+        let source =
+            appliedAtmosphericRefraction.inputSource
+                == .standard
+            ? "標準大気"
+            : "手動入力"
+        return source
+            + " · "
+            + compactDegrees(
+                appliedAtmosphericRefraction
+                    .atmosphere
+                    .minimumGeometricAltitudeDegrees
+            )
+            + "以上"
+    }
+
+    private func commitAtmosphericRefraction(
+        _ configuration: AppliedAtmosphericRefraction?,
+        status: String
+    ) {
+        if !isClearingDisplayPreferences {
+            UserDefaults.standard.set(
+                configuration != nil,
+                forKey: PreferenceKey.standardRefraction
+            )
+        }
+        guard
+            appliedAtmosphericRefraction
+                != configuration
+        else {
+            statusMessage = status
+            return
+        }
+
+        pausePlayback()
+        appliedAtmosphericRefraction =
+            configuration
+        recomputeSky()
+        statusMessage = status
+    }
+
+    private func compactDegrees(_ degrees: Double) -> String {
+        compactValue(
+            degrees,
+            maximumFractionDigits: 2
+        ) + "°"
+    }
+
+    private func compactValue(
+        _ value: Double,
+        maximumFractionDigits: Int
+    ) -> String {
+        value.formatted(
+            .number.precision(
+                .fractionLength(
+                    0...maximumFractionDigits
+                )
+            )
+        )
     }
 
     private func compactSeconds(_ seconds: Double) -> String {

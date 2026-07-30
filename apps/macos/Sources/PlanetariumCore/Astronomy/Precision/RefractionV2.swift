@@ -78,7 +78,7 @@ public extension Astronomy {
             let vaporPressureDenominator =
                 1 - (1 - humidity) * saturationPressure / pressure
             guard vaporPressureDenominator.isFinite,
-                  vaporPressureDenominator > 0
+                  vaporPressureDenominator > 1e-12
             else {
                 throw PrecisionModelError.invalidAtmosphere(
                     "vapor-pressure denominator"
@@ -201,7 +201,7 @@ public extension Astronomy {
                   secantSquared.isFinite,
                   residual.isFinite,
                   derivative.isFinite,
-                  abs(derivative) > 1e-14
+                  derivative > 0
             else {
                 throw PrecisionModelError.refractionInversionFailed
             }

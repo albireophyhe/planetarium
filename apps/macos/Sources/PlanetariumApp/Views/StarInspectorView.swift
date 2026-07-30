@@ -9,6 +9,7 @@ struct StarInspectorView: View {
     @State private var pointingCopyFailed = false
     @State private var pointingPayloadProfile:
         StarPointingPayloadProfile = .readableText
+    @State private var isAtmosphereEditorPresented = false
 
     var body: some View {
         ScrollView {
@@ -153,6 +154,14 @@ struct StarInspectorView: View {
         .onChange(of: pointingPayloadProfile) {
             clearPointingCopyStatus()
         }
+        .sheet(
+            isPresented:
+                $isAtmosphereEditorPresented
+        ) {
+            AtmosphericRefractionEditorView(
+                store: store
+            )
+        }
     }
 
     @ViewBuilder
@@ -172,7 +181,7 @@ struct StarInspectorView: View {
                 star.isAboveHorizon
                     ? (
                         store.useStandardAtmosphericRefraction
-                            ? "標準大気差適用後も地平線上"
+                            ? "設定した大気差適用後も地平線上"
                             : "幾何学的に地平線上"
                     )
                     : "現在は地平線下",
@@ -343,19 +352,15 @@ struct StarInspectorView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(
                 store.useStandardAtmosphericRefraction
-                    ? "精密モデルv2 · \(solarLightDeflectionSummary) · 日周光行差 · 標準大気差（幾何高度5°以上）"
+                    ? "精密モデルv2 · \(solarLightDeflectionSummary) · 日周光行差 · \(store.atmosphericRefractionSummary)"
                     : "精密モデルv2 · \(solarLightDeflectionSummary) · 日周光行差 · 幾何高度 · 大気差なし"
             )
                 .font(.caption.weight(.semibold))
-            Text(
-                store.useStandardAtmosphericRefraction
-                    ? "表示高度には固定した標準大気を仮定した補正を適用しています。幾何高度5°未満は不安定な外挿を避けるため補正せず、実際の気象や高度による差は含みません。"
-                    : "表示高度は真空中の幾何高度です。大気差は適用していません。"
-            )
+            Text(refractionExplanation)
             Text(annualParallaxExplanation)
             Text(solarLightDeflectionExplanation)
             Text("日周光行差は地球自転による東向き速度をWGS84で求め、選択地点の楕円体高を反映します。都市は0 m、手入力は指定値、端末測位は取得できたOSの楕円体高を使い、取得できない場合は0 mとします。")
-            Text("BSC5PのFK5座標はJ2000回転・フレームスピンでHipparcos/ICRSへ接続します。既定の共有地球暦はVSOP2000由来200項をTT（TDBのproxy）で評価し、解析微分を年周光行差の速度に使いますが、太陽系重心に対する太陽の速度は加えません。BSC5Pの格納分解能、FK5のゾーン誤差、この切り詰めと近似が精度を制限します。IERS収録期間内の「概ね1〜数秒角級」は、BSC5Pの格納分解能から見た真空中の通常目安で、全恒星の実測精度を保証する値ではありません。標準大気差ON時の表示高度は別です。既定の年周視差は厳密な太陽系重心暦と実観測地点の変位を含まず、恒星の日周視差、惑星による光の曲がり、日内の極運動潮汐、天候、光害、地形も含みません。太陽の水平位置だけはWGS84地点変位による日周視差を含みます。サブ秒角精度や望遠鏡導入を保証しません。星の大きさと色は見分けやすくした表現です。")
+            Text("BSC5PのFK5座標はJ2000回転・フレームスピンでHipparcos/ICRSへ接続します。既定の共有地球暦はVSOP2000由来200項をTT（TDBのproxy）で評価し、解析微分を年周光行差の速度に使いますが、太陽系重心に対する太陽の速度は加えません。BSC5Pの格納分解能、FK5のゾーン誤差、この切り詰めと近似が精度を制限します。IERS収録期間内の「概ね1〜数秒角級」は、BSC5Pの格納分解能から見た真空中の通常目安で、全恒星の実測精度を保証する値ではありません。大気差ON時の表示高度は別です。既定の年周視差は厳密な太陽系重心暦と実観測地点の変位を含まず、恒星の日周視差、惑星による光の曲がり、日内の極運動潮汐、天候、光害、地形も含みません。太陽の水平位置だけはWGS84地点変位による日周視差を含みます。サブ秒角精度や望遠鏡導入を保証しません。星の大きさと色は見分けやすくした表現です。")
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -454,18 +459,32 @@ struct StarInspectorView: View {
             )
             Toggle("ナイトモード", isOn: $store.nightMode)
             Toggle(
-                "標準大気差（高度5°以上）",
+                "大気差",
                 isOn: $store.useStandardAtmosphericRefraction
             )
 
             Text(
                 store.useStandardAtmosphericRefraction
-                    ? "高度は標準大気差適用後です。5°未満は幾何高度のままです。ナイトモードは暗順応を意識した赤色表示です。"
+                    ? "高度は\(store.atmosphericRefractionSummary)の補正後です。適用域より低い星は幾何高度のままです。"
                     : "高度は大気差なしの幾何高度です。ナイトモードは暗順応を意識した赤色表示です。"
             )
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                isAtmosphereEditorPresented = true
+            } label: {
+                Label(
+                    "大気差を詳しく設定…",
+                    systemImage:
+                        "humidity"
+                )
+            }
+            .buttonStyle(.bordered)
+            .help(
+                "標準大気またはセッション内だけの手動気象値を設定"
+            )
 
             Text(
                 "軌跡は選択した1星だけを30分間隔・最大13点で精密計算します。2Dでは小さい破線側が過去、大きい実線側が未来です。"
@@ -559,7 +578,7 @@ struct StarInspectorView: View {
 
             Text(
                 store.useStandardAtmosphericRefraction
-                    ? "標準大気モデルは真空幾何高度5°以上でのみ適用します。"
+                    ? "\(store.pointingRefractionDescription)です。適用域より低い星は真空幾何値のままです。"
                     : "大気差は無効です。設定大気差後の値は真空幾何値と同じです。"
             )
             .font(.caption)
@@ -677,6 +696,30 @@ struct StarInspectorView: View {
         .padding(12)
         .background(.quaternary.opacity(0.35))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var refractionExplanation: String {
+        guard let applied =
+            store.appliedAtmosphericRefraction
+        else {
+            return "表示高度は真空中の幾何高度です。"
+                + "大気差は適用していません。"
+        }
+        let sourceDescription =
+            applied.inputSource == .standard
+            ? "固定した標準大気"
+            : "手動入力した現地の大気条件"
+        return "表示高度には\(sourceDescription)による"
+            + "補正を適用しています。幾何高度"
+            + applied.atmosphere
+                .minimumGeometricAltitudeDegrees
+                .formatted(
+                    .number.precision(
+                        .fractionLength(0...2)
+                    )
+                )
+            + "°未満は不安定な外挿を避けるため補正しません。"
+            + "天候の時間変化や鉛直構造は含みません。"
     }
 
     private func copyPointingPayload() {

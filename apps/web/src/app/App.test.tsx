@@ -691,6 +691,134 @@ describe("App selection announcements", () => {
     ).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("keeps atmosphere drafts isolated, then applies one manual source to sky, track, and JSON", async () => {
+    Object.defineProperties(HTMLDialogElement.prototype, {
+      close: {
+        configurable: true,
+        value() {
+          this.removeAttribute("open");
+        },
+      },
+      showModal: {
+        configurable: true,
+        value() {
+          this.setAttribute("open", "");
+        },
+      },
+    });
+    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    render(<App />);
+
+    await screen.findByText(
+      /精密計算 v2・年周視差（収録星）／太陽光偏向・年周・日周光行差・幾何高度/,
+    );
+    await user.click(
+      screen.getByRole("checkbox", { name: "選択星の軌跡" }),
+    );
+    await waitFor(() =>
+      expect(trackCalculationSpy).toHaveBeenCalledTimes(1),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "時間を再生" }),
+    );
+    const atmosphereTrigger = screen.getByRole("button", {
+      name: "大気設定を開く",
+    });
+    await user.click(atmosphereTrigger);
+
+    await user.clear(
+      screen.getByRole("spinbutton", { name: "気圧（hPa）" }),
+    );
+    await user.type(
+      screen.getByRole("spinbutton", { name: "気圧（hPa）" }),
+      "998.4",
+    );
+    expect(trackCalculationSpy).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByText(
+        /^精密計算 v2.*幾何高度（大気差なし）/,
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "時間を一時停止" }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(
+      screen.getByRole("button", { name: "手動値を適用" }),
+    );
+
+    expect(
+      await screen.findByText(
+        /手動大気差あり（幾何高度5°以上）/,
+      ),
+    ).toBeVisible();
+    expect(screen.getByText("手動大気を適用中")).toBeVisible();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "大気差（手動設定）",
+      }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("button", { name: "時間を再生" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    await waitFor(() =>
+      expect(atmosphereTrigger).toHaveFocus(),
+    );
+    await waitFor(() =>
+      expect(trackCalculationSpy).toHaveBeenCalledTimes(2),
+    );
+    const latestOptionsAtDate =
+      trackCalculationSpy.mock.calls.at(-1)?.[3];
+    const latestOptions = await latestOptionsAtDate?.(new Date());
+    expect(latestOptions).toMatchObject({
+      refraction: {
+        minimumGeometricAltitudeDegrees: 5,
+        pressureHpa: 998.4,
+        relativeHumidity: 0.5,
+        temperatureCelsius: 10,
+        wavelengthMicrometers: 0.55,
+      },
+    });
+
+    const jsonCopyButton = screen.getByRole("button", {
+      name: "JSONをコピー",
+    });
+    expect(jsonCopyButton).toBeEnabled();
+    await user.click(jsonCopyButton);
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const profile = JSON.parse(
+      writeText.mock.calls[0]?.[0] as string,
+    );
+    expect(
+      profile.diagnostics.refraction.parameters.inputSource,
+    ).toBe("manual");
+
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "大気差（手動設定）",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "大気設定を開く" }),
+    );
+    expect(
+      screen.getByRole("spinbutton", { name: "気圧（hPa）" }),
+    ).toHaveValue(998.4);
+    await user.click(
+      screen.getByRole("button", { name: "キャンセル" }),
+    );
+    await waitFor(() =>
+      expect(atmosphereTrigger).toHaveFocus(),
+    );
+  });
+
   it("does no trajectory work while off and follows time only after explicit opt-in", async () => {
     const user = userEvent.setup();
     render(<App />);

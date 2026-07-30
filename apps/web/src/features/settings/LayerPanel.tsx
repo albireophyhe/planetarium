@@ -1,18 +1,37 @@
 import { RotateCcwIcon } from "lucide-react";
-import type { LayerSettings } from "../../app/types";
+import type { Ref } from "react";
+import type {
+  AppliedRefraction,
+  LayerSettings,
+} from "../../app/types";
+import {
+  atmosphereSourceLabel,
+  atmosphereValueSummary,
+} from "../../app/standardAtmosphere";
 import { Switch } from "../../ui/Switch";
 
 type LayerPanelProps = {
+  appliedRefraction: AppliedRefraction | null;
+  atmosphereTriggerRef?: Ref<HTMLButtonElement>;
   layers: LayerSettings;
+  onAtmosphereOpen: () => void;
   onChange: (key: keyof LayerSettings, checked: boolean) => void;
   onResetView: () => void;
 };
 
 export function LayerPanel({
+  appliedRefraction,
+  atmosphereTriggerRef,
   layers,
+  onAtmosphereOpen,
   onChange,
   onResetView,
 }: LayerPanelProps) {
+  const refractionLabel =
+    appliedRefraction?.inputSource === "manual"
+      ? "大気差（手動設定）"
+      : "標準大気差（高度5°以上）";
+
   return (
     <section aria-labelledby="layer-panel-title" className="layer-panel">
       <h2 className="sr-only" id="layer-panel-title">
@@ -40,11 +59,40 @@ export function LayerPanel({
       />
       <Switch
         checked={layers.atmosphericRefraction}
-        label="標準大気差（高度5°以上）"
+        label={refractionLabel}
         onChange={(checked) =>
           onChange("atmosphericRefraction", checked)
         }
       />
+      <div className="atmosphere-settings">
+        <div
+          aria-live="polite"
+          className="atmosphere-settings__status"
+        >
+          <strong>
+            {appliedRefraction
+              ? `${atmosphereSourceLabel(
+                  appliedRefraction.inputSource,
+                )}を適用中`
+              : "大気差はオフ"}
+          </strong>
+          <span>
+            {appliedRefraction
+              ? atmosphereValueSummary(
+                  appliedRefraction.atmosphere,
+                )
+              : "観測高度は真空中の幾何高度です。"}
+          </span>
+        </div>
+        <button
+          className="atmosphere-settings__button"
+          onClick={onAtmosphereOpen}
+          ref={atmosphereTriggerRef}
+          type="button"
+        >
+          大気設定を開く
+        </button>
+      </div>
       <button
         className="settings-reset-button"
         onClick={onResetView}

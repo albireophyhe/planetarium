@@ -1,4 +1,9 @@
-import { act, render, screen } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { StarViewModel } from "../../app/types";
@@ -85,6 +90,46 @@ function timeScales(
 }
 
 describe("StarDetails time-scale provenance", () => {
+  it("shows the applied manual atmosphere values in the pointing conditions", () => {
+    render(
+      <StarDetails
+        location={{
+          heightMeters: 44.5,
+          horizontalAccuracyMeters: null,
+          id: "manual",
+          latitude: 35.681236,
+          locationSource: "manual",
+          longitude: 139.767125,
+          name: "東京",
+          timeZone: "Asia/Tokyo",
+        }}
+        observationDate={new Date("2026-07-31T03:00:00.000Z")}
+        refractionAtmosphere={{
+          minimumGeometricAltitudeDegrees: 8,
+          pressureHpa: 998.4,
+          relativeHumidity: 0.72,
+          temperatureCelsius: 18.5,
+          wavelengthMicrometers: 0.6,
+        }}
+        refractionInputSource="manual"
+        star={{ ...STAR, refractionMode: "applied" }}
+        timeScales={timeScales("iers-predicted")}
+      />,
+    );
+
+    const pointingConditions = screen.getByRole("complementary", {
+      name: "導入条件",
+    });
+    expect(
+      within(pointingConditions).getByText("手動大気差を適用"),
+    ).toBeVisible();
+    expect(
+      within(pointingConditions).getByText(
+        "998.4 hPa・18.5°C・湿度72%・0.6 µm・高度8°以上",
+      ),
+    ).toBeVisible();
+  });
+
   it("uses a typographic minus and symmetric rounding below the horizon", () => {
     render(
       <StarDetails

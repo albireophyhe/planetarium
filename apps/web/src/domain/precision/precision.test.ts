@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fixtures from "../../../../../shared/fixtures/astro-test-vectors.v2.json";
+import refractionGuardrails from "../../../../../shared/fixtures/refraction-guardrails.v1.json";
 import { precisionStarByHR } from "../precisionData";
 import { SPEED_OF_LIGHT_KILOMETERS_PER_SECOND } from "./constants";
 import {
@@ -255,6 +256,19 @@ describe("official SOFA 2023-10-11 reference vectors", () => {
       fixtures.tolerances.refractionCoefficient
     );
   });
+
+  it.each(refractionGuardrails.cases)(
+    "keeps the shared refraction guardrail: $id",
+    (vector) => {
+      const calculate = () =>
+        applyVisualRefraction(Math.PI / 4, vector.atmosphere);
+      if (vector.expected === "accepted") {
+        expect(calculate).not.toThrow();
+      } else {
+        expect(calculate).toThrow();
+      }
+    }
+  );
 });
 
 describe("independent composed SOFA C oracle vectors", () => {
@@ -934,7 +948,7 @@ describe("precision metadata and input guardrails", () => {
         relativeHumidity: 0,
         wavelengthMicrometers: 0.55
       })
-    ).not.toThrow();
+    ).toThrow(/Water-vapor pressure/);
   });
 
   it("keeps standard refraction finite and monotonic across its valid range", () => {

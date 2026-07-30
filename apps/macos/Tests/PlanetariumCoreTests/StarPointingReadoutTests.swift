@@ -357,6 +357,7 @@ final class StarPointingReadoutTests: XCTestCase {
             star: star,
             frame: frame,
             atmosphere: .standardVisual,
+            atmosphereInputSource: .standard,
             estimate: estimate,
             sourceIdentifier: "sha256:test-eop"
         )
@@ -552,6 +553,64 @@ final class StarPointingReadoutTests: XCTestCase {
         )
     }
 
+    func testMachineProfileKeepsExplicitManualSourceForStandardValues()
+        throws
+    {
+        let frame = try pointingFrame(
+            earthOrientation:
+                EarthOrientationOptionsV2(
+                    polarMotion: .assumedZero
+                ),
+            refraction:
+                .atmosphere(.standardVisual)
+        )
+        let star = precisionCatalogStar(
+            rightAscension:
+                overheadRightAscension(frame),
+            astrometry: nil
+        )
+        let root = try machineProfile(
+            star: star,
+            frame: frame,
+            atmosphere: .standardVisual,
+            atmosphereInputSource: .manual,
+            estimate: nil,
+            sourceIdentifier: nil
+        )
+        let diagnostics = try dictionary(
+            root,
+            key: "diagnostics"
+        )
+        let refraction = try dictionary(
+            diagnostics,
+            key: "refraction"
+        )
+        let parameters = try dictionary(
+            refraction,
+            key: "parameters"
+        )
+
+        XCTAssertEqual(
+            parameters["inputSource"] as? String,
+            "manual"
+        )
+        XCTAssertTrue(
+            StarPointingPrecisionContext(
+                position:
+                    try Astronomy
+                    .calculateApparentStarPositionWithContextV2(
+                        star,
+                        context: frame
+                    ),
+                frame: frame,
+                atmosphere: .standardVisual,
+                atmosphereInputSource: nil,
+                earthOrientationEstimate: nil,
+                earthOrientationSourceIdentifier: nil
+            ) == nil
+        )
+    }
+
     func testMachineProfileEnumsStayInsideSharedV1Contract()
         throws
     {
@@ -599,6 +658,13 @@ final class StarPointingReadoutTests: XCTestCase {
                 ] as? [String]
             )
         )
+        let allowedRefractionInputSources = Set(
+            try XCTUnwrap(
+                contract[
+                    "refractionInputSources"
+                ] as? [String]
+            )
+        )
         let allowedOmissionTokens = Set(
             try XCTUnwrap(
                 contract[
@@ -643,6 +709,7 @@ final class StarPointingReadoutTests: XCTestCase {
                 ),
                 frame: frame,
                 atmosphere: nil,
+                atmosphereInputSource: nil,
                 estimate: nil,
                 sourceIdentifier: nil
             )
@@ -714,6 +781,14 @@ final class StarPointingReadoutTests: XCTestCase {
             emittedCatalogStatuses,
             allowedCatalogStatuses
         )
+        XCTAssertEqual(
+            allowedRefractionInputSources,
+            Set(
+                AtmosphericRefractionInputSource
+                    .allCases
+                    .map(\.rawValue)
+            )
+        )
     }
 
     func testMachineReadableProfileUsesZeroOnlyForAppliedAssumption()
@@ -752,6 +827,7 @@ final class StarPointingReadoutTests: XCTestCase {
             star: star,
             frame: frame,
             atmosphere: nil,
+            atmosphereInputSource: nil,
             estimate: contradictoryEstimate,
             sourceIdentifier:
                 "must-not-survive"
@@ -862,6 +938,7 @@ final class StarPointingReadoutTests: XCTestCase {
             star: star,
             frame: frame,
             atmosphere: nil,
+            atmosphereInputSource: nil,
             estimate: nil,
             sourceIdentifier: nil
         )
@@ -1203,6 +1280,8 @@ final class StarPointingReadoutTests: XCTestCase {
         star: CatalogStar,
         frame: ApparentPositionContextV2,
         atmosphere: AtmosphereV2?,
+        atmosphereInputSource:
+            AtmosphericRefractionInputSource?,
         estimate: IERSEarthOrientationEstimateV1?,
         sourceIdentifier: String?
     ) throws -> [String: Any] {
@@ -1235,6 +1314,8 @@ final class StarPointingReadoutTests: XCTestCase {
                 position: position,
                 frame: frame,
                 atmosphere: atmosphere,
+                atmosphereInputSource:
+                    atmosphereInputSource,
                 earthOrientationEstimate: estimate,
                 earthOrientationSourceIdentifier:
                     sourceIdentifier

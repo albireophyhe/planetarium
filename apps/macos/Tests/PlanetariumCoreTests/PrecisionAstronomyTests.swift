@@ -15,6 +15,19 @@ final class PrecisionAstronomyTests: XCTestCase {
         )
     }()
 
+    private let refractionGuardrails:
+        RefractionGuardrailFixture = {
+            let data = try! TestFixtureData.data(
+                at:
+                    "shared/fixtures/"
+                    + "refraction-guardrails.v1.json"
+            )
+            return try! JSONDecoder().decode(
+                RefractionGuardrailFixture.self,
+                from: data
+            )
+        }()
+
     private let catalog: SkyCatalog = try! PlanetariumData.load()
 
     func testOfficialEarthRotationAngleReference() throws {
@@ -1411,6 +1424,28 @@ final class PrecisionAstronomyTests: XCTestCase {
         XCTAssertEqual(guarded.altitude, oneDegree)
     }
 
+    func testSharedRefractionAtmosphereGuardrails() {
+        for vector in refractionGuardrails.cases {
+            let calculate = {
+                try Astronomy.applyVisualRefractionV2(
+                    to: Double.pi / 4,
+                    atmosphere: vector.atmosphere.model
+                )
+            }
+            if vector.expected == "accepted" {
+                XCTAssertNoThrow(
+                    try calculate(),
+                    vector.id
+                )
+            } else {
+                XCTAssertThrowsError(
+                    try calculate(),
+                    vector.id
+                )
+            }
+        }
+    }
+
     func testRefractionRejectsFormerOneDegreePolynomialExtrapolation() throws {
         let coefficients = try Astronomy.refractionCoefficientsV2(
             for: .standardVisual
@@ -1852,15 +1887,31 @@ private struct FixtureAtmosphere: Decodable {
     let temperatureCelsius: Double
     let relativeHumidity: Double
     let wavelengthMicrometers: Double
+    let minimumGeometricAltitudeDegrees: Double?
 
     var model: AtmosphereV2 {
         AtmosphereV2(
             pressureHPA: pressureHpa,
             temperatureCelsius: temperatureCelsius,
             relativeHumidity: relativeHumidity,
-            wavelengthMicrometers: wavelengthMicrometers
+            wavelengthMicrometers: wavelengthMicrometers,
+            minimumGeometricAltitudeDegrees:
+                minimumGeometricAltitudeDegrees
+                ?? 5
         )
     }
+}
+
+private struct RefractionGuardrailFixture:
+    Decodable
+{
+    struct Case: Decodable {
+        let id: String
+        let atmosphere: FixtureAtmosphere
+        let expected: String
+    }
+
+    let cases: [Case]
 }
 
 private struct RefractionCoefficientFixture: Decodable {

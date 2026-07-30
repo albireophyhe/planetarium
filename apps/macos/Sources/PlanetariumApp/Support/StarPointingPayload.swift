@@ -5,6 +5,8 @@ struct StarPointingPrecisionContext: Hashable, Sendable {
     let position: ApparentStarPositionV2
     let frame: ApparentPositionContextV2
     let atmosphere: AtmosphereV2?
+    let atmosphereInputSource:
+        AtmosphericRefractionInputSource?
     let earthOrientationEstimate:
         IERSEarthOrientationEstimateV1?
     let earthOrientationSourceIdentifier: String?
@@ -13,6 +15,8 @@ struct StarPointingPrecisionContext: Hashable, Sendable {
         position: ApparentStarPositionV2,
         frame: ApparentPositionContextV2,
         atmosphere: AtmosphereV2?,
+        atmosphereInputSource:
+            AtmosphericRefractionInputSource?,
         earthOrientationEstimate:
             IERSEarthOrientationEstimateV1?,
         earthOrientationSourceIdentifier: String?
@@ -31,7 +35,11 @@ struct StarPointingPrecisionContext: Hashable, Sendable {
             Self.atmosphereMatchesAppliedFrame(
                 atmosphere,
                 frame: frame
-            )
+            ),
+            (atmosphere == nil)
+                == (atmosphereInputSource == nil),
+            atmosphereInputSource != .standard
+                || atmosphere == .standardVisual
         else {
             return nil
         }
@@ -39,6 +47,8 @@ struct StarPointingPrecisionContext: Hashable, Sendable {
         self.position = position
         self.frame = frame
         self.atmosphere = atmosphere
+        self.atmosphereInputSource =
+            atmosphereInputSource
 
         if Self.estimateMatchesAppliedFrame(
             earthOrientationEstimate,
@@ -115,7 +125,18 @@ struct StarPointingPrecisionContext: Hashable, Sendable {
                 let expected = try? Astronomy
                     .refractionCoefficientsV2(
                         for: atmosphere
-                    )
+                    ),
+                let boundaryResult = try? Astronomy
+                    .applyVisualRefractionV2(
+                        to: Angles.radians(
+                            fromDegrees:
+                                minimumGeometricAltitudeDegrees
+                        ),
+                        coefficients: expected,
+                        minimumGeometricAltitudeDegrees:
+                            minimumGeometricAltitudeDegrees
+                    ),
+                boundaryResult.mode == .applied
             else {
                 return false
             }
@@ -197,7 +218,8 @@ struct StarPointingPayloadSignature:
         IERSEarthOrientationEstimateV1?
     let solarLightDeflectionMode:
         SolarLightDeflectionModeV2
-    let usesStandardAtmosphericRefraction: Bool
+    let appliedAtmosphericRefraction:
+        AppliedAtmosphericRefraction?
 }
 
 struct StarPointingSnapshot: Hashable, Sendable {

@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var store: SkyStore
     @State private var didClearSavedDisplay = false
+    @State private var isAtmosphereEditorPresented = false
 
     var body: some View {
         TabView {
@@ -16,10 +17,19 @@ struct SettingsView: View {
                     )
                     Toggle("ナイトモード", isOn: $store.nightMode)
                     Toggle(
-                        "標準大気差（高度5°以上）",
+                        "大気差",
                         isOn: $store.useStandardAtmosphericRefraction
                     )
-                    Text("OFFでは真空中の幾何高度を表示します。ONでは気圧1013.25 hPa・気温10°C・相対湿度50%・波長0.55 µmを仮定し、幾何高度5°以上だけを観測高度へ補正します。")
+                    LabeledContent(
+                        "現在",
+                        value:
+                            store
+                            .atmosphericRefractionSummary
+                    )
+                    Button("大気差を詳しく設定…") {
+                        isAtmosphereEditorPresented = true
+                    }
+                    Text("OFFでは真空中の幾何高度を表示します。ONへ切り替えた場合は標準大気を使います。「詳しく設定」では、このセッションだけの気圧・気温・湿度・波長・最低適用高度を指定できます。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Text("選択星の軌跡は既定OFFです。ONでは選択した1星だけを前後3時間、30分間隔、最大13点で計算します。")
@@ -39,7 +49,7 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Text("保存するのは、星座線、星の名前、選択星の軌跡、ナイトモード、標準大気差の5項目です。地点、正確な位置座標、日時、検索語、選択した星は保存しません。初期地点は東京です。")
+                    Text("保存するのは、星座線、星の名前、選択星の軌跡、ナイトモード、大気差ON/OFFの5項目です。手動入力した気象値と入力元は保存せず、次回起動時にONなら標準大気へ戻します。地点、正確な位置座標、日時、検索語、選択した星は保存しません。初期地点は東京です。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -51,5 +61,13 @@ struct SettingsView: View {
         }
         .frame(width: 500, height: 400)
         .scenePadding()
+        .sheet(
+            isPresented:
+                $isAtmosphereEditorPresented
+        ) {
+            AtmosphericRefractionEditorView(
+                store: store
+            )
+        }
     }
 }

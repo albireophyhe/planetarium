@@ -27,6 +27,7 @@ import {
   sunHorizontal,
   twilightPhase,
   type ApparentPositionOptionsV2,
+  type Atmosphere,
   type IersEarthOrientationEstimateV1,
   type TwilightPhase,
 } from "../domain";
@@ -41,6 +42,7 @@ import {
   requiredRenderStarHrs,
 } from "../domain/renderData";
 import { LocationDialog } from "../features/location/LocationDialog";
+import { AtmosphereDialog } from "../features/settings/AtmosphereDialog";
 import { LayerPanel } from "../features/settings/LayerPanel";
 import {
   SkyViewport,
@@ -54,6 +56,7 @@ import { SegmentedControl } from "../ui/SegmentedControl";
 import { Dialog } from "../ui/Dialog";
 import { LazyFeatureErrorBoundary } from "../ui/LazyFeatureErrorBoundary";
 import type {
+  AppliedRefraction,
   LayerSettings,
   ObserverLocation,
   SelectedStarTrack,
@@ -73,10 +76,7 @@ import {
 import { calculatePrecisionSkyFrame } from "./precisionSkyFrame";
 import { selectRenderableStars } from "./renderCatalogPolicy";
 import { calculateSelectedStarTrack } from "./selectedStarTrack";
-import {
-  STANDARD_REFRACTION_OPTIONS,
-  STANDARD_VISUAL_ATMOSPHERE,
-} from "./standardAtmosphere";
+import { STANDARD_APPLIED_REFRACTION } from "./standardAtmosphere";
 import { timeScaleAssumptionText } from "./timeScaleAssumption";
 import { useIersEarthOrientation } from "./useIersEarthOrientation";
 import { usePrecisionCatalog } from "./usePrecisionCatalog";
@@ -277,6 +277,11 @@ export function App() {
   const [helpActivated, setHelpActivated] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [layers, setLayers] = useState<LayerSettings>(DEFAULT_LAYERS);
+  const [appliedRefraction, setAppliedRefraction] =
+    useState<AppliedRefraction | null>(null);
+  const [lastManualAtmosphere, setLastManualAtmosphere] =
+    useState<Atmosphere | null>(null);
+  const [atmosphereOpen, setAtmosphereOpen] = useState(false);
   const [location, setLocation] = useState<ObserverLocation>(cityToLocation);
   const [locationOpen, setLocationOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<"stars" | "settings">("stars");
@@ -306,6 +311,8 @@ export function App() {
     useState("");
   const [visibleMode, setVisibleMode] = useState<"above" | "all">("above");
   const initialSelectionResolved = useRef(false);
+  const atmosphereTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const restoreAtmosphereFocusRef = useRef(false);
   const helpTriggerRef = useRef<HTMLButtonElement | null>(null);
   const timeBoundaryNoticeSequence = useRef(
     initialClock.adjusted ? 1 : 0,
@@ -320,6 +327,16 @@ export function App() {
     setTimeBoundaryNotice(null);
     setTimeBoundaryAnnouncement("");
   }, []);
+
+  useEffect(() => {
+    if (
+      !atmosphereOpen &&
+      restoreAtmosphereFocusRef.current
+    ) {
+      restoreAtmosphereFocusRef.current = false;
+      atmosphereTriggerRef.current?.focus();
+    }
+  }, [atmosphereOpen]);
 
   function handleHelpOpen(trigger: HTMLButtonElement) {
     helpTriggerRef.current = trigger;
@@ -404,8 +421,10 @@ export function App() {
     [precisionCatalog],
   );
   const apparentPositionOptions = useMemo<ApparentPositionOptionsV2>(() => {
-    const base = layers.atmosphericRefraction
-      ? STANDARD_REFRACTION_OPTIONS
+    const base = appliedRefraction
+      ? {
+          refraction: appliedRefraction.atmosphere,
+        }
       : GEOMETRIC_POSITION_OPTIONS;
     return apparentPositionOptionsWithEarthOrientation(
       base,
@@ -413,8 +432,8 @@ export function App() {
       location.heightMeters,
     );
   }, [
+    appliedRefraction,
     currentEarthOrientationEstimate,
-    layers.atmosphericRefraction,
     location.heightMeters,
   ]);
 
@@ -633,7 +652,17 @@ export function App() {
           location.longitude,
           location.heightMeters,
           location.timeZone,
-          layers.atmosphericRefraction ? "refracted" : "geometric",
+          appliedRefraction
+            ? [
+                appliedRefraction.inputSource,
+                appliedRefraction.atmosphere.pressureHpa,
+                appliedRefraction.atmosphere.temperatureCelsius,
+                appliedRefraction.atmosphere.relativeHumidity,
+                appliedRefraction.atmosphere.wavelengthMicrometers,
+                appliedRefraction.atmosphere
+                  .minimumGeometricAltitudeDegrees ?? 5,
+              ].join(",")
+            : "geometric",
         ].join("|")
       : null;
   useEffect(() => {
@@ -651,8 +680,10 @@ export function App() {
     }
 
     let cancelled = false;
-    const base = layers.atmosphericRefraction
-      ? STANDARD_REFRACTION_OPTIONS
+    const base: ApparentPositionOptionsV2 = appliedRefraction
+      ? {
+          refraction: appliedRefraction.atmosphere,
+        }
       : GEOMETRIC_POSITION_OPTIONS;
     void calculateSelectedStarTrack(
       selectedPrecisionStar,
@@ -685,9 +716,9 @@ export function App() {
       cancelled = true;
     };
   }, [
+    appliedRefraction,
     date,
     currentEarthOrientationEstimate,
-    layers.atmosphericRefraction,
     location,
     lookupIersEarthOrientationAt,
     precisionCatalog,
@@ -787,13 +818,20 @@ export function App() {
   const calculationStatusText =
     precisionCatalogStatus === "ready"
       ? `精密計算 v2・年周視差（収録星）／太陽光偏向・年周・日周光行差・${
-          layers.atmosphericRefraction
-            ? "標準大気差あり（幾何高度5°以上）"
+          appliedRefraction
+            ? `${
+                appliedRefraction.inputSource === "standard"
+                  ? "標準大気差"
+                  : "手動大気差"
+              }あり（幾何高度${
+                appliedRefraction.atmosphere
+                  .minimumGeometricAltitudeDegrees ?? 5
+              }°以上）`
             : "幾何高度（大気差なし）"
         }・${earthOrientationStatusText}`
       : precisionCatalogStatus === "loading"
         ? `精密星表を準備中・一時的に簡易計算で幾何高度を表示${
-            layers.atmosphericRefraction
+            appliedRefraction
               ? "（大気差は読込後に適用）"
               : ""
           }`
@@ -823,8 +861,29 @@ export function App() {
   ) {
     if (key === "atmosphericRefraction") {
       playback.pause();
+      setAppliedRefraction(
+        checked ? STANDARD_APPLIED_REFRACTION : null,
+      );
     }
     setLayers((current) => ({ ...current, [key]: checked }));
+  }
+
+  function handleAtmosphereApply(next: AppliedRefraction) {
+    playback.pause();
+    if (next.inputSource === "manual") {
+      setLastManualAtmosphere(next.atmosphere);
+    }
+    setAppliedRefraction(next);
+    setLayers((current) => ({
+      ...current,
+      atmosphericRefraction: true,
+    }));
+    handleAtmosphereClose();
+  }
+
+  function handleAtmosphereClose() {
+    restoreAtmosphereFocusRef.current = true;
+    setAtmosphereOpen(false);
   }
 
   function handleDateTimeChange(value: string) {
@@ -881,6 +940,7 @@ export function App() {
       }
     }
     setLayers(DEFAULT_LAYERS);
+    setAppliedRefraction(null);
     setSearchQuery("");
     if (highestVisible) {
       handleSelectStar(highestVisible.hr);
@@ -1175,9 +1235,10 @@ export function App() {
                     precisionFrame?.context.polarMotion ?? null
                   }
                   refractionAtmosphere={
-                    layers.atmosphericRefraction
-                      ? STANDARD_VISUAL_ATMOSPHERE
-                      : null
+                    appliedRefraction?.atmosphere ?? null
+                  }
+                  refractionInputSource={
+                    appliedRefraction?.inputSource ?? null
                   }
                   star={selectedStar}
                   timeScales={precisionFrame?.context.timeScales ?? null}
@@ -1254,7 +1315,10 @@ export function App() {
             aria-labelledby="mobile-settings-tab"
           >
             <LayerPanel
+              appliedRefraction={appliedRefraction}
+              atmosphereTriggerRef={atmosphereTriggerRef}
               layers={layers}
+              onAtmosphereOpen={() => setAtmosphereOpen(true)}
               onChange={handleLayerChange}
               onResetView={resetView}
             />
@@ -1281,6 +1345,15 @@ export function App() {
             clearTimeBoundaryNotice();
           }}
           onClose={() => setLocationOpen(false)}
+          open
+        />
+      ) : null}
+      {atmosphereOpen ? (
+        <AtmosphereDialog
+          current={appliedRefraction}
+          manualDraftAtmosphere={lastManualAtmosphere}
+          onApply={handleAtmosphereApply}
+          onClose={handleAtmosphereClose}
           open
         />
       ) : null}

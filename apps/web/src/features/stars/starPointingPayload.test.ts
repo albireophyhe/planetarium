@@ -113,6 +113,7 @@ function precisionInput(
     observationDate: new Date("2026-07-31T03:00:00.000Z"),
     polarMotionSnapshot: POLAR_MOTION_SNAPSHOT,
     refractionAtmosphere: STANDARD_ATMOSPHERE,
+    refractionInputSource: "standard",
     star: STAR,
     timeScales: TIME_SCALES,
     ...overrides,
@@ -142,6 +143,7 @@ describe("buildStarPointingPayload", () => {
       location: LOCATION,
       observationDate: new Date("2026-07-31T03:00:00.000Z"),
       refractionAtmosphere: STANDARD_ATMOSPHERE,
+      refractionInputSource: "standard",
       star: STAR,
       timeScales: TIME_SCALES,
     });
@@ -155,6 +157,9 @@ describe("buildStarPointingPayload", () => {
     );
     expect(payload).toContain("地点由来: 手動入力 / 水平精度 ±3 m");
     expect(payload).toContain("大気差: 標準大気差を適用");
+    expect(payload).toContain(
+      "1,013.25 hPa・10°C・湿度50%・0.55 µm・高度5°以上",
+    );
     expect(payload).toContain("幾何高度・方位（真空）: 高度 42.111111°");
     expect(payload).toContain(
       "観測高度・方位（大気差設定反映）: 高度 42.123457°",
@@ -170,6 +175,7 @@ describe("buildStarPointingPayload", () => {
       location: LOCATION,
       observationDate: new Date("2026-07-31T03:00:00.000Z"),
       refractionAtmosphere: null,
+      refractionInputSource: null,
       star: {
         ...STAR,
         apparentDecRad: null,
@@ -286,6 +292,93 @@ describe("buildStarPointingPayload", () => {
     ).toEqual(profile);
   });
 
+  it("preserves an explicit manual source even when its values equal the standard preset", () => {
+    const input = precisionInput({
+      refractionInputSource: "manual",
+    });
+
+    const profile = buildStarPointingJsonProfile(input);
+
+    expect(profile.diagnostics.refraction).toMatchObject({
+      description: "手動大気モデル（真空幾何高度5°以上で適用）",
+      parameters: {
+        inputSource: "manual",
+        pressureHpa: STANDARD_ATMOSPHERE.pressureHpa,
+      },
+    });
+    expect(buildStarPointingPayload(input)).toContain(
+      "大気差: 手動大気差を適用 / 1,013.25 hPa・10°C・湿度50%・0.55 µm・高度5°以上",
+    );
+  });
+
+  it("fails closed when the applied atmosphere has no explicit source", () => {
+    const input = precisionInput({
+      refractionInputSource: null,
+    });
+
+    expect(hasFullPrecisionPointingSnapshot(input)).toBe(false);
+    expect(() => buildStarPointingJsonProfile(input)).toThrow(
+      /complete precision-v2 render snapshot/,
+    );
+  });
+
+  it("fails closed when a standard source carries non-standard values", () => {
+    const input = precisionInput({
+      refractionAtmosphere: {
+        ...STANDARD_ATMOSPHERE,
+        pressureHpa: STANDARD_ATMOSPHERE.pressureHpa - 10,
+      },
+      refractionInputSource: "standard",
+    });
+
+    expect(hasFullPrecisionPointingSnapshot(input)).toBe(false);
+    expect(() => buildStarPointingJsonProfile(input)).toThrow(
+      /complete precision-v2 render snapshot/,
+    );
+  });
+
+  it.each([
+    {
+      label: "out-of-range pressure",
+      atmosphere: {
+        ...STANDARD_ATMOSPHERE,
+        pressureHpa: 1_200,
+      },
+    },
+    {
+      label: "non-finite humidity",
+      atmosphere: {
+        ...STANDARD_ATMOSPHERE,
+        relativeHumidity: Number.NaN,
+      },
+    },
+    {
+      label: "invalid cutoff",
+      atmosphere: {
+        ...STANDARD_ATMOSPHERE,
+        minimumGeometricAltitudeDegrees: 4,
+      },
+    },
+    {
+      label: "singular vapor pressure",
+      atmosphere: {
+        ...STANDARD_ATMOSPHERE,
+        pressureHpa: 1,
+        relativeHumidity: 1,
+      },
+    },
+  ])("fails closed for a manual $label", ({ atmosphere }) => {
+    const input = precisionInput({
+      refractionAtmosphere: atmosphere,
+      refractionInputSource: "manual",
+    });
+
+    expect(hasFullPrecisionPointingSnapshot(input)).toBe(false);
+    expect(() => buildStarPointingJsonProfile(input)).toThrow(
+      /complete precision-v2 render snapshot/,
+    );
+  });
+
   it("fails closed instead of publishing the precision profile from the simple model", () => {
     const simpleStar: StarViewModel = {
       ...STAR,
@@ -309,6 +402,7 @@ describe("buildStarPointingPayload", () => {
       location: LOCATION,
       observationDate: new Date("2026-07-31T03:00:00.000Z"),
       refractionAtmosphere: null,
+      refractionInputSource: null,
       star: simpleStar,
       timeScales: null,
     } satisfies StarPointingPayloadInput;
@@ -328,6 +422,7 @@ describe("buildStarPointingPayload", () => {
       location: LOCATION,
       observationDate: new Date("2026-07-31T03:00:00.000Z"),
       refractionAtmosphere: STANDARD_ATMOSPHERE,
+      refractionInputSource: "standard",
       star: {
         ...STAR,
         annualAberrationMode: null,
@@ -409,6 +504,7 @@ describe("buildStarPointingPayload", () => {
         ypReportedErrorRadians: null,
       },
       refractionAtmosphere: null,
+      refractionInputSource: null,
       star: {
         ...STAR,
         altitudeDeg: STAR.geometricAltitudeDeg,
@@ -454,6 +550,7 @@ describe("buildStarPointingPayload", () => {
         ypReportedErrorRadians: null,
       },
       refractionAtmosphere: null,
+      refractionInputSource: null,
       star: {
         ...STAR,
         annualAberrationMode: "disabled",
@@ -511,6 +608,7 @@ describe("buildStarPointingPayload", () => {
         ypReportedErrorRadians: null,
       },
       refractionAtmosphere: STANDARD_ATMOSPHERE,
+      refractionInputSource: "standard",
       star: {
         ...STAR,
         polarMotionMode: "assumed-zero",
@@ -548,6 +646,11 @@ describe("buildStarPointingPayload", () => {
     expect(
       pointingProfileContract.polarMotionStatuses,
     ).toContain(profile.earthOrientation.polarMotionStatus);
+    expect(
+      pointingProfileContract.refractionInputSources,
+    ).toContain(
+      profile.diagnostics.refraction.parameters?.inputSource,
+    );
     for (const token of profile.diagnostics.omittedCorrections) {
       expect(
         pointingProfileContract.omittedCorrectionTokens,

@@ -34,7 +34,7 @@ final class AccuracyCopySourceContractTests: XCTestCase {
         )
         XCTAssertTrue(
             text.contains(
-                "標準大気差ON時の表示高度は別です"
+                "大気差ON時の表示高度は別です"
             )
         )
     }
