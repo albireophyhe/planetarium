@@ -9,6 +9,39 @@ struct StarPointingPayloadContext: Hashable, Sendable {
     let refractionDescription: String
 }
 
+struct StarPointingSnapshot: Hashable, Sendable {
+    let observationDate: Date
+    let utcTimestamp: String
+    let payload: String
+    let didPausePlayback: Bool
+}
+
+enum StarPointingSnapshotCapturePolicy {
+    @discardableResult
+    static func pausePlaybackIfNeeded(
+        isPlaybackPlaying: Bool,
+        pause: () -> Void
+    ) -> Bool {
+        guard isPlaybackPlaying else {
+            return false
+        }
+        pause()
+        return true
+    }
+}
+
+enum StarPointingCopyStatusPolicy {
+    static func shouldClearGlobalStatus(
+        copyStatus: String?,
+        globalStatus: String?
+    ) -> Bool {
+        guard let copyStatus else {
+            return false
+        }
+        return globalStatus == copyStatus
+    }
+}
+
 enum StarPointingPayloadFormatter {
     static func payload(
         for star: RenderedStar,
@@ -35,6 +68,19 @@ enum StarPointingPayloadFormatter {
                     fractionDigits: 2
                 )
                 + " m",
+            "地点水平精度: "
+                + context.location
+                .horizontalAccuracyMeters
+                .map {
+                    "±"
+                        + AstronomicalFormatting
+                        .decimal(
+                            $0,
+                            fractionDigits: 1
+                        )
+                        + " m"
+                }
+                .orDash,
             "",
             "赤経（J2000）: "
                 + preciseRightAscension(
@@ -152,7 +198,7 @@ enum StarPointingPayloadFormatter {
         )
     }
 
-    private static func utcTimestamp(_ date: Date) -> String {
+    static func utcTimestamp(_ date: Date) -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [
             .withInternetDateTime,

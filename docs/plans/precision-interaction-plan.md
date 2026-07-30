@@ -13,7 +13,8 @@
 
 恒星位置はBSC5Pの入力精度を超えて断言しない一方、単純な歳差だけではなく、
 座標フレーム接続、空間運動、年周視差、太陽重力光偏向、年周光行差、IAU 2006歳差、
-IAU 2000B章動、UT1恒星時、WGS84観測者の日周光行差、任意の可視光大気差を
+IAU 2000B章動、UT1恒星時、WGS84観測者の日周光行差、利用者が有効／無効を
+選べる標準可視光大気差を
 順序付きで適用する。同梱IERS EOPからDUT1と極運動xp/ypを独立に補間し、
 地球回転後のTIRS方向をITRSへ変換する。昼・薄明も旧UTC簡易式ではなく、
 同じ地球姿勢と光行差を使い、水平位置だけWGS84観測地点の日周視差も加えた
@@ -34,8 +35,9 @@ WebGLが使えない場合は2Dへ戻る。自動回転は行わない。
 | 共有地球暦 | 実装済み | SOFA `epv00` 1,323項から決定的に選ぶVSOP2000由来200項、解析微分、schema、generator、両bundle検査、1900–2100年293,657時点走査を完了 |
 | 太陽・薄明 | 実装済み | 恒星と同じ時刻系・地球姿勢を使い、水平位置だけWGS84観測地点の日周視差を含む太陽中心の幾何高度へ統合。地心の見かけ赤経・赤緯を別に保持し、Web/macOSの2D・3Dへ選択対象でない太陽方向マーカーを追加 |
 | 観測時計・軌跡 | 実装済み | 停止、順逆、速度、境界、reduced-motion、非表示停止と、既定OFFの前後3時間・13点軌跡を両版へ実装。Webは連続変化する太陽高度と軌跡再計算をlive region外に置き、低頻度の計算状態・時刻仮定だけ`polite`に通知。軌跡の凡例とCanvas説明は維持 |
+| 精密導入readout | 実装済み | J2000、地心見かけ、真空／大気差後水平座標と再現条件を表示・コピーする。再生中のコピーはクリック時frameを固定して一度停止する。カードは同じUTC・地点・大気差、完了状態は固定UTC・停止有無・成否を示す。座標profile選択とversion付き機械可読payloadは後段 |
 | Web 3D | 実装済み | lazy-load、回転・zoom・reset、北東南西＋天頂・天底の追従DOMラベル、星座線・星名・薄明・選択同期、context loss等からの2D復旧を自動テストと実ブラウザーで確認。2D/3D共通helperでdevice pixel ratioを1–2倍へ制限し、240pxでは操作を一段化 |
-| macOS 3Dナビゲーション | 実装済み | 6方向ラベル、trackball drag、75–250% pinch/ボタン、方向操作、向きと倍率のreset、狭幅配置、VoiceOver倍率、`⌃⌘矢印`・`⌘＋ / ⌘−`・`⌘0`を163 Swiftテスト、release build、bundle起動検証で確認 |
+| macOS 3Dナビゲーション | 実装済み | 6方向ラベル、trackball drag、75–250% pinch/ボタン、方向操作、向きと倍率のreset、狭幅配置、VoiceOver倍率、`⌃⌘矢印`・`⌘＋ / ⌘−`・`⌘0`を全Swiftテスト、release build、bundle起動検証で確認 |
 | 初期表示と時刻系警告 | 実装済み | WebはCSP互換の同一origin `boot-shell.css`、JavaScript無効時の`noscript`説明、成果物検査を実装。Web/macOSとも1900年の`TAI−UTC=0秒近似`と将来の`37秒仮定`を通常期間では出さず、macOS Inspectorでは詳細な根拠も表示する。v1星表、React、vendorを分割し、本番相当WranglerとCSPでもshellからReactへ置換できる |
 | 全体の公開・実機QA | 一部完了 | 自動ゲート、ローカルbundle検査、本番相当WranglerでのReact起動とprecisionData/EOP取得は確認済み。実Cloudflare公開、Developer ID署名・公証、物理VoiceOver/PWA確認は未実施 |
 
@@ -111,9 +113,13 @@ WebGLが使えない場合は2Dへ戻る。自動回転は行わない。
    - 再生中の2D/3D、選択同期、地平線通過、地点・日時変更、失敗復旧を確認する。
    - Web全テスト、本番build、予算、privacy、Cloudflare dry-run、Swift全テスト、
      `.app`署名・resource・起動検証を通す。
-   - Web初期routeは12ファイル719.6KiB gzipを現行実測にし、
-     最大初期JavaScript 600KiB raw、全JavaScript各720KiB rawのgateで
-     単一chunkへの再結合を防ぐ。
+   - Web初期routeは12ファイル・768KiB gzip以下、最大初期JavaScript
+     600KiB raw、全JavaScript各720KiB rawのgateで単一chunkへの再結合を
+     防ぐ。各リリースの実測値は改善ログへ記録する。
+   - 再生中の導入用コピーは停止処理を一度だけ行い、停止中は行わない。
+     clipboardへ渡すpayload、カードの計算条件、完了状態のUTCは同じsnapshotを
+     指す。失敗時も停止有無と固定UTCを曖昧にせず、星・日時・地点・大気差の
+     変更後に以前の完了状態を現在値として扱わない。
    - 観察、変更、検証、残るリスクを改善ログへ追記する。
 
 ## 再監査後の実施順
@@ -126,6 +132,11 @@ WebGLが使えない場合は2Dへ戻る。自動回転は行わない。
 3. 1972年以前と既知うるう秒範囲後のTAI−UTC仮定を具体的な秒数で表示する。
 4. 太陽方向とmacOS 3Dの回転・倍率を、専門知識やgestureなしでも操作・理解できるようにする。
 5. 実配布、物理支援技術、実機PWAの未完了ゲートを残件として維持する。
+
+現在の継続監査では、既存機能の誤った一時frameを防ぐ順に、UTC日跨ぎの
+EOP atomic frame、座標profileとversion付きpayload、実気象に基づく大気差、
+Gaia/Hipparcosを使うprecision-v3を次候補とする。食・掩蔽の任意時刻samplerは
+現象フェーズの計画で別に管理する。
 
 ## 精度tier
 

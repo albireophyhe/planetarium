@@ -15,7 +15,9 @@ import {
 import {
   type KeyboardEvent,
   type ReactNode,
+  useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -57,6 +59,7 @@ export type EventExplorerProps = {
   emptyMessage?: string;
   emptyTitle?: string;
   canRestoreObservationTime?: boolean;
+  observationDate?: Date | null;
   onSelectEvent: (eventId: string) => void;
   onRetry: () => void;
   onGoToMaximum: (contact: EventContact) => void;
@@ -88,6 +91,34 @@ const CONTACT_LABELS: Record<EventContactPhase, string> = {
   "occultation-disappearance": "潜入",
   "occultation-reappearance": "出現",
 };
+
+type CalculatedEventPhase = {
+  readonly id: string;
+  readonly sample: EventContact;
+};
+
+function eventPhaseId(contact: EventContact) {
+  return `${contact.phase}:${contact.instantUtc.getTime()}`;
+}
+
+function calculatedEventPhases(
+  circumstances: LocalCircumstances,
+): readonly CalculatedEventPhase[] {
+  const uniquePhases = new Map<string, EventContact>();
+  for (const contact of [
+    ...circumstances.contacts,
+    circumstances.maximum,
+  ]) {
+    uniquePhases.set(eventPhaseId(contact), contact);
+  }
+  return [...uniquePhases.entries()]
+    .map(([id, sample]) => ({ id, sample }))
+    .sort(
+      (left, right) =>
+        left.sample.instantUtc.getTime() -
+        right.sample.instantUtc.getTime(),
+    );
+}
 
 function dateTimeParts(date: Date, timeZone: string) {
   const formatter = new Intl.DateTimeFormat("ja-JP-u-ca-gregory", {
@@ -261,12 +292,7 @@ function boundaryUncertaintyMessage(
 function usesClosestApproachLabel(
   circumstances: LocalCircumstances,
 ): boolean {
-  return (
-    circumstances.event.kind === "lunar-occultation" ||
-    isOccurrenceUncertain(
-      circumstances.boundaryUncertaintyReason,
-    )
-  );
+  return circumstances.event.kind === "lunar-occultation";
 }
 
 function contactLabel(
@@ -585,7 +611,9 @@ function ContactTable({
       ) : null}
       <table className="event-contact-table">
         <caption>
-          {occurrenceUncertain ? "最接近時刻" : "接触時刻"}
+          {occurrenceUncertain
+            ? `${contactLabel(circumstances, "maximum")}時刻`
+            : "接触時刻"}
         </caption>
         <thead>
           <tr>
@@ -684,21 +712,54 @@ function ContactTable({
 function EventDetails({
   canRestoreObservationTime,
   circumstances,
+  observationDate,
   onGoToContact,
   onGoToMaximum,
   onRestoreObservationTime,
 }: {
   canRestoreObservationTime: boolean;
   circumstances: LocalCircumstances;
+  observationDate: Date | null;
   onGoToContact: (contact: EventContact) => void;
   onGoToMaximum: (contact: EventContact) => void;
   onRestoreObservationTime: () => void;
 }) {
   const titleId = useId();
   const safetyTitleId = useId();
+  const scenePhaseSelectId = useId();
   const maximumActionRef = useRef<HTMLButtonElement>(null);
-  const [sceneSample, setSceneSample] =
-    useState<EventContact | null>(null);
+  const calculatedPhases = useMemo(
+    () => calculatedEventPhases(circumstances),
+    [circumstances],
+  );
+  const maximumPhaseId = eventPhaseId(circumstances.maximum);
+  const observationDateMilliseconds =
+    observationDate?.getTime() ?? null;
+  const matchingObservationPhaseId = useMemo(
+    () =>
+      calculatedPhases.find(
+        ({ sample }) =>
+          sample.instantUtc.getTime() ===
+          observationDateMilliseconds,
+      )?.id ?? null,
+    [calculatedPhases, observationDateMilliseconds],
+  );
+  const [scenePhaseId, setScenePhaseId] = useState(
+    matchingObservationPhaseId ?? maximumPhaseId,
+  );
+  useEffect(() => {
+    if (matchingObservationPhaseId === null) {
+      return;
+    }
+    // Synchronize the user-selectable scene only when sky time lands exactly
+    // on a solved phase; arbitrary playback ticks must preserve the choice.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setScenePhaseId((currentPhaseId) =>
+      currentPhaseId === matchingObservationPhaseId
+        ? currentPhaseId
+        : matchingObservationPhaseId,
+    );
+  }, [matchingObservationPhaseId]);
   const [actionAnnouncement, setActionAnnouncement] = useState<{
     id: number;
     text: string;
@@ -726,6 +787,13 @@ function EventDetails({
     ? "最接近"
     : "最大";
   const localTimeZone = observer.timeZone;
+  const scenePhase =
+    calculatedPhases.find(({ id }) => id === scenePhaseId) ??
+    calculatedPhases.find(({ id }) => id === maximumPhaseId) ??
+    calculatedPhases[0];
+  const sceneSample = scenePhase?.sample ?? circumstances.maximum;
+  const sceneMatchesObservationDate =
+    observationDate?.getTime() === sceneSample.instantUtc.getTime();
   const maximumPosition = primaryBodyPosition(
     circumstances,
     circumstances.maximum,
@@ -737,13 +805,12 @@ function EventDetails({
     }));
   };
   const showContactOnSky = (contact: EventContact) => {
-    setSceneSample(contact);
+    setScenePhaseId(eventPhaseId(contact));
     onGoToContact(contact);
     announceAction(
       `観測日時を${formatDateTime(contact.instantUtc, localTimeZone)}に変更しました。元の日時に戻せます。`,
     );
   };
-
   return (
     <section
       aria-labelledby={titleId}
@@ -860,16 +927,60 @@ function EventDetails({
         ) : null}
       </dl>
 
-      <EventScene
-        circumstances={circumstances}
-        sample={sceneSample}
-      />
+      <div className="event-scene-timeline">
+        <div className="event-scene-timeline__control">
+          <label htmlFor={scenePhaseSelectId}>
+            相対配置の計算済み時刻
+          </label>
+          <select
+            id={scenePhaseSelectId}
+            onChange={(changeEvent) =>
+              setScenePhaseId(changeEvent.target.value)
+            }
+            value={scenePhase?.id ?? maximumPhaseId}
+          >
+            {calculatedPhases.map(({ id, sample }) => (
+              <option key={id} value={id}>
+                {contactLabel(circumstances, sample.phase)} ·{" "}
+                {formatDateTime(sample.instantUtc, localTimeZone)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="event-scene-timeline__scope">
+          接触・{maximumLabel}
+          として解いた時刻だけを切り替える静止図です。
+          時刻間の配置は補間していません。
+        </p>
+        <p
+          className={`event-scene-timeline__sync ${
+            sceneMatchesObservationDate
+              ? "event-scene-timeline__sync--matched"
+              : ""
+          }`}
+          role="status"
+        >
+          {sceneMatchesObservationDate
+            ? "この静止図は星図と同じ時刻です。"
+            : "この図は計算済み時刻の静止図です。現在の星図時刻とは別です。"}
+        </p>
+        <button
+          className="event-action event-action--secondary"
+          onClick={() => showContactOnSky(sceneSample)}
+          type="button"
+        >
+          <Clock3Icon aria-hidden="true" size={17} strokeWidth={1.8} />
+          選択時刻を空に表示
+        </button>
+      </div>
+
+      <EventScene circumstances={circumstances} sample={sceneSample} />
 
       <div className="event-details__primary-actions">
         <button
           className="event-action event-action--primary"
           onClick={() => {
-            setSceneSample(null);
+            setScenePhaseId(maximumPhaseId);
             onGoToMaximum(circumstances.maximum);
             announceAction(
               `観測日時を${formatDateTime(circumstances.maximum.instantUtc, localTimeZone)}に変更しました。元の日時に戻せます。`,
@@ -885,7 +996,7 @@ function EventDetails({
           <button
             className="event-action event-action--secondary"
             onClick={() => {
-              setSceneSample(null);
+              setScenePhaseId(maximumPhaseId);
               onRestoreObservationTime();
               announceAction("元の観測日時に戻しました。");
               maximumActionRef.current?.focus();
@@ -1148,6 +1259,7 @@ export function EventExplorer({
   onRestoreObservationTime,
   onRetry,
   onSelectEvent,
+  observationDate = null,
   selectedCircumstances,
   selectedEventId,
   status,
@@ -1252,6 +1364,7 @@ export function EventExplorer({
               canRestoreObservationTime={canRestoreObservationTime}
               circumstances={selectedCircumstances}
               key={selectedCircumstances.event.id}
+              observationDate={observationDate}
               onGoToContact={onGoToContact}
               onGoToMaximum={onGoToMaximum}
               onRestoreObservationTime={onRestoreObservationTime}

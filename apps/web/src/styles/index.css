@@ -132,6 +132,7 @@
   --focus: #8bc8ff;
   --danger: #ff8989;
   --success: #91d5b2;
+  --warning-text: #ffd27a;
   --control-height: 42px;
 }
 
@@ -245,6 +246,7 @@ button:disabled {
   --accent-strong: #a92822;
   --focus: #f08077;
   --star: #f18b83;
+  --warning-text: #f3b2aa;
   background: #030000;
 }
 
@@ -1192,6 +1194,40 @@ button:disabled {
   font-weight: 600;
 }
 
+.star-details__pointing-context {
+  background: rgba(20, 126, 232, 0.08);
+  border: 1px solid rgba(126, 174, 255, 0.24);
+  border-radius: 8px;
+  margin: 0 0 13px;
+  padding: 10px;
+}
+
+.star-details__pointing-context > strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 7px;
+}
+
+.star-details__pointing-context dl {
+  display: grid;
+  gap: 7px 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.star-details__pointing-context dd {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.star-details__pointing-context small {
+  color: var(--text-muted);
+  display: block;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  margin-top: 2px;
+}
+
 .star-details__metrics {
   border-bottom: 1px solid var(--line);
   border-top: 1px solid var(--line);
@@ -1262,7 +1298,7 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 12px;
-  margin: 0 2px 12px;
+  margin: 10px 0 0;
 }
 
 .star-details__pointing-copy .button {

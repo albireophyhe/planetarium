@@ -333,6 +333,36 @@ final class SkyStore {
         )
     }
 
+    /// Stops a moving sky before capturing the exact date and its matching
+    /// pointing payload. The returned payload and timestamp therefore always
+    /// describe the same immutable frame.
+    func captureSelectedStarPointingSnapshot()
+        -> StarPointingSnapshot?
+    {
+        let didPausePlayback =
+            StarPointingSnapshotCapturePolicy
+            .pausePlaybackIfNeeded(
+                isPlaybackPlaying:
+                    isPlaybackPlaying
+            ) {
+                pausePlayback()
+            }
+
+        let frozenDate = observationDate
+        guard let payload = selectedStarPointingPayload
+        else {
+            return nil
+        }
+        return StarPointingSnapshot(
+            observationDate: frozenDate,
+            utcTimestamp:
+                StarPointingPayloadFormatter
+                .utcTimestamp(frozenDate),
+            payload: payload,
+            didPausePlayback: didPausePlayback
+        )
+    }
+
     var selectedStarTrajectoryIsTruncated: Bool {
         guard showSelectedStarTrajectory,
               let first = selectedStarTrajectory.first,
@@ -763,6 +793,57 @@ final class SkyStore {
             observationDate,
             timeZoneIdentifier: location.timeZoneIdentifier
         )
+    }
+
+    var pointingUTCTimestamp: String {
+        StarPointingPayloadFormatter
+            .utcTimestamp(observationDate)
+    }
+
+    var pointingLocalTimestamp: String {
+        SkyFormatting.preciseDateTime(
+            observationDate,
+            timeZoneIdentifier:
+                location.timeZoneIdentifier
+        )
+    }
+
+    var pointingLocationDescription: String {
+        let latitude =
+            AstronomicalFormatting.decimal(
+                location.latitude,
+                fractionDigits: 6
+            )
+        let longitude =
+            AstronomicalFormatting.decimal(
+                location.longitude,
+                fractionDigits: 6
+            )
+        let height =
+            AstronomicalFormatting.decimal(
+                location.heightMeters,
+                fractionDigits: 2
+            )
+        let accuracy =
+            location.horizontalAccuracyMeters
+            .map {
+                " · 水平精度 ±"
+                    + AstronomicalFormatting.decimal(
+                        $0,
+                        fractionDigits: 0
+                    )
+                    + " m"
+            }
+            ?? ""
+        return location.name
+            + " · 緯度 "
+            + latitude
+            + "° · 経度 "
+            + longitude
+            + "° · WGS84楕円体高 "
+            + height
+            + " m"
+            + accuracy
     }
 
     var timeZoneText: String {
@@ -1318,7 +1399,7 @@ final class SkyStore {
             + polarMotionKind
     }
 
-    private var pointingRefractionDescription: String {
+    var pointingRefractionDescription: String {
         useStandardAtmosphericRefraction
             ? "標準大気モデル（真空幾何高度5°以上で適用）"
             : "なし（観測座標は真空幾何座標と同値）"

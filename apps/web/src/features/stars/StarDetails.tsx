@@ -16,12 +16,15 @@ import {
   formatRightAscension,
   formatSignedDegrees,
 } from "../../app/astronomicalFormatting";
+import { formatZonedDateTimeInput } from "../../domain";
 import { buildStarPointingPayload } from "./starPointingPayload";
 
 type StarDetailsProps = {
   earthOrientationEstimate?: IersEarthOrientationEstimateV1 | null;
+  isPlaybackPlaying?: boolean;
   location?: ObserverLocation | null;
   observationDate?: Date | null;
+  onPausePlayback?: () => void;
   star: StarViewModel | null;
   timeScales?: ResolvedTimeScales | null;
 };
@@ -67,6 +70,25 @@ function refractionLabel(star: StarViewModel) {
     case null:
       return "簡易モデルの幾何高度";
   }
+}
+
+function locationSourceLabel(
+  source: ObserverLocation["locationSource"],
+) {
+  switch (source) {
+    case "bundled-city":
+      return "収録都市";
+    case "manual":
+      return "手動入力";
+    case "device-geolocation":
+      return "端末の位置情報";
+  }
+}
+
+function locationAccuracyLabel(location: ObserverLocation) {
+  return location.horizontalAccuracyMeters === null
+    ? "水平精度は未指定"
+    : `水平精度 ±${location.horizontalAccuracyMeters.toFixed(0)} m`;
 }
 
 function annualParallaxLabel(star: StarViewModel) {
@@ -200,19 +222,85 @@ function positionAccuracySummary(
   return "IERS収録外または未取得です。DUT1=0秒・xp/yp=0近似を使います。時角の最大約13.5秒角は、現行の整数うるう秒UTCを前提にしたDUT1だけの条件付き目安です。xp/yp=0による方向差も、同梱履歴では最大約0.6秒角です。1972年以前はTAI−UTC=0秒、将来は既知最後の37秒を仮定するUTC近似を含みます。地点・時計の誤差や、大気差ON時の表示高度は別です。";
 }
 
+type StarPointingSnapshot = {
+  earthOrientationEstimate: IersEarthOrientationEstimateV1 | null;
+  location: ObserverLocation;
+  observationDate: Date;
+  star: StarViewModel;
+  timeScales: ResolvedTimeScales | null;
+};
+
+function canonicalSnapshotValue(value: unknown): unknown {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  if (Array.isArray(value)) {
+    return value.map(canonicalSnapshotValue);
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nestedValue]) => [
+          key,
+          canonicalSnapshotValue(nestedValue),
+        ]),
+    );
+  }
+  return value;
+}
+
+function starPointingSnapshotSignature(
+  snapshot: StarPointingSnapshot,
+): string {
+  return JSON.stringify(
+    canonicalSnapshotValue({
+      atmosphere: {
+        altitudeDeg: snapshot.star.altitudeDeg,
+        geometricAltitudeDeg:
+          snapshot.star.geometricAltitudeDeg,
+        refractionMode: snapshot.star.refractionMode,
+      },
+      earthOrientationEstimate:
+        snapshot.earthOrientationEstimate,
+      location: snapshot.location,
+      observationDateUtc: snapshot.observationDate.toISOString(),
+      star: snapshot.star,
+      timeScales: snapshot.timeScales,
+    }),
+  );
+}
+
 export function StarDetails({
   earthOrientationEstimate = null,
+  isPlaybackPlaying = false,
   location = null,
   observationDate = null,
+  onPausePlayback,
   star,
   timeScales = null,
 }: StarDetailsProps) {
   const [copyResult, setCopyResult] = useState<{
-    hr: number;
+    pausedPlayback: boolean;
+    signature: string;
     status: "copied" | "error";
+    utc: string;
   } | null>(null);
-  const copyStatus =
-    star && copyResult?.hr === star.hr ? copyResult.status : null;
+  const currentSnapshotSignature =
+    star && observationDate && location
+      ? starPointingSnapshotSignature({
+          earthOrientationEstimate,
+          location,
+          observationDate,
+          star,
+          timeScales,
+        })
+      : null;
+  const currentCopyResult =
+    currentSnapshotSignature &&
+    copyResult?.signature === currentSnapshotSignature
+      ? copyResult
+      : null;
 
   if (!star) {
     return (
@@ -221,6 +309,61 @@ export function StarDetails({
       </section>
     );
   }
+
+  const copyPointingSnapshot =
+    observationDate && location
+      ? async () => {
+          const snapshot = {
+            earthOrientationEstimate: earthOrientationEstimate
+              ? {
+                  dut1: { ...earthOrientationEstimate.dut1 },
+                  polarMotion: {
+                    ...earthOrientationEstimate.polarMotion,
+                  },
+                }
+              : null,
+            location: { ...location },
+            observationDate: new Date(observationDate.getTime()),
+            star: { ...star, aliases: [...star.aliases] },
+            timeScales: timeScales
+              ? {
+                  ...timeScales,
+                  warnings: [...timeScales.warnings],
+                }
+              : null,
+          } satisfies StarPointingSnapshot;
+          const signature =
+            starPointingSnapshotSignature(snapshot);
+          const pausedPlayback =
+            isPlaybackPlaying && onPausePlayback !== undefined;
+          if (pausedPlayback) {
+            onPausePlayback();
+          }
+          const payload = buildStarPointingPayload({
+            ...snapshot,
+          });
+          const utc = snapshot.observationDate.toISOString();
+          try {
+            if (!navigator.clipboard?.writeText) {
+              throw new Error("Clipboard API is unavailable");
+            }
+            await navigator.clipboard.writeText(payload);
+            setCopyResult({
+              pausedPlayback,
+              signature,
+              status: "copied",
+              utc,
+            });
+          } catch {
+            setCopyResult({
+              pausedPlayback,
+              signature,
+              status: "error",
+              utc,
+            });
+          }
+        }
+      : null;
 
   return (
     <section
@@ -243,6 +386,71 @@ export function StarDetails({
           timeScales,
         )}
       </p>
+
+      {observationDate && location ? (
+        <aside
+          aria-label="導入条件"
+          className="star-details__pointing-context"
+        >
+          <strong>導入条件</strong>
+          <dl>
+            <div>
+              <dt>UTC</dt>
+              <dd>{observationDate.toISOString()}</dd>
+            </div>
+            <div>
+              <dt>現地時刻</dt>
+              <dd>
+                {formatZonedDateTimeInput(
+                  observationDate,
+                  location.timeZone,
+                ).replace("T", " ")}
+                <small>{location.timeZone}</small>
+              </dd>
+            </div>
+            <div>
+              <dt>観測地点</dt>
+              <dd>
+                {location.name}・緯度 {location.latitude.toFixed(6)}°・経度{" "}
+                {location.longitude.toFixed(6)}°・楕円体高{" "}
+                {location.heightMeters.toFixed(1)} m
+                <small>
+                  {locationSourceLabel(location.locationSource)}・
+                  {locationAccuracyLabel(location)}
+                </small>
+              </dd>
+            </div>
+            <div>
+              <dt>大気差</dt>
+              <dd>{refractionLabel(star)}</dd>
+            </div>
+          </dl>
+          <div className="star-details__pointing-copy">
+            <button
+              className="button button--secondary"
+              onClick={copyPointingSnapshot ?? undefined}
+              type="button"
+            >
+              導入用データをコピー
+            </button>
+            <span aria-atomic="true" aria-live="polite" role="status">
+              {currentCopyResult?.status === "copied"
+                ? `${
+                    currentCopyResult.pausedPlayback
+                      ? "時刻を停止し、"
+                      : ""
+                  }UTC ${currentCopyResult.utc} 時点の座標をコピーしました`
+                : currentCopyResult?.status === "error"
+                  ? `${
+                      currentCopyResult.pausedPlayback
+                        ? "時刻を停止しましたが、"
+                        : ""
+                    }UTC ${currentCopyResult.utc} 時点の座標をコピーできませんでした`
+                  : ""}
+            </span>
+          </div>
+        </aside>
+      ) : null}
 
       <dl className="star-details__metrics">
         <div>
@@ -280,47 +488,6 @@ export function StarDetails({
           上の概要は0.001°、以下の精密読み出しは0.000001°単位です。
           桁数は計算条件の転記・比較用であり、実測精度の保証ではありません。
         </p>
-        {observationDate && location ? (
-          <div className="star-details__pointing-copy">
-            <button
-              className="button button--secondary"
-              onClick={async () => {
-                const payload = buildStarPointingPayload({
-                  earthOrientationEstimate,
-                  location,
-                  observationDate,
-                  star,
-                  timeScales,
-                });
-                try {
-                  if (!navigator.clipboard?.writeText) {
-                    throw new Error("Clipboard API is unavailable");
-                  }
-                  await navigator.clipboard.writeText(payload);
-                  setCopyResult({
-                    hr: star.hr,
-                    status: "copied",
-                  });
-                } catch {
-                  setCopyResult({
-                    hr: star.hr,
-                    status: "error",
-                  });
-                }
-              }}
-              type="button"
-            >
-              導入用データをコピー
-            </button>
-            <span aria-live="polite" role="status">
-              {copyStatus === "copied"
-                ? "コピーしました"
-                : copyStatus === "error"
-                  ? "コピーできませんでした"
-                  : ""}
-            </span>
-          </div>
-        ) : null}
         <dl className="star-details__secondary">
           {star.apparentRaRad !== null ? (
             <div>

@@ -52,6 +52,32 @@ function horizontalLine(
   return `高度 ${formatSignedDegrees(altitudeDeg, 6)} / 方位 ${azimuth}`;
 }
 
+function locationSourceLabel(
+  source: ObserverLocation["locationSource"],
+) {
+  switch (source) {
+    case "bundled-city":
+      return "収録都市";
+    case "manual":
+      return "手動入力";
+    case "device-geolocation":
+      return "端末の位置情報";
+  }
+}
+
+function refractionLabel(star: StarViewModel) {
+  switch (star.refractionMode) {
+    case "applied":
+      return "標準大気差を適用";
+    case "below-model-altitude":
+      return "幾何高度（標準大気差の適用域外）";
+    case "disabled":
+      return "幾何高度（大気差なし）";
+    case null:
+      return "簡易モデルの幾何高度";
+  }
+}
+
 export function buildStarPointingPayload({
   earthOrientationEstimate,
   location,
@@ -88,6 +114,12 @@ export function buildStarPointingPayload({
     )}° / 経度 ${location.longitude.toFixed(
       6,
     )}° / WGS84楕円体高 ${location.heightMeters.toFixed(1)} m`,
+    `地点由来: ${locationSourceLabel(location.locationSource)} / ${
+      location.horizontalAccuracyMeters === null
+        ? "水平精度は未指定"
+        : `水平精度 ±${location.horizontalAccuracyMeters.toFixed(0)} m`
+    }`,
+    `大気差: ${refractionLabel(star)}`,
     `見かけ赤経・赤緯（観測日）: ${apparent}`,
     `幾何高度・方位（真空）: ${horizontalLine(
       star.geometricAltitudeDeg,

@@ -1134,8 +1134,10 @@ export function App() {
                 />
                 <StarDetails
                   earthOrientationEstimate={currentEarthOrientationEstimate}
+                  isPlaybackPlaying={playback.isPlaying}
                   location={location}
                   observationDate={date}
+                  onPausePlayback={playback.pause}
                   star={selectedStar}
                   timeScales={precisionFrame?.context.timeScales ?? null}
                 />

@@ -2,14 +2,17 @@ import AppKit
 import PlanetariumCore
 import SwiftUI
 
-/// A maximum/closest-approach diagram for one local event forecast.
+/// A solved-contact diagram for one local event forecast.
 ///
 /// The view deliberately has no playback animation. Besides keeping the
 /// inspector lightweight, a static diagram remains usable when Reduce Motion
-/// is enabled and avoids implying temporal precision that a single maximum
-/// sample cannot provide.
+/// is enabled and avoids inventing positions between solver samples.
 struct EventSceneView: View {
     let item: EventForecastItem
+    let observationDate: Date
+    let onShowOnSky: (Date, String) -> Void
+
+    @State private var selectedMomentID: String?
 
     @Environment(\.accessibilityDifferentiateWithoutColor)
     private var differentiateWithoutColor
@@ -21,12 +24,81 @@ struct EventSceneView: View {
     private var colorSchemeContrast
 
     var body: some View {
-        let scene = EventScenePresentation(item: item)
+        let moments =
+            EventSceneTimeline.moments(for: item)
+        let selectedMoment =
+            resolvedMoment(in: moments)
 
-        VStack(alignment: .leading, spacing: 10) {
+        Group {
+            if let selectedMoment {
+                sceneContent(
+                    moment: selectedMoment,
+                    moments: moments
+                )
+            } else {
+                ContentUnavailableView(
+                    "相対配置データなし",
+                    systemImage:
+                        "exclamationmark.triangle",
+                    description:
+                        Text(
+                            "計算済みの"
+                                + momentKindsDescription
+                                + "データがありません。"
+                        )
+                )
+            }
+        }
+        .onAppear {
+            selectMatchingOrDefault(in: moments)
+        }
+        .onChange(of: item.id) {
+            selectedMomentID = nil
+            selectMatchingOrDefault(
+                in:
+                    EventSceneTimeline
+                    .moments(for: item)
+            )
+        }
+        .onChange(of: observationDate) {
+            synchronizeWithSkyDate(
+                moments:
+                    EventSceneTimeline
+                    .moments(for: item)
+            )
+        }
+        // No animation is introduced by this view. This also prevents a
+        // parent inspector transition from animating the scientific diagram
+        // when the system Reduce Motion preference is active.
+        .transaction { transaction in
+            if reduceMotion {
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
+        }
+    }
+
+    private func sceneContent(
+        moment: EventSceneTimelineMoment,
+        moments: [EventSceneTimelineMoment]
+    ) -> some View {
+        let scene =
+            EventScenePresentation(
+                item: item,
+                moment: moment
+            )
+        let matchesSky =
+            EventSceneTimeline
+            .matchingMoment(
+                observationDate:
+                    observationDate,
+                in: [moment]
+            ) != nil
+
+        return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 Label(
-                    "最大時の相対配置",
+                    moment.label + "の相対配置",
                     systemImage: scene.systemImage
                 )
                 .font(SkyTypography.heading)
@@ -43,6 +115,79 @@ struct EventSceneView: View {
                         in: Capsule()
                     )
             }
+
+            Picker(
+                "相対配置の計算済み時刻",
+                selection:
+                    momentSelection(
+                        moments: moments
+                    )
+            ) {
+                ForEach(moments) { candidate in
+                    Text(
+                        candidate.label
+                            + " · "
+                            + EventForecastFormatting
+                            .shortDateTime(
+                                candidate.instantUTC,
+                                timeZoneIdentifier:
+                                    item.observer
+                                    .location
+                                    .timeZoneIdentifier
+                            )
+                    )
+                    .tag(candidate.id)
+                }
+            }
+            .pickerStyle(.menu)
+            .accessibilityHint(
+                momentKindsDescription
+                    + "の計算済み静止図を選びます。星図の観測時刻は変わりません"
+            )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(
+                    "現地："
+                        + EventForecastFormatting
+                        .dateTime(
+                            moment.instantUTC,
+                            timeZoneIdentifier:
+                                item.observer
+                                .location
+                                .timeZoneIdentifier
+                        )
+                )
+                Text(
+                    "UTC："
+                        + EventForecastFormatting
+                        .utcDateTime(
+                            moment.instantUTC
+                        )
+                )
+                .foregroundStyle(.secondary)
+            }
+            .font(SkyTypography.dataCaption)
+            .accessibilityElement(children: .combine)
+
+            Label(
+                matchesSky
+                    ? "星図と同じ時刻です。"
+                    : "計算済み時刻の静止図です。現在の星図時刻とは別です。",
+                systemImage:
+                    matchesSky
+                    ? "checkmark.circle"
+                    : "clock.badge.exclamationmark"
+            )
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(
+                matchesSky
+                    ? Color.secondary
+                    : Color.orange
+            )
+            .fixedSize(
+                horizontal: false,
+                vertical: true
+            )
 
             ZStack(alignment: .topLeading) {
                 Canvas(
@@ -105,7 +250,7 @@ struct EventSceneView: View {
                 children: .ignore
             )
             .accessibilityLabel(
-                "最大時の相対配置"
+                moment.label + "の相対配置"
             )
             .accessibilityValue(
                 scene.accessibilitySummary
@@ -135,15 +280,113 @@ struct EventSceneView: View {
                 horizontal: false,
                 vertical: true
             )
-        }
-        // No animation is introduced by this view. This also prevents a
-        // parent inspector transition from animating the scientific diagram
-        // when the system Reduce Motion preference is active.
-        .transaction { transaction in
-            if reduceMotion {
-                transaction.animation = nil
-                transaction.disablesAnimations = true
+
+            Button {
+                onShowOnSky(
+                    moment.instantUTC,
+                    moment.label + "を空に表示"
+                )
+            } label: {
+                Label(
+                    "この時刻を空に表示",
+                    systemImage:
+                        "clock.arrow.circlepath"
+                )
             }
+            .buttonStyle(.bordered)
+            .accessibilityHint(
+                "時間再生を停止し、星図の観測時刻をこの計算済み時刻へ変更します"
+            )
+
+            Text(
+                momentKindsDescription
+                    + "のソルバー計算結果だけを切り替える静止図です。時刻間の画面座標は補間していません。"
+            )
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(
+                horizontal: false,
+                vertical: true
+            )
+        }
+    }
+
+    private func momentSelection(
+        moments: [EventSceneTimelineMoment]
+    ) -> Binding<String> {
+        Binding(
+            get: {
+                resolvedMoment(in: moments)?.id
+                    ?? ""
+            },
+            set: {
+                selectedMomentID = $0
+            }
+        )
+    }
+
+    private func resolvedMoment(
+        in moments: [EventSceneTimelineMoment]
+    ) -> EventSceneTimelineMoment? {
+        if let selectedMomentID,
+           let selected =
+            moments.first(
+                where: {
+                    $0.id == selectedMomentID
+                }
+            )
+        {
+            return selected
+        }
+        return EventSceneTimeline
+            .matchingMoment(
+                observationDate:
+                    observationDate,
+                in: moments
+            )
+            ?? EventSceneTimeline
+            .defaultMoment(in: moments)
+    }
+
+    private func selectMatchingOrDefault(
+        in moments: [EventSceneTimelineMoment]
+    ) {
+        selectedMomentID =
+            EventSceneTimeline
+            .matchingMoment(
+                observationDate:
+                    observationDate,
+                in: moments
+            )?
+            .id
+            ?? EventSceneTimeline
+            .defaultMoment(in: moments)?
+            .id
+    }
+
+    private func synchronizeWithSkyDate(
+        moments: [EventSceneTimelineMoment]
+    ) {
+        guard
+            let matching =
+                EventSceneTimeline
+                .matchingMoment(
+                    observationDate:
+                        observationDate,
+                    in: moments
+                )
+        else {
+            return
+        }
+        selectedMomentID = matching.id
+    }
+
+    private var momentKindsDescription: String {
+        switch item {
+        case .eclipse:
+            "接触・最大"
+        case .occultation:
+            "接触・最接近"
         }
     }
 
@@ -609,8 +852,7 @@ struct EventSceneView: View {
 
         drawStarDirection(
             at: starCenter,
-            hiddenByMoon:
-                scene.targetIsBehindMeanLimb,
+            targetState: scene.targetState,
             in: &context
         )
         drawLabel(
@@ -623,9 +865,7 @@ struct EventSceneView: View {
             in: &context
         )
         drawLabel(
-            scene.targetIsBehindMeanLimb
-                ? "恒星方向"
-                : "恒星",
+            scene.targetState.canvasLabel,
             at: CGPoint(
                 x: starCenter.x,
                 y: starCenter.y - 14
@@ -737,7 +977,8 @@ struct EventSceneView: View {
 
     private func drawStarDirection(
         at center: CGPoint,
-        hiddenByMoon: Bool,
+        targetState:
+            OccultationSceneTargetState,
         in context: inout GraphicsContext
     ) {
         let radius: CGFloat =
@@ -799,10 +1040,7 @@ struct EventSceneView: View {
                 lineWidth:
                     increasedContrast ? 2.4 : 1.7,
                 lineCap: .round,
-                dash:
-                    hiddenByMoon
-                    ? [2, 2]
-                    : []
+                dash: targetState.markerDash
             )
         )
         context.fill(
@@ -1014,7 +1252,8 @@ private struct LunarEclipseEventScene {
 private struct OccultationEventScene {
     let moonRadius: Double
     let targetOffset: EventSceneTangentOffsetV1
-    let targetIsBehindMeanLimb: Bool
+    let targetState:
+        OccultationSceneTargetState
 }
 
 private struct EventScenePresentation {
@@ -1052,27 +1291,59 @@ private struct EventScenePresentation {
         self.isSchematic = isSchematic
     }
 
-    init(item: EventForecastItem) {
-        switch item {
-        case let .eclipse(forecast):
+    init(
+        item: EventForecastItem,
+        moment: EventSceneTimelineMoment
+    ) {
+        switch (item, moment.sample) {
+        case let (
+            .eclipse(forecast),
+            .eclipse(contact)
+        ):
             if forecast.candidate.kind
                 == .solarEclipse
             {
-                self = Self.solar(forecast)
+                self = Self.solar(
+                    contact,
+                    phaseLabel: moment.label
+                )
             } else {
-                self = Self.lunar(forecast)
+                self = Self.lunar(
+                    forecast,
+                    contact: contact,
+                    phaseLabel: moment.label,
+                    isMaximum:
+                        moment.isMaximum
+                )
             }
-        case let .occultation(forecast):
-            self = Self.occultation(forecast)
+        case let (
+            .occultation(forecast),
+            .occultation(contact)
+        ):
+            self = Self.occultation(
+                forecast,
+                contact: contact,
+                phaseLabel: moment.label
+            )
+        default:
+            self = Self.unavailable(
+                systemImage:
+                    item.candidate.kind
+                    == .solarEclipse
+                    ? "sun.max"
+                    : "moon.stars",
+                phaseLabel: moment.label
+            )
         }
     }
 
     private static func solar(
-        _ forecast: LocalEclipseCircumstancesV1
+        _ contact: EclipseContactV1,
+        phaseLabel: String
     ) -> Self {
         guard
-            let sun = forecast.maximum.sun,
-            let moon = forecast.maximum.moon,
+            let sun = contact.sun,
+            let moon = contact.moon,
             validRadius(sun.angularRadiusRadians),
             validRadius(moon.angularRadiusRadians),
             let offset =
@@ -1083,7 +1354,8 @@ private struct EventScenePresentation {
                 )
         else {
             return unavailable(
-                systemImage: "sun.max"
+                systemImage: "sun.max",
+                phaseLabel: phaseLabel
             )
         }
 
@@ -1092,7 +1364,7 @@ private struct EventScenePresentation {
                 offset.separationRadians
             )
         let summary =
-            "日食の最大時です。"
+            "日食の\(phaseLabel)です。"
             + "太陽と月の中心間隔は\(separation)。"
             + "月中心は太陽中心から"
             + EventSceneFormatting
@@ -1128,7 +1400,7 @@ private struct EventScenePresentation {
             legend:
                 "黄色：太陽　輪郭円：月",
             explanation:
-                "最大時の地平座標と角半径を同じ角尺度で投影しています。月縁は平均球面で、月面地形やベイリービーズは再現しません。",
+                "\(phaseLabel)の計算済み地平座標と角半径を同じ角尺度で投影しています。月縁は平均球面で、月面地形やベイリービーズは再現しません。",
             accessibilitySummary: summary,
             accessibilityHint:
                 "太陽と月の円は同じ角尺度です。",
@@ -1137,14 +1409,28 @@ private struct EventScenePresentation {
     }
 
     private static func lunar(
-        _ forecast: LocalEclipseCircumstancesV1
+        _ forecast: LocalEclipseCircumstancesV1,
+        contact: EclipseContactV1,
+        phaseLabel: String,
+        isMaximum: Bool
     ) -> Self {
         guard
-            let moon = forecast.maximum.moon,
+            let moon = contact.moon,
             validRadius(moon.angularRadiusRadians)
         else {
             return unavailable(
-                systemImage: "moon.stars"
+                systemImage: "moon.stars",
+                phaseLabel: phaseLabel
+            )
+        }
+
+        guard
+            contact.lunarShadow != nil
+            || isMaximum
+        else {
+            return unavailable(
+                systemImage: "moon.stars",
+                phaseLabel: phaseLabel
             )
         }
 
@@ -1154,8 +1440,7 @@ private struct EventScenePresentation {
                 moonAngularRadiusRadians:
                     moon.angularRadiusRadians,
                 shadow:
-                    forecast.maximum
-                    .lunarShadow,
+                    contact.lunarShadow,
                 magnitude: forecast.magnitude,
                 usesPenumbralMagnitude:
                     forecast.classification
@@ -1163,13 +1448,14 @@ private struct EventScenePresentation {
             )
         else {
             return unavailable(
-                systemImage: "moon.stars"
+                systemImage: "moon.stars",
+                phaseLabel: phaseLabel
             )
         }
 
         if layout.source == .physical,
            let shadow =
-            forecast.maximum.lunarShadow
+            contact.lunarShadow
         {
             let shadowFromMoon =
                 EventSceneTangentOffsetV1(
@@ -1194,7 +1480,7 @@ private struct EventScenePresentation {
                         .orientationIsDefined
                 )
             let summary =
-                "月食の最大時です。"
+                "月食の\(phaseLabel)です。"
                 + "月と地球影の中心間隔は"
                 + EventSceneFormatting
                     .angle(
@@ -1257,8 +1543,8 @@ private struct EventScenePresentation {
                     "破線：半影　内側の円：本影　明るい円：月",
                 explanation:
                     layout.orientationIsDefined
-                    ? "Danjon法（影半径1.01倍）の計算結果を同じ角尺度で投影しています。色と明暗は識別用で、肉眼で見える月面輝度の再現ではありません。"
-                    : "影と月の角半径・中心間隔は計算値です。中心位置角を定義できないため、向きだけを概略表示しています。",
+                    ? "\(phaseLabel)のDanjon法（影半径1.01倍）の計算結果を同じ角尺度で投影しています。色と明暗は識別用で、肉眼で見える月面輝度の再現ではありません。"
+                    : "\(phaseLabel)の影と月の角半径・中心間隔は計算値です。中心位置角を定義できないため、向きだけを概略表示しています。",
                 accessibilitySummary: summary,
                 accessibilityHint:
                     "半影、本影、月の円は同じ角尺度です。",
@@ -1285,9 +1571,9 @@ private struct EventScenePresentation {
             legend:
                 "破線：半影　内側の円：本影　明るい円：月",
             explanation:
-                "この結果には地球影中心と影半径が含まれないため、食分に応じた概略です。向き・影半径・月面の明暗は観測再現ではありません。",
+                "\(phaseLabel)の結果には地球影中心と影半径が含まれないため、最大食分に応じた概略です。向き・影半径・月面の明暗は観測再現ではありません。",
             accessibilitySummary:
-                "月食最大時の概略図です。"
+                "月食\(phaseLabel)の概略図です。"
                 + EventSceneFormatting
                 .magnitude(
                     forecast.magnitude,
@@ -1304,14 +1590,18 @@ private struct EventScenePresentation {
 
     private static func occultation(
         _ forecast:
-            LocalLunarOccultationCircumstancesV1
+            LocalLunarOccultationCircumstancesV1,
+        contact:
+            LunarOccultationContactV1,
+        phaseLabel: String
     ) -> Self {
-        let moon = forecast.maximum.moon
+        let moon = contact.moon
         guard validRadius(
             moon.angularRadiusRadians
         ) else {
             return unavailable(
-                systemImage: "moon.circle"
+                systemImage: "moon.circle",
+                phaseLabel: phaseLabel
             )
         }
 
@@ -1320,37 +1610,47 @@ private struct EventScenePresentation {
             .tangentOffset(
                 reference: moon.horizontal,
                 target:
-                    forecast.maximum
-                    .targetHorizontal
+                    contact.targetHorizontal
             )
-        let separationFromClearance = max(
-            0,
-            moon.angularRadiusRadians
-                + forecast
-                .minimumClearanceRadians
-        )
+        let fallbackSeparation =
+            contact.phase == .maximum
+            ? max(
+                0,
+                moon.angularRadiusRadians
+                    + forecast
+                    .minimumClearanceRadians
+            )
+            : moon.angularRadiusRadians
         let offset =
             horizontalOffset
-            ?? forecast.maximum
+            ?? contact
             .positionAngleRadians
             .flatMap {
                 EventSceneGeometryV1
                     .tangentOffset(
                         separationRadians:
-                            separationFromClearance,
+                            fallbackSeparation,
                         positionAngleRadians: $0
                     )
             }
         guard let offset else {
             return unavailable(
-                systemImage: "moon.circle"
+                systemImage: "moon.circle",
+                phaseLabel: phaseLabel
             )
         }
 
-        let hidden =
-            forecast.minimumClearanceRadians < 0
+        let clearance =
+            offset.separationRadians
+            - moon.angularRadiusRadians
+        let targetState =
+            OccultationSceneTargetState.resolve(
+                phase: contact.phase,
+                grazing: forecast.grazing,
+                clearanceRadians: clearance
+            )
         let summary =
-            "恒星掩蔽の最接近時です。"
+            "恒星掩蔽の\(phaseLabel)です。"
             + forecast.target.label
             + "の予測方向は月中心から"
             + EventSceneFormatting
@@ -1360,18 +1660,13 @@ private struct EventScenePresentation {
                 .angle(
                     offset.separationRadians
                 )
-            + "です。最小クリアランスは"
+            + "です。この時刻の平均月縁からのクリアランスは"
             + EventSceneFormatting
                 .signedAngle(
-                    forecast
-                        .minimumClearanceRadians
+                    clearance
                 )
-            + "で、"
-            + (
-                hidden
-                ? "平均月縁の内側です。"
-                : "平均月縁の外側です。"
-            )
+            + "です。"
+            + targetState.accessibilitySummary
 
         return Self(
             content: .occultation(
@@ -1379,12 +1674,15 @@ private struct EventScenePresentation {
                     moonRadius:
                         moon.angularRadiusRadians,
                     targetOffset: offset,
-                    targetIsBehindMeanLimb:
-                        hidden
+                    targetState: targetState
                 )
             ),
             systemImage: "moon.circle",
-            fidelityLabel: "計算結果",
+            fidelityLabel:
+                targetState
+                    == .uncertainBoundary
+                ? "名目計算"
+                : "計算結果",
             axisLabel:
                 offset.orientationIsDefined
                 ? "上：高度が高い　右：方位角が増える"
@@ -1392,20 +1690,21 @@ private struct EventScenePresentation {
             legend:
                 "円：平均月縁　星印："
                 + forecast.target.label
-                + "の予測方向",
+                + targetState.legendSuffix,
             explanation:
-                hidden
-                ? "最接近時の月と恒星方向を同じ角尺度で投影しています。星印は月の手前に見える星ではなく、月に隠された予測方向です。月縁は平均球面です。"
-                : "最接近時の月と恒星方向を同じ角尺度で投影しています。月縁は平均球面で、月面地形による接触時刻の差は再現しません。",
+                targetState.explanation(
+                    phaseLabel: phaseLabel
+                ),
             accessibilitySummary: summary,
             accessibilityHint:
-                "星印は恒星の予測方向を示します。",
+                targetState.accessibilityHint,
             isSchematic: false
         )
     }
 
     private static func unavailable(
-        systemImage: String
+        systemImage: String,
+        phaseLabel: String
     ) -> Self {
         Self(
             content: .unavailable,
@@ -1414,9 +1713,9 @@ private struct EventScenePresentation {
             axisLabel: "",
             legend: "相対配置を作成できません。",
             explanation:
-                "最大時の中心座標または角半径が不足しているため、図を表示できません。",
+                "\(phaseLabel)の中心座標または角半径が不足しているため、図を表示できません。",
             accessibilitySummary:
-                "最大時の相対配置データを表示できません。",
+                "\(phaseLabel)の相対配置データを表示できません。",
             accessibilityHint:
                 "数値は予報の測定欄で確認してください。",
             isSchematic: true
@@ -1427,6 +1726,92 @@ private struct EventScenePresentation {
         _ radius: Double
     ) -> Bool {
         radius.isFinite && radius > 0
+    }
+}
+
+private extension OccultationSceneTargetState {
+    var canvasLabel: String {
+        switch self {
+        case .atMeanLimb:
+            "接触方向"
+        case .insideMeanLimb:
+            "恒星方向"
+        case .outsideMeanLimb:
+            "恒星"
+        case .uncertainBoundary:
+            "境界帯内の方向"
+        }
+    }
+
+    var markerDash: [CGFloat] {
+        switch self {
+        case .insideMeanLimb:
+            [2, 2]
+        case .uncertainBoundary:
+            [6, 3]
+        case .atMeanLimb, .outsideMeanLimb:
+            []
+        }
+    }
+
+    var legendSuffix: String {
+        switch self {
+        case .atMeanLimb:
+            "の平均月縁との接触方向"
+        case .insideMeanLimb:
+            "の月に隠された名目方向"
+        case .outsideMeanLimb:
+            "の予測方向"
+        case .uncertainBoundary:
+            "の発生未確定な名目方向"
+        }
+    }
+
+    var accessibilitySummary: String {
+        switch self {
+        case .atMeanLimb:
+            "平均月縁との計算上の接触です。"
+        case .insideMeanLimb:
+            "平均月縁の内側です。"
+        case .outsideMeanLimb:
+            "平均月縁の外側です。"
+        case .uncertainBoundary:
+            "平均月縁の物理境界帯内で、掩蔽の発生は未確定です。"
+        }
+    }
+
+    var accessibilityHint: String {
+        switch self {
+        case .atMeanLimb:
+            "星印は平均月縁との計算上の接触方向を示します。"
+        case .insideMeanLimb:
+            "星印は平均月縁の内側にある恒星の名目方向を示します。"
+        case .outsideMeanLimb:
+            "星印は恒星の予測方向を示します。"
+        case .uncertainBoundary:
+            "星印は物理境界帯内の名目方向で、掩蔽の発生を断定しません。"
+        }
+    }
+
+    func explanation(
+        phaseLabel: String
+    ) -> String {
+        let prefix =
+            "\(phaseLabel)の月と恒星方向を同じ角尺度で投影しています。"
+        switch self {
+        case .atMeanLimb:
+            return prefix
+                + "星印は平均月縁との計算上の接触方向です。数値残差の符号で内側・外側を判定していません。月面地形による接触時刻の差は再現しません。"
+        case .insideMeanLimb:
+            return prefix
+                + "星印は月の手前に見える星ではなく、平均月縁の内側にある名目方向です。月縁は平均球面です。"
+        case .outsideMeanLimb:
+            return prefix
+                + "月縁は平均球面で、月面地形による接触時刻の差は再現しません。"
+        case .uncertainBoundary:
+            return prefix
+                + "星印は物理境界帯内の名目方向で、月に隠れたことを断定しません。月面地形などを含む不確かさのため、掩蔽の発生は未確定です。"
+        }
     }
 }
 

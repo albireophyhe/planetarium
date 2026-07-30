@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type {
@@ -424,6 +424,112 @@ describe("EventExplorer", () => {
     ).toBeInTheDocument();
   });
 
+  it("switches only among solved phases and keeps the static scene honest about sky-time sync", async () => {
+    const user = userEvent.setup();
+    const onGoToContact = vi.fn();
+    const initialProps = explorerProps({
+      events: [SOLAR_EVENT],
+      observationDate: SOLAR_C2.instantUtc,
+      onGoToContact,
+      selectedCircumstances: SOLAR_CIRCUMSTANCES,
+      selectedEventId: SOLAR_EVENT.id,
+      status: "ready",
+    });
+    const { rerender } = render(<EventExplorer {...initialProps} />);
+
+    expect(
+      await screen.findByRole("img", {
+        name: "2026年8月12日 皆既日食、中心食開始（C2）の相対配置",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("この静止図は星図と同じ時刻です。"),
+    ).toBeInTheDocument();
+
+    const phaseSelect = screen.getByLabelText(
+      "相対配置の計算済み時刻",
+    );
+    const phaseOptions = within(phaseSelect).getAllByRole("option");
+    expect(phaseOptions).toHaveLength(5);
+    expect(phaseOptions.map((option) => option.textContent)).toEqual([
+      "部分食開始（C1） · 2026/08/12 19:38:05",
+      "皆既・金環食開始（C2） · 2026/08/12 20:29:42",
+      "最大 · 2026/08/12 20:30:12",
+      "皆既・金環食終了（C3） · 2026/08/12 20:30:42",
+      "部分食終了（C4） · 2026/08/12 21:27:18",
+    ]);
+
+    await user.selectOptions(
+      phaseSelect,
+      `solar-c4:${SOLAR_C4.instantUtc.getTime()}`,
+    );
+    expect(
+      screen.getByRole("img", {
+        name: "2026年8月12日 皆既日食、部分食終了（C4）の相対配置",
+      }),
+    ).toBeInTheDocument();
+    expect(onGoToContact).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(
+        "この図は計算済み時刻の静止図です。現在の星図時刻とは別です。",
+      ),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "選択時刻を空に表示",
+      }),
+    );
+    expect(onGoToContact).toHaveBeenCalledTimes(1);
+    expect(onGoToContact).toHaveBeenCalledWith(SOLAR_C4);
+
+    onGoToContact.mockClear();
+    rerender(
+      <EventExplorer
+        {...initialProps}
+        observationDate={SOLAR_C1.instantUtc}
+      />,
+    );
+    expect(
+      await screen.findByRole("img", {
+        name: "2026年8月12日 皆既日食、部分食開始（C1）の相対配置",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("この静止図は星図と同じ時刻です。"),
+    ).toBeInTheDocument();
+    expect(onGoToContact).not.toHaveBeenCalled();
+
+    rerender(
+      <EventExplorer
+        {...initialProps}
+        observationDate={new Date("2026-08-12T17:39:00.000Z")}
+      />,
+    );
+    expect(
+      screen.getByRole("img", {
+        name: "2026年8月12日 皆既日食、部分食開始（C1）の相対配置",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "この図は計算済み時刻の静止図です。現在の星図時刻とは別です。",
+      ),
+    ).toBeInTheDocument();
+
+    rerender(
+      <EventExplorer
+        {...initialProps}
+        observationDate={new Date("2026-08-12T17:39:01.000Z")}
+      />,
+    );
+    expect(
+      screen.getByRole("img", {
+        name: "2026年8月12日 皆既日食、部分食開始（C1）の相対配置",
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("discloses an outside-coverage EOP fallback without inventing source metadata", async () => {
     const user = userEvent.setup();
     render(
@@ -542,14 +648,15 @@ describe("EventExplorer", () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("table", { name: "最接近時刻" }),
+      screen.getByRole("table", { name: "最大時刻" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
-        name: "最接近時刻を空に表示",
+        name: "最大時刻を空に表示",
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText("最接近の現地時刻")).toBeInTheDocument();
+    expect(screen.getByText("最大の現地時刻")).toBeInTheDocument();
+    expect(screen.queryByText(/最接近/)).not.toBeInTheDocument();
 
     rerender(
       <EventExplorer
@@ -676,6 +783,11 @@ describe("EventExplorer", () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByText("最接近のUTC")).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", {
+        name: "最接近 · 2026/08/12 20:30:12",
+      }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByText("最大のUTC"),
     ).not.toBeInTheDocument();

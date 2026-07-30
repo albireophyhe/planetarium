@@ -1,9 +1,12 @@
+import Accessibility
 import AppKit
 import PlanetariumCore
 import SwiftUI
 
 struct StarInspectorView: View {
     @Bindable var store: SkyStore
+    @State private var pointingCopyStatus: String?
+    @State private var pointingCopyFailed = false
 
     var body: some View {
         ScrollView {
@@ -136,6 +139,11 @@ struct StarInspectorView: View {
                 }
             }
             .padding(18)
+        }
+        .onChange(
+            of: store.selectedStarPointingPayload
+        ) {
+            clearPointingCopyStatus()
         }
     }
 
@@ -550,6 +558,40 @@ struct StarInspectorView: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
 
+            Divider()
+
+            Text("現在の計算条件")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            Grid(
+                alignment: .leading,
+                horizontalSpacing: 12,
+                verticalSpacing: 7
+            ) {
+                detailRow(
+                    label: "UTC",
+                    value: store.pointingUTCTimestamp
+                )
+                detailRow(
+                    label: "現地時刻",
+                    value: store.pointingLocalTimestamp
+                )
+                detailRow(
+                    label: "観測地点",
+                    value:
+                        store
+                        .pointingLocationDescription
+                )
+                detailRow(
+                    label: "大気差",
+                    value:
+                        store
+                        .pointingRefractionDescription
+                )
+            }
+            .font(.caption)
+
             Button {
                 copyPointingPayload()
             } label: {
@@ -564,6 +606,29 @@ struct StarInspectorView: View {
                 "J2000・見かけ座標・真空/大気差後の水平座標と"
                     + "UTC/UT1/TT・EOP識別情報をコピー"
             )
+
+            if let pointingCopyStatus {
+                Label(
+                    pointingCopyStatus,
+                    systemImage:
+                        pointingCopyFailed
+                        ? "exclamationmark.triangle"
+                        : "checkmark.circle"
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(
+                    pointingCopyFailed
+                        ? Color.orange
+                        : Color.secondary
+                )
+                .fixedSize(
+                    horizontal: false,
+                    vertical: true
+                )
+                .accessibilityElement(
+                    children: .combine
+                )
+            }
 
             Text(
                 "0.01秒時・0.000001°単位の表示桁そのものは"
@@ -580,22 +645,75 @@ struct StarInspectorView: View {
     }
 
     private func copyPointingPayload() {
-        guard let payload = store.selectedStarPointingPayload
+        guard
+            let snapshot =
+                store
+                .captureSelectedStarPointingSnapshot()
         else {
-            store.statusMessage =
+            let message =
                 "導入用データを作成できませんでした。"
+            updatePointingCopyStatus(
+                message,
+                failed: true
+            )
             return
         }
 
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        if pasteboard.setString(payload, forType: .string) {
-            store.statusMessage =
-                "導入用データをクリップボードへコピーしました。"
+        if pasteboard.setString(
+            snapshot.payload,
+            forType: .string
+        ) {
+            let prefix =
+                snapshot.didPausePlayback
+                ? "時刻を停止し、"
+                : ""
+            updatePointingCopyStatus(
+                prefix
+                    + "UTC "
+                    + snapshot.utcTimestamp
+                    + " 時点の導入用データをコピーしました。",
+                failed: false
+            )
         } else {
-            store.statusMessage =
-                "クリップボードへコピーできませんでした。"
+            let prefix =
+                snapshot.didPausePlayback
+                ? "時刻は停止しましたが、"
+                : ""
+            updatePointingCopyStatus(
+                prefix
+                    + "UTC "
+                    + snapshot.utcTimestamp
+                    + " 時点のデータをクリップボードへコピーできませんでした。",
+                failed: true
+            )
         }
+    }
+
+    private func clearPointingCopyStatus() {
+        if StarPointingCopyStatusPolicy
+            .shouldClearGlobalStatus(
+                copyStatus: pointingCopyStatus,
+                globalStatus: store.statusMessage
+            )
+        {
+            store.statusMessage = nil
+        }
+        pointingCopyStatus = nil
+        pointingCopyFailed = false
+    }
+
+    private func updatePointingCopyStatus(
+        _ message: String,
+        failed: Bool
+    ) {
+        pointingCopyStatus = message
+        pointingCopyFailed = failed
+        store.statusMessage = message
+        AccessibilityNotification
+            .Announcement(message)
+            .post()
     }
 
     private func detailRow(label: String, value: String) -> some View {

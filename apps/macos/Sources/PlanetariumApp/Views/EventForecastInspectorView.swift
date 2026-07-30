@@ -42,7 +42,16 @@ struct EventForecastInspectorView: View {
                     solarSafety
                 }
 
-                EventSceneView(item: item)
+                EventSceneView(
+                    item: item,
+                    observationDate:
+                        skyStore.observationDate
+                ) { date, label in
+                    showOnSky(
+                        at: date,
+                        label: label
+                    )
+                }
 
                 switch item {
                 case let .eclipse(forecast):

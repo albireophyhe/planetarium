@@ -91,6 +91,8 @@ describe("buildStarPointingPayload", () => {
     expect(payload).toContain(
       "緯度 35.681236° / 経度 139.767125° / WGS84楕円体高 44.5 m",
     );
+    expect(payload).toContain("地点由来: 手動入力 / 水平精度 ±3 m");
+    expect(payload).toContain("大気差: 標準大気差を適用");
     expect(payload).toContain("幾何高度・方位（真空）: 高度 42.111111°");
     expect(payload).toContain(
       "観測高度・方位（大気差設定反映）: 高度 42.123457°",

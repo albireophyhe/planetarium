@@ -11,6 +11,20 @@ enum SkyFormatting {
         return formatter.string(from: date)
     }
 
+    static func preciseDateTime(
+        _ date: Date,
+        timeZoneIdentifier: String
+    ) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone =
+            TimeZone(identifier: timeZoneIdentifier)
+            ?? .current
+        formatter.dateFormat = "yyyy年M月d日（E） HH:mm:ss.SSS z"
+        return formatter.string(from: date)
+    }
+
     static func timeZoneLabel(_ identifier: String, at date: Date) -> String {
         guard let timeZone = TimeZone(identifier: identifier) else {
             return identifier

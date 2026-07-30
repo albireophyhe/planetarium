@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { StarViewModel } from "../../app/types";
@@ -223,6 +223,301 @@ describe("StarDetails time-scale provenance", () => {
     expect(writeText).toHaveBeenCalledWith(
       expect.stringContaining("WGS84楕円体高 44.5 m"),
     );
-    expect(await screen.findByText("コピーしました")).toBeInTheDocument();
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining("地点由来: 手動入力 / 水平精度は未指定"),
+    );
+    expect(screen.getByLabelText("導入条件")).toHaveTextContent(
+      "UTC2026-07-31T03:00:00.000Z",
+    );
+    expect(screen.getByLabelText("導入条件")).toHaveTextContent(
+      "現地時刻2026-07-31 12:00:00Asia/Tokyo",
+    );
+    expect(screen.getByLabelText("導入条件")).toHaveTextContent(
+      "大気差幾何高度（大気差なし）",
+    );
+    expect(
+      await screen.findByText(
+        "UTC 2026-07-31T03:00:00.000Z 時点の座標をコピーしました",
+      ),
+    ).toBeInTheDocument();
   });
+
+  it("pauses active playback once and copies the captured UTC snapshot", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const onPausePlayback = vi.fn();
+    const observationDate = new Date("2026-07-31T03:00:00.125Z");
+    onPausePlayback.mockImplementation(() => {
+      observationDate.setTime(
+        new Date("2026-07-31T04:00:00.000Z").getTime(),
+      );
+    });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(
+      <StarDetails
+        isPlaybackPlaying
+        location={{
+          heightMeters: 44.5,
+          horizontalAccuracyMeters: 3,
+          id: "device",
+          latitude: 35.681236,
+          locationSource: "device-geolocation",
+          longitude: 139.767125,
+          name: "現在地",
+          timeZone: "Asia/Tokyo",
+        }}
+        observationDate={observationDate}
+        onPausePlayback={onPausePlayback}
+        star={STAR}
+        timeScales={timeScales("iers-predicted")}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "導入用データをコピー",
+      }),
+    );
+
+    expect(onPausePlayback).toHaveBeenCalledTimes(1);
+    expect(onPausePlayback.mock.invocationCallOrder[0]).toBeLessThan(
+      writeText.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    );
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining("UTC: 2026-07-31T03:00:00.125Z"),
+    );
+    expect(writeText).not.toHaveBeenCalledWith(
+      expect.stringContaining("UTC: 2026-07-31T04:00:00.000Z"),
+    );
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    expect(
+      screen.queryByText(/時点の座標をコピーしました/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a copy result only while every pointing-snapshot input still matches", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const location = {
+      heightMeters: 44.5,
+      horizontalAccuracyMeters: 3,
+      id: "device",
+      latitude: 35.681236,
+      locationSource: "device-geolocation",
+      longitude: 139.767125,
+      name: "現在地",
+      timeZone: "Asia/Tokyo",
+    } as const;
+    const observationDate = new Date(
+      "2026-07-31T03:00:00.125Z",
+    );
+    const earthOrientationEstimate = {
+      dut1: {
+        seconds: 0.009_732,
+        source: "predicted",
+        reportedErrorSeconds: 0.000_108,
+      },
+      polarMotion: {
+        xpRadians: 1e-6,
+        ypRadians: -2e-6,
+        xpReportedErrorRadians: 1e-9,
+        ypReportedErrorRadians: 2e-9,
+        source: "predicted",
+        usesPrediction: true,
+      },
+    } as const;
+    const resolvedTimeScales = timeScales("iers-predicted");
+    const baseProps = {
+      earthOrientationEstimate,
+      location,
+      observationDate,
+      star: STAR,
+      timeScales: resolvedTimeScales,
+    } as const;
+    const { rerender } = render(<StarDetails {...baseProps} />);
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "導入用データをコピー",
+      }),
+    );
+
+    const copiedMessage =
+      "UTC 2026-07-31T03:00:00.125Z 時点の座標をコピーしました";
+    expect(
+      await screen.findByText(copiedMessage),
+    ).toBeInTheDocument();
+
+    const changedSnapshots = [
+      {
+        ...baseProps,
+        star: { ...STAR, catalogName: "Vega revised" },
+      },
+      {
+        ...baseProps,
+        observationDate: new Date(
+          "2026-07-31T03:00:01.125Z",
+        ),
+      },
+      {
+        ...baseProps,
+        location: { ...location, longitude: 139.767225 },
+      },
+      {
+        ...baseProps,
+        timeScales: {
+          ...resolvedTimeScales,
+          dut1Seconds: resolvedTimeScales.dut1Seconds + 0.001,
+        },
+      },
+      {
+        ...baseProps,
+        earthOrientationEstimate: {
+          ...earthOrientationEstimate,
+          polarMotion: {
+            ...earthOrientationEstimate.polarMotion,
+            xpRadians:
+              earthOrientationEstimate.polarMotion.xpRadians +
+              1e-9,
+          },
+        },
+      },
+      {
+        ...baseProps,
+        star: {
+          ...STAR,
+          altitudeDeg: STAR.altitudeDeg + 0.01,
+          refractionMode: "applied" as const,
+        },
+      },
+    ];
+
+    for (const changedProps of changedSnapshots) {
+      rerender(<StarDetails {...changedProps} />);
+      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+
+      rerender(<StarDetails {...baseProps} />);
+      expect(screen.getByText(copiedMessage)).toBeInTheDocument();
+    }
+  });
+
+  it("keeps a pending copy result hidden after location and refraction change", async () => {
+    const user = userEvent.setup();
+    let resolveClipboard!: () => void;
+    const clipboardPending = new Promise<void>((resolve) => {
+      resolveClipboard = resolve;
+    });
+    const writeText = vi.fn().mockReturnValue(clipboardPending);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const location = {
+      heightMeters: 44.5,
+      horizontalAccuracyMeters: 3,
+      id: "device",
+      latitude: 35.681236,
+      locationSource: "device-geolocation",
+      longitude: 139.767125,
+      name: "現在地",
+      timeZone: "Asia/Tokyo",
+    } as const;
+    const observationDate = new Date(
+      "2026-07-31T03:00:00.125Z",
+    );
+    const baseProps = {
+      location,
+      observationDate,
+      star: STAR,
+      timeScales: timeScales("iers-predicted"),
+    } as const;
+    const { rerender } = render(<StarDetails {...baseProps} />);
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "導入用データをコピー",
+      }),
+    );
+    expect(writeText).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <StarDetails
+        {...baseProps}
+        location={{ ...location, longitude: 139.767225 }}
+        star={{
+          ...STAR,
+          altitudeDeg: STAR.altitudeDeg + 0.01,
+          refractionMode: "applied",
+        }}
+      />,
+    );
+    await act(async () => {
+      resolveClipboard();
+      await clipboardPending;
+    });
+
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    expect(
+      screen.queryByText(/時点の座標をコピーしました/),
+    ).not.toBeInTheDocument();
+
+    rerender(<StarDetails {...baseProps} />);
+    expect(
+      screen.getByText(
+        "UTC 2026-07-31T03:00:00.125Z 時点の座標をコピーしました",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("does not request a pause when playback is already stopped", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const onPausePlayback = vi.fn();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(
+      <StarDetails
+        isPlaybackPlaying={false}
+        location={{
+          heightMeters: 44.5,
+          horizontalAccuracyMeters: null,
+          id: "manual",
+          latitude: 35.681236,
+          locationSource: "manual",
+          longitude: 139.767125,
+          name: "東京",
+          timeZone: "Asia/Tokyo",
+        }}
+        observationDate={new Date("2026-07-31T03:00:00.000Z")}
+        onPausePlayback={onPausePlayback}
+        star={STAR}
+        timeScales={timeScales("iers-predicted")}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "導入用データをコピー",
+      }),
+    );
+
+    expect(onPausePlayback).not.toHaveBeenCalled();
+    expect(
+      await screen.findByText(
+        "UTC 2026-07-31T03:00:00.000Z 時点の座標をコピーしました",
+      ),
+    ).toBeInTheDocument();
+  });
+
 });

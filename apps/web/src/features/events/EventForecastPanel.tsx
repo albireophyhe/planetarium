@@ -1215,6 +1215,7 @@ export function EventForecastPanel({
         localClassificationsByEventId={
           localClassificationsByEventId
         }
+        observationDate={observationDate}
         onGoToContact={showContact}
         onGoToMaximum={showContact}
         onRestoreObservationTime={onRestoreObservationTime}

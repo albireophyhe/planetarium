@@ -348,10 +348,7 @@ function phaseLabel(
       return "出現";
     case "maximum":
     case undefined:
-      return circumstances.event.kind === "lunar-occultation" ||
-        circumstances.boundaryUncertaintyReason ===
-          "occultation-occurrence" ||
-        circumstances.boundaryUncertaintyReason === "solar-occurrence"
+      return circumstances.event.kind === "lunar-occultation"
         ? "最接近"
         : "最大";
   }

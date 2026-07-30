@@ -155,7 +155,8 @@ final class StarPointingReadoutTests: XCTestCase {
                     latitude: 35.1234567,
                     longitude: 139.7654321,
                     timeZoneIdentifier: "Asia/Tokyo",
-                    heightMeters: 42.5
+                    heightMeters: 42.5,
+                    horizontalAccuracyMeters: 12.4
                 ),
                 timeScales: ResolvedTimeScalesV2(
                     utcJulianDate: 2_461_234.5,
@@ -204,6 +205,7 @@ final class StarPointingReadoutTests: XCTestCase {
         XCTAssertTrue(payload.contains("JD TT: 2461234.500800741"))
         XCTAssertTrue(payload.contains("DUT1 (UT1−UTC): −0.123456 s"))
         XCTAssertTrue(payload.contains("EOP: IERS test; sha256=abc123"))
+        XCTAssertTrue(payload.contains("地点水平精度: ±12.4 m"))
         XCTAssertTrue(
             payload.contains(
                 "桁数自体が位置精度を保証するものではありません"
@@ -232,6 +234,149 @@ final class StarPointingReadoutTests: XCTestCase {
         XCTAssertTrue(payload.contains("JD UT1:"))
         XCTAssertTrue(payload.contains("JD TT:"))
         XCTAssertTrue(payload.contains("EOP:"))
+    }
+
+    func testSnapshotCaptureRequestsExactlyOnePauseWhilePlaying() {
+        var pauseCount = 0
+
+        let didPause =
+            StarPointingSnapshotCapturePolicy
+            .pausePlaybackIfNeeded(
+                isPlaybackPlaying: true
+            ) {
+                pauseCount += 1
+            }
+
+        XCTAssertTrue(didPause)
+        XCTAssertEqual(pauseCount, 1)
+    }
+
+    func testSnapshotCaptureDoesNotPauseAnAlreadyStoppedSky() {
+        var pauseCount = 0
+
+        let didPause =
+            StarPointingSnapshotCapturePolicy
+            .pausePlaybackIfNeeded(
+                isPlaybackPlaying: false
+            ) {
+                pauseCount += 1
+            }
+
+        XCTAssertFalse(didPause)
+        XCTAssertEqual(pauseCount, 0)
+    }
+
+    func testCopyStatusPolicyClearsOnlyItsOwnGlobalMessage() {
+        XCTAssertTrue(
+            StarPointingCopyStatusPolicy
+                .shouldClearGlobalStatus(
+                    copyStatus: "コピーしました",
+                    globalStatus: "コピーしました"
+                )
+        )
+        XCTAssertFalse(
+            StarPointingCopyStatusPolicy
+                .shouldClearGlobalStatus(
+                    copyStatus: "コピーしました",
+                    globalStatus:
+                        "標準大気差を適用しました"
+                )
+        )
+        XCTAssertFalse(
+            StarPointingCopyStatusPolicy
+                .shouldClearGlobalStatus(
+                    copyStatus: nil,
+                    globalStatus: "コピーしました"
+                )
+        )
+    }
+
+    @MainActor
+    func testSkyStorePointingPayloadChangesWithRefractionCondition()
+        throws
+    {
+        let date = try XCTUnwrap(
+            ISO8601DateFormatter().date(
+                from: "2026-07-31T00:00:00Z"
+            )
+        )
+        let store = SkyStore(now: date)
+        let originalSetting =
+            store.useStandardAtmosphericRefraction
+        let originalPayload = try XCTUnwrap(
+            store.selectedStarPointingPayload
+        )
+        defer {
+            if store.useStandardAtmosphericRefraction
+                != originalSetting
+            {
+                store.useStandardAtmosphericRefraction =
+                    originalSetting
+            }
+        }
+
+        store.useStandardAtmosphericRefraction
+            .toggle()
+        let changedPayload = try XCTUnwrap(
+            store.selectedStarPointingPayload
+        )
+
+        XCTAssertNotEqual(
+            changedPayload,
+            originalPayload
+        )
+        XCTAssertTrue(
+            changedPayload.contains(
+                store.pointingRefractionDescription
+            )
+        )
+    }
+
+    @MainActor
+    func testSkyStoreSnapshotFreezesMatchingUTCAndPayload()
+        throws
+    {
+        let date = try XCTUnwrap(
+            ISO8601DateFormatter().date(
+                from: "2026-07-31T00:00:00Z"
+            )
+        )
+        let store = SkyStore(now: date)
+        store.togglePlayback()
+        XCTAssertTrue(store.isPlaybackPlaying)
+
+        let snapshot = try XCTUnwrap(
+            store.captureSelectedStarPointingSnapshot()
+        )
+
+        XCTAssertTrue(snapshot.didPausePlayback)
+        XCTAssertFalse(store.isPlaybackPlaying)
+        XCTAssertEqual(
+            snapshot.observationDate,
+            date
+        )
+        XCTAssertEqual(
+            snapshot.utcTimestamp,
+            StarPointingPayloadFormatter
+                .utcTimestamp(date)
+        )
+        XCTAssertTrue(
+            snapshot.payload.contains(
+                "観測時刻 UTC: "
+                    + snapshot.utcTimestamp
+            )
+        )
+
+        let stoppedSnapshot = try XCTUnwrap(
+            store.captureSelectedStarPointingSnapshot()
+        )
+        XCTAssertFalse(
+            stoppedSnapshot.didPausePlayback
+        )
+        XCTAssertEqual(
+            stoppedSnapshot.observationDate,
+            snapshot.observationDate
+        )
     }
 
     private var catalogStar: CatalogStar {
