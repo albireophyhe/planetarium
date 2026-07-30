@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   dateToMjdUtc,
+  loadIersEarthOrientationService,
   lookupIersEarthOrientation,
   type IersEarthOrientationEstimateV1
 } from "../domain";
@@ -27,6 +28,7 @@ type ResolvedState = {
   readonly dayMjdUtc: number | null;
   readonly estimate: IersEarthOrientationEstimateV1 | null;
   readonly instantMs: number | null;
+  readonly sourceIdentifier: string | null;
   readonly status: "ready" | "unavailable" | "error";
 };
 
@@ -34,8 +36,24 @@ const INITIAL_STATE: ResolvedState = {
   dayMjdUtc: null,
   estimate: null,
   instantMs: null,
+  sourceIdentifier: null,
   status: "unavailable"
 };
+
+async function sourceIdentifierForEstimate(
+  estimate: IersEarthOrientationEstimateV1 | null,
+  lookup: EarthOrientationLookup,
+) {
+  if (!estimate || lookup !== lookupIersEarthOrientation) {
+    return null;
+  }
+  try {
+    const source = (await loadIersEarthOrientationService()).source;
+    return `${source.title}; retrievedAt=${source.retrievedAt}; sha256=${source.sourceSha256}; DUT1=${estimate.dut1.source}; xp/yp=${estimate.polarMotion.source}`;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Resolve the bundled integrated IERS EOP estimate without allowing an older
@@ -80,7 +98,9 @@ export function useIersEarthOrientation(
     const requestedDate = new Date(instantMs);
 
     void lookup(requestedDate)
-      .then((estimate) => {
+      .then(async (estimate) => {
+        const sourceIdentifier =
+          await sourceIdentifierForEstimate(estimate, lookup);
         if (
           !mountedRef.current ||
           latestRequestRef.current.dayMjdUtc !== requestedDayMjdUtc
@@ -100,6 +120,7 @@ export function useIersEarthOrientation(
             dayMjdUtc: requestedDayMjdUtc,
             estimate,
             instantMs,
+            sourceIdentifier,
             status: estimate === null ? "unavailable" : "ready"
           };
         });
@@ -123,6 +144,7 @@ export function useIersEarthOrientation(
             dayMjdUtc: requestedDayMjdUtc,
             estimate: null,
             instantMs,
+            sourceIdentifier: null,
             status: "error"
           };
         });
@@ -167,6 +189,7 @@ export function useIersEarthOrientation(
     isCurrent: current,
     lookupAt,
     retry,
+    sourceIdentifier: sameDay ? state.sourceIdentifier : null,
     status
   } as const;
 }

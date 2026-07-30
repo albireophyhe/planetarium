@@ -600,6 +600,42 @@ describe("EventExplorer", () => {
     ).toBeInTheDocument();
   });
 
+  it("describes the simulation slider range and current value in local time and UTC", () => {
+    const { state } = readySceneSampling();
+    render(
+      <EventExplorer
+        {...explorerProps({
+          events: [SOLAR_EVENT],
+          sceneSampling: state,
+          selectedCircumstances: SOLAR_CIRCUMSTANCES,
+          selectedEventId: SOLAR_EVENT.id,
+          status: "ready",
+        })}
+      />,
+    );
+
+    const range = screen.getByLabelText(
+      "シミュレーション時刻",
+    );
+    const descriptionId = range.getAttribute(
+      "aria-describedby",
+    );
+    expect(descriptionId).toBeTruthy();
+    const description = document.getElementById(
+      descriptionId ?? "",
+    );
+    expect(description).toHaveTextContent(
+      "開始は現地時刻2026/08/12 19:38:05（Europe/Madrid）、2026/08/12 17:38:05 UTC",
+    );
+    expect(description).toHaveTextContent(
+      "終了は現地時刻2026/08/12 21:27:18（Europe/Madrid）、2026/08/12 19:27:18 UTC",
+    );
+    expect(range).toHaveAttribute(
+      "aria-valuetext",
+      "現地時刻 2026/08/12 20:30:12（Europe/Madrid）、2026/08/12 18:30:12 UTC",
+    );
+  });
+
   it("coalesces scrub input to the latest exact UTC and clears it when a solved phase is selected", () => {
     vi.useFakeTimers();
     try {
@@ -816,6 +852,66 @@ describe("EventExplorer", () => {
       ).toBeInTheDocument();
     } finally {
       Reflect.deleteProperty(document, "hidden");
+      vi.useRealTimers();
+    }
+  });
+
+  it("derives playback progress from elapsed wall time and skips delayed frames to finish in 24 seconds", () => {
+    vi.useFakeTimers();
+    const performanceNow = vi
+      .spyOn(performance, "now")
+      .mockReturnValue(0);
+    try {
+      const { sampleAt, state } = readySceneSampling();
+      render(
+        <EventExplorer
+          {...explorerProps({
+            events: [SOLAR_EVENT],
+            sceneSampling: state,
+            selectedCircumstances: SOLAR_CIRCUMSTANCES,
+            selectedEventId: SOLAR_EVENT.id,
+            status: "ready",
+          })}
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "シミュレーションを再生",
+        }),
+      );
+
+      const startMilliseconds = SOLAR_C1.instantUtc.getTime();
+      const endMilliseconds = SOLAR_C4.instantUtc.getTime();
+      const durationMilliseconds =
+        endMilliseconds - startMilliseconds;
+
+      performanceNow.mockReturnValue(2_400);
+      act(() => vi.advanceTimersByTime(100));
+      expect(
+        (sampleAt.mock.calls.at(-1)?.[0] as Date).getTime(),
+      ).toBe(
+        startMilliseconds +
+          Math.ceil(durationMilliseconds * 0.1),
+      );
+
+      performanceNow.mockReturnValue(23_999);
+      act(() => vi.advanceTimersByTime(100));
+      expect(
+        (sampleAt.mock.calls.at(-1)?.[0] as Date).getTime(),
+      ).toBeLessThan(endMilliseconds);
+
+      performanceNow.mockReturnValue(24_000);
+      act(() => vi.advanceTimersByTime(100));
+      expect(
+        (sampleAt.mock.calls.at(-1)?.[0] as Date).getTime(),
+      ).toBe(endMilliseconds);
+      expect(
+        screen.getByRole("button", {
+          name: "シミュレーションを最初から再生",
+        }),
+      ).toBeInTheDocument();
+    } finally {
+      performanceNow.mockRestore();
       vi.useRealTimers();
     }
   });

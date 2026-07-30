@@ -323,6 +323,48 @@ function solarPhysicalSample(instantUtc: Date) {
   };
 }
 
+function solarSceneCircumstances(
+  event: EventSummary,
+  startUtc: string,
+  maximumUtc: string,
+  endUtc: string,
+  observer: ObserverLocation = LOCATION,
+): LocalCircumstances {
+  const start = {
+    ...contact(startUtc),
+    phase: "solar-c1" as const,
+  };
+  const maximum = {
+    ...contact(maximumUtc),
+    phase: "maximum" as const,
+  };
+  const end = {
+    ...contact(endUtc),
+    phase: "solar-c4" as const,
+  };
+  return {
+    ...circumstances(event, "fully-visible"),
+    contacts: [start, maximum, end],
+    maximum,
+    observer,
+  };
+}
+
+function sceneEphemerisProvider(
+  sourceSha256 = "0".repeat(64),
+) {
+  return {
+    id: "DE442s",
+    sourceSha256,
+    state: vi.fn(),
+    stateCoverage: {
+      endIsIncluded: true as const,
+      endJulianDateTdb: 2_461_400,
+      startJulianDateTdb: 2_461_100,
+    },
+  };
+}
+
 function panelProps(
   overrides: Partial<
     React.ComponentProps<typeof EventForecastPanel>
@@ -1541,6 +1583,322 @@ describe("EventForecastPanel", () => {
       }),
     ).toBeVisible();
     expect(eventMocks.candidateLoadRange).toHaveBeenCalledTimes(2);
+  });
+
+  it("aborts the previous selected-scene preparation when the selection changes", async () => {
+    const firstEvent = summary(
+      "se-20260812-first",
+      "solar-eclipse",
+      "2026-08-12T18:00:00.000Z",
+    );
+    const secondEvent = summary(
+      "se-20260818-second",
+      "solar-eclipse",
+      "2026-08-18T18:00:00.000Z",
+    );
+    const firstCandidate = candidate(
+      firstEvent,
+      2_461_200,
+      2_461_290,
+    );
+    const secondCandidate = candidate(
+      secondEvent,
+      2_461_201,
+      2_461_291,
+    );
+    const firstCircumstances = solarSceneCircumstances(
+      firstEvent,
+      "2026-08-12T17:00:00.000Z",
+      "2026-08-12T18:00:00.000Z",
+      "2026-08-12T19:00:00.000Z",
+    );
+    const secondCircumstances = solarSceneCircumstances(
+      secondEvent,
+      "2026-08-18T17:00:00.000Z",
+      "2026-08-18T18:00:00.000Z",
+      "2026-08-18T19:00:00.000Z",
+    );
+    eventMocks.candidateLoadRange.mockResolvedValue([
+      firstCandidate,
+      secondCandidate,
+    ]);
+    eventMocks.calculateSolar.mockImplementation(
+      (_ephemeris: unknown, event: EventSummary) =>
+        event.id === firstEvent.id
+          ? firstCircumstances
+          : secondCircumstances,
+    );
+    const provider = sceneEphemerisProvider();
+    let firstSceneSignal: AbortSignal | undefined;
+    let resolveFirstScene:
+      | ((value: typeof provider) => void)
+      | undefined;
+    eventMocks.ephemerisLoadRange
+      .mockResolvedValueOnce(provider)
+      .mockImplementationOnce(
+        (
+          _start: number,
+          _end: number,
+          options: { signal: AbortSignal },
+        ) => {
+          firstSceneSignal = options.signal;
+          return new Promise<typeof provider>((resolve) => {
+            resolveFirstScene = resolve;
+          });
+        },
+      )
+      .mockResolvedValueOnce(provider);
+
+    const user = userEvent.setup();
+    render(<EventForecastPanel {...panelProps()} />);
+
+    await waitFor(() =>
+      expect(
+        eventMocks.ephemerisLoadRange,
+      ).toHaveBeenCalledTimes(2),
+    );
+    expect(firstSceneSignal?.aborted).toBe(false);
+    expect(
+      screen.getByRole("option", {
+        name: /部分日食、2026\/08\/13 03:00/,
+      }),
+    ).toHaveAttribute("aria-selected", "true");
+
+    await user.click(
+      screen.getByRole("option", {
+        name: /部分日食、2026\/08\/19 03:00/,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(
+        eventMocks.ephemerisLoadRange,
+      ).toHaveBeenCalledTimes(3),
+    );
+    expect(firstSceneSignal?.aborted).toBe(true);
+    expect(
+      await screen.findByLabelText("シミュレーション時刻"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", {
+        name: /部分日食、2026\/08\/19 03:00/,
+      }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(
+      eventMocks.ephemerisLoadRange.mock.calls[2]?.slice(0, 2),
+    ).toEqual([
+      secondCandidate.seed.searchStartJulianDateTdb,
+      secondCandidate.seed.searchEndJulianDateTdb,
+    ]);
+
+    resolveFirstScene?.(provider);
+  });
+
+  it("releases the ready scene closure while inactive and prepares a fresh session when active again", async () => {
+    const selectedCircumstances = solarSceneCircumstances(
+      SOLAR_SUMMARY,
+      "2026-08-12T17:00:00.000Z",
+      "2026-08-12T18:00:00.000Z",
+      "2026-08-12T19:00:00.000Z",
+    );
+    eventMocks.candidateLoadRange.mockResolvedValue([
+      candidate(SOLAR_SUMMARY, 2_461_200, 2_461_300),
+    ]);
+    eventMocks.calculateSolar.mockReturnValue(
+      selectedCircumstances,
+    );
+    eventMocks.ephemerisLoadRange.mockResolvedValue(
+      sceneEphemerisProvider(),
+    );
+    const props = panelProps();
+    const { rerender } = render(
+      <EventForecastPanel {...props} />,
+    );
+
+    expect(
+      await screen.findByLabelText("シミュレーション時刻"),
+    ).toBeInTheDocument();
+    const firstSceneSignal = eventMocks.ephemerisLoadRange.mock
+      .calls[1]?.[2]?.signal as AbortSignal | undefined;
+    const firstSceneOptions = eventMocks.sampleSolar.mock
+      .calls[0]?.[3] as
+      | { shouldCancel: () => boolean }
+      | undefined;
+    expect(firstSceneSignal?.aborted).toBe(false);
+    expect(firstSceneOptions?.shouldCancel()).toBe(false);
+
+    rerender(
+      <EventForecastPanel {...props} isActive={false} />,
+    );
+
+    await waitFor(() =>
+      expect(firstSceneSignal?.aborted).toBe(true),
+    );
+    expect(firstSceneOptions?.shouldCancel()).toBe(true);
+    expect(
+      screen.queryByLabelText("シミュレーション時刻"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /この現象では任意時刻の物理シミュレーションを利用できません/,
+      ),
+    ).toBeVisible();
+
+    rerender(
+      <EventForecastPanel {...props} isActive />,
+    );
+
+    expect(
+      await screen.findByLabelText("シミュレーション時刻"),
+    ).toBeInTheDocument();
+    expect(
+      eventMocks.ephemerisLoadRange,
+    ).toHaveBeenCalledTimes(3);
+    const secondSceneSignal = eventMocks.ephemerisLoadRange.mock
+      .calls[2]?.[2]?.signal as AbortSignal | undefined;
+    expect(secondSceneSignal).not.toBe(firstSceneSignal);
+    expect(secondSceneSignal?.aborted).toBe(false);
+  });
+
+  it("re-prepares a same-ID scene when its location and candidate content are replaced", async () => {
+    const initialCandidate = candidate(
+      SOLAR_SUMMARY,
+      2_461_200,
+      2_461_300,
+    );
+    const replacementCandidate = candidate(
+      SOLAR_SUMMARY,
+      2_461_199,
+      2_461_301,
+    );
+    const movedLocation: ObserverLocation = {
+      ...LOCATION,
+      id: "moved",
+      latitude: 34,
+      longitude: 135,
+      name: "移動後",
+    };
+    eventMocks.candidateLoadRange
+      .mockResolvedValueOnce([initialCandidate])
+      .mockResolvedValueOnce([replacementCandidate]);
+    eventMocks.calculateSolar.mockImplementation(
+      (
+        _ephemeris: unknown,
+        event: EventSummary,
+        observer: ObserverLocation,
+      ) =>
+        solarSceneCircumstances(
+          event,
+          observer.id === movedLocation.id
+            ? "2026-08-13T17:00:00.000Z"
+            : "2026-08-12T17:00:00.000Z",
+          observer.id === movedLocation.id
+            ? "2026-08-13T18:00:00.000Z"
+            : "2026-08-12T18:00:00.000Z",
+          observer.id === movedLocation.id
+            ? "2026-08-13T19:00:00.000Z"
+            : "2026-08-12T19:00:00.000Z",
+          observer,
+        ),
+    );
+    eventMocks.ephemerisLoadRange.mockResolvedValue(
+      sceneEphemerisProvider(),
+    );
+    const props = panelProps();
+    const { rerender } = render(
+      <EventForecastPanel {...props} />,
+    );
+
+    expect(
+      await screen.findByLabelText("シミュレーション時刻"),
+    ).toBeInTheDocument();
+    expect(
+      eventMocks.ephemerisLoadRange,
+    ).toHaveBeenCalledTimes(2);
+    const firstSceneSignal = eventMocks.ephemerisLoadRange.mock
+      .calls[1]?.[2]?.signal as AbortSignal | undefined;
+    expect(firstSceneSignal?.aborted).toBe(false);
+
+    rerender(
+      <EventForecastPanel
+        {...props}
+        location={movedLocation}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(
+        eventMocks.ephemerisLoadRange,
+      ).toHaveBeenCalledTimes(4),
+    );
+    expect(firstSceneSignal?.aborted).toBe(true);
+    expect(
+      await screen.findByLabelText("シミュレーション時刻"),
+    ).toBeInTheDocument();
+    expect(
+      eventMocks.ephemerisLoadRange.mock.calls[3]?.slice(0, 2),
+    ).toEqual([
+      replacementCandidate.seed.searchStartJulianDateTdb,
+      replacementCandidate.seed.searchEndJulianDateTdb,
+    ]);
+    expect(
+      eventMocks.sampleSolar.mock.calls.at(-1)?.[2],
+    ).toEqual(movedLocation);
+    expect(
+      await screen.findByRole("option", {
+        name: /部分日食、2026\/08\/14 03:00/,
+      }),
+    ).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("fails closed when occultation circumstances use a different target HR", async () => {
+    const mismatchedEvent: EventSummary = {
+      ...OCCULTATION_SUMMARY,
+      targetStarHR: TARGET_STAR.hr + 1,
+    };
+    const disappearance = {
+      ...contact("2026-09-01T02:50:00.000Z"),
+      phase: "occultation-disappearance" as const,
+    };
+    const maximum = {
+      ...contact("2026-09-01T03:00:00.000Z"),
+      phase: "maximum" as const,
+    };
+    const reappearance = {
+      ...contact("2026-09-01T03:10:00.000Z"),
+      phase: "occultation-reappearance" as const,
+    };
+    eventMocks.candidateLoadRange.mockResolvedValue([
+      candidate(
+        OCCULTATION_SUMMARY,
+        2_461_200,
+        2_461_300,
+      ),
+    ]);
+    eventMocks.calculateOccultation.mockReturnValue({
+      ...circumstances(
+        mismatchedEvent,
+        "fully-visible",
+      ),
+      contacts: [disappearance, maximum, reappearance],
+      maximum,
+    });
+    eventMocks.ephemerisLoadRange.mockResolvedValue(
+      sceneEphemerisProvider(),
+    );
+
+    render(<EventForecastPanel {...panelProps()} />);
+
+    expect(
+      await screen.findByText(
+        /連続シミュレーションを準備できませんでした/,
+      ),
+    ).toHaveAttribute("role", "alert");
+    expect(eventMocks.calculateOccultation).toHaveBeenCalled();
+    expect(eventMocks.sampleOccultation).not.toHaveBeenCalled();
+    expect(
+      screen.queryByLabelText("シミュレーション時刻"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a recoverable error when an active loader unexpectedly throws AbortError", async () => {

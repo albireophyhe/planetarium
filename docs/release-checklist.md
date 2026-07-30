@@ -102,6 +102,12 @@ ASDF_NODEJS_VERSION=24.18.0 npm run web:bench:precision:soak
 - [ ] Web 3Dの300px以下で回転4方向・reset・zoomが横一段になり、240pxでは各28px、天球中心の遮蔽なし、横overflow 0を確認する
 - [ ] 2D/3D/一覧/詳細で時刻、選択、星座線、星名、ナイトモードが同期する
 - [ ] 年周視差、太陽光偏向、年周・日周光行差、WGS84楕円体高0 m仮定、IERS DUT1・極運動の観測／予測／公表誤差、収録外0近似、外部暦、大気差の適用範囲を過大評価しない表示になっている
+- [ ] 選択星の人間向け本文とJSONコピーが同じ固定snapshot・再生停止・
+  最新操作・完了状態の契約を使い、JSONは
+  `planetarium.precision-pointing.full-v1`／`schemaVersion: 1`、
+  frame・origin・epoch/equinox・単位・方位規約・大気差を持つ。
+  利用不能値は`null`と状態を組み合わせ、実際に適用したEOPの0近似だけを
+  `0`と`assumed-zero`で表し、表示桁を精度保証として説明しない
 - [ ] 選択星の軌跡は既定OFFで、ON時だけ前後3時間・最大13点を2D/3Dと時刻再生へ同期する
 - [ ] 太陽中心の幾何高度、薄明、地平線下、向き、精度制約が画面から理解できる
 - [ ] 太陽方向マーカーはWeb/macOSの2D・3Dで同じ太陽状態に同期し、地平線上下・背面・ナイトモード・高コントラストを区別し、恒星選択を奪わない
@@ -120,8 +126,15 @@ ASDF_NODEJS_VERSION=24.18.0 npm run web:bench:precision:soak
 - [ ] 相対配置は全接触・最大／最接近・物理sample gridで角視野を固定し、
   manual scrubと明示再生の各フレームを指定UTCから再計算する。非表示化と
   reduced-motionで再生が止まり、最大しか確定しない現象は静止図だけになる
+- [ ] Webの現象概要再生はwall-clockを基準に、遅れたtimerでは中間frameを
+  飛ばして全区間をおおむね24秒で終える。rangeは現在値と開始・終了の
+  現地時刻・time zone・UTCを支援技術へ伝える
 - [ ] 年次予報LRUがruntime samplerを保持せず、選択sessionの取消、
   stale結果破棄、範囲外拒否、上限付きsample cacheがWebとmacOSで成功する
+- [ ] Webは選択・地点・候補範囲・panelのactive状態が変わると古いscene
+  sessionを終了し、同じevent IDでも新条件を再準備する。macOSは
+  `EventSceneView`ごとのleaseとウインドウ単位の予報Storeにより、一方の
+  View／ウインドウの終了が生存中のscene sessionを解除しない
 - [ ] 物理境界では発生未確定と中心食分類未確定を区別し、断定できない接触を
   表示せず、地平線状態を別に示す
 - [ ] 1900／2100年の収録範囲注意が必要な地点だけに欠落時間を示し、

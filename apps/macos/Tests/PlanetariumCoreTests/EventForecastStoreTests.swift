@@ -1710,6 +1710,262 @@ final class EventForecastStoreTests:
     }
 
     @MainActor
+    func testSceneSessionLeasesKeepSharedSessionUntilLastViewDisappears()
+        async throws
+    {
+        let lower =
+            date("2026-08-12T17:00:00Z")
+        let item = makeInteractiveSolarForecast(
+            id: "scene-shared-leases",
+            lower: lower,
+            upper:
+                lower.addingTimeInterval(600)
+        )
+        let firstView =
+            EventSceneSessionLease()
+        let secondView =
+            EventSceneSessionLease()
+        let store = makeSceneStore()
+
+        store.acquireSceneSession(
+            for: item,
+            lease: firstView
+        )
+        store.acquireSceneSession(
+            for: item,
+            lease: secondView
+        )
+        try await waitUntil {
+            store.sceneSession?.phase == .ready
+        }
+
+        store.playScene()
+        XCTAssertTrue(
+            store.sceneSession?.isPlaying
+                == true
+        )
+        store
+            .stopScenePlaybackForBackground()
+        XCTAssertFalse(
+            store.sceneSession?.isPlaying
+                == true
+        )
+        XCTAssertNotNil(store.sceneSession)
+
+        store.playScene()
+        store.setSceneReduceMotion(true)
+        XCTAssertFalse(store.canPlayScene)
+        XCTAssertFalse(
+            store.sceneSession?.isPlaying
+                == true
+        )
+        store.setSceneReduceMotion(false)
+        store.retrySceneSession(for: item)
+        try await waitUntil {
+            store.sceneSession?.phase == .ready
+        }
+
+        store.releaseSceneSession(
+            lease: firstView
+        )
+        XCTAssertNotNil(
+            store.sceneSession,
+            "One window disappearing must not release a session retained by another window"
+        )
+        store.releaseSceneSession(
+            lease: firstView
+        )
+        XCTAssertNotNil(
+            store.sceneSession,
+            "A stale onDisappear token must be harmless"
+        )
+
+        store.releaseSceneSession(
+            lease: secondView
+        )
+        XCTAssertNil(store.sceneSession)
+        XCTAssertEqual(
+            store.sceneSampleCacheCount,
+            0
+        )
+    }
+
+    @MainActor
+    func testSceneSessionLeaseRestoresSurvivingViewAfterSameIDReplacement()
+        async throws
+    {
+        let firstLower =
+            date("2026-08-12T17:00:00Z")
+        let first =
+            makeInteractiveSolarForecast(
+                id: "scene-shared-id",
+                lower: firstLower,
+                upper:
+                    firstLower
+                    .addingTimeInterval(600)
+            )
+        let replacementLower =
+            firstLower.addingTimeInterval(
+                3_600
+            )
+        let replacement =
+            makeInteractiveSolarForecast(
+                id: "scene-shared-id",
+                lower: replacementLower,
+                upper:
+                    replacementLower
+                    .addingTimeInterval(600)
+            )
+        let firstView =
+            EventSceneSessionLease()
+        let replacementView =
+            EventSceneSessionLease()
+        let store = makeSceneStore()
+
+        store.acquireSceneSession(
+            for: first,
+            lease: firstView
+        )
+        try await waitUntil {
+            store.sceneSession?.phase == .ready
+        }
+
+        store.acquireSceneSession(
+            for: replacement,
+            lease: replacementView
+        )
+        XCTAssertNil(
+            store.sceneSession?
+                .displayedSample,
+            "A same-id replacement must still discard stale scene resources"
+        )
+        try await waitUntil {
+            store.sceneSession?.phase == .ready
+        }
+        XCTAssertEqual(
+            store.sceneSession?
+                .plan.lowerBound,
+            replacementLower
+        )
+
+        store.releaseSceneSession(
+            lease: replacementView
+        )
+        XCTAssertEqual(
+            store.sceneSession?
+                .plan.lowerBound,
+            firstLower,
+            "Releasing the current view restores the most recent surviving view request"
+        )
+        try await waitUntil {
+            store.sceneSession?.phase == .ready
+        }
+
+        store.releaseSceneSession(
+            lease: replacementView
+        )
+        XCTAssertNotNil(
+            store.sceneSession,
+            "A released token cannot tear down the restored session"
+        )
+        store.releaseSceneSession(
+            lease: firstView
+        )
+        XCTAssertNil(store.sceneSession)
+    }
+
+    @MainActor
+    func testSceneSessionLeaseCanBeReacquiredAfterForecastSelectionChanges()
+        async throws
+    {
+        let firstLower =
+            date("2026-08-12T17:00:00Z")
+        let first =
+            makeInteractiveSolarForecast(
+                id: "scene-selection-first",
+                lower: firstLower,
+                upper:
+                    firstLower
+                    .addingTimeInterval(600)
+            )
+        let secondLower =
+            firstLower.addingTimeInterval(
+                3_600
+            )
+        let second =
+            makeInteractiveSolarForecast(
+                id: "scene-selection-second",
+                lower: secondLower,
+                upper:
+                    secondLower
+                    .addingTimeInterval(600)
+            )
+        let store =
+            EventForecastStore(
+                initialYear: 2026,
+                dependencies:
+                    EventForecastDependencies(
+                        loadForecasts: {
+                            _, _ in
+                            [first, second]
+                        },
+                        sampleScene: {
+                            _, instant in
+                            Self.sceneSample(
+                                at: instant
+                            )
+                        }
+                    )
+            )
+        let view =
+            EventSceneSessionLease()
+
+        store.activate(
+            location: tokyo,
+            observationDate:
+                firstLower
+                .addingTimeInterval(-60)
+        )
+        try await waitUntil {
+            store.phase == .loaded
+        }
+        XCTAssertEqual(
+            store.selectedForecastID,
+            first.id
+        )
+        store.acquireSceneSession(
+            for: first,
+            lease: view
+        )
+        try await waitUntil {
+            store.sceneSession?.phase == .ready
+        }
+
+        store.selectForecast(second.id)
+        XCTAssertNil(
+            store.sceneSession,
+            "Selection changes invalidate the previous scene immediately"
+        )
+        store.acquireSceneSession(
+            for: second,
+            lease: view
+        )
+        try await waitUntil {
+            store.sceneSession?.phase == .ready
+        }
+        XCTAssertEqual(
+            store.sceneSession?
+                .plan.lowerBound,
+            secondLower
+        )
+
+        store.releaseSceneSession(
+            lease: view
+        )
+        XCTAssertNil(store.sceneSession)
+    }
+
+    @MainActor
     func testSceneSessionClampsExactUTCAndReplaysTheWholeInterval()
         async throws
     {

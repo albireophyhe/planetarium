@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronDownIcon } from "lucide-react";
 import type {
   ObserverLocation,
   StarViewModel,
 } from "../../app/types";
 import type {
+  Atmosphere,
   IersEarthOrientationEstimateV1,
   ResolvedTimeScales,
 } from "../../domain";
@@ -17,14 +18,22 @@ import {
   formatSignedDegrees,
 } from "../../app/astronomicalFormatting";
 import { formatZonedDateTimeInput } from "../../domain";
-import { buildStarPointingPayload } from "./starPointingPayload";
+import {
+  type AppliedPolarMotionSnapshot,
+  buildStarPointingPayload,
+  hasFullPrecisionPointingSnapshot,
+  serializeStarPointingJsonProfile,
+} from "./starPointingPayload";
 
 type StarDetailsProps = {
   earthOrientationEstimate?: IersEarthOrientationEstimateV1 | null;
+  earthOrientationSourceIdentifier?: string | null;
   isPlaybackPlaying?: boolean;
   location?: ObserverLocation | null;
   observationDate?: Date | null;
   onPausePlayback?: () => void;
+  polarMotionSnapshot?: AppliedPolarMotionSnapshot | null;
+  refractionAtmosphere?: Atmosphere | null;
   star: StarViewModel | null;
   timeScales?: ResolvedTimeScales | null;
 };
@@ -224,11 +233,16 @@ function positionAccuracySummary(
 
 type StarPointingSnapshot = {
   earthOrientationEstimate: IersEarthOrientationEstimateV1 | null;
+  earthOrientationSourceIdentifier: string | null;
   location: ObserverLocation;
   observationDate: Date;
+  polarMotionSnapshot: AppliedPolarMotionSnapshot | null;
+  refractionAtmosphere: Atmosphere | null;
   star: StarViewModel;
   timeScales: ResolvedTimeScales | null;
 };
+
+type StarPointingCopyFormat = "readable-text" | "precision-json-v1";
 
 function canonicalSnapshotValue(value: unknown): unknown {
   if (value instanceof Date) {
@@ -263,8 +277,12 @@ function starPointingSnapshotSignature(
       },
       earthOrientationEstimate:
         snapshot.earthOrientationEstimate,
+      earthOrientationSourceIdentifier:
+        snapshot.earthOrientationSourceIdentifier,
       location: snapshot.location,
       observationDateUtc: snapshot.observationDate.toISOString(),
+      polarMotionSnapshot: snapshot.polarMotionSnapshot,
+      refractionAtmosphere: snapshot.refractionAtmosphere,
       star: snapshot.star,
       timeScales: snapshot.timeScales,
     }),
@@ -273,14 +291,19 @@ function starPointingSnapshotSignature(
 
 export function StarDetails({
   earthOrientationEstimate = null,
+  earthOrientationSourceIdentifier = null,
   isPlaybackPlaying = false,
   location = null,
   observationDate = null,
   onPausePlayback,
+  polarMotionSnapshot = null,
+  refractionAtmosphere = null,
   star,
   timeScales = null,
 }: StarDetailsProps) {
+  const latestCopyOperationRef = useRef(0);
   const [copyResult, setCopyResult] = useState<{
+    format: StarPointingCopyFormat;
     pausedPlayback: boolean;
     signature: string;
     status: "copied" | "error";
@@ -290,12 +313,29 @@ export function StarDetails({
     star && observationDate && location
       ? starPointingSnapshotSignature({
           earthOrientationEstimate,
+          earthOrientationSourceIdentifier,
           location,
           observationDate,
+          polarMotionSnapshot,
+          refractionAtmosphere,
           star,
           timeScales,
         })
       : null;
+  const precisionJsonAvailable =
+    star !== null &&
+    observationDate !== null &&
+    location !== null &&
+    hasFullPrecisionPointingSnapshot({
+      earthOrientationEstimate,
+      earthOrientationSourceIdentifier,
+      location,
+      observationDate,
+      polarMotionSnapshot,
+      refractionAtmosphere,
+      star,
+      timeScales,
+    });
   const currentCopyResult =
     currentSnapshotSignature &&
     copyResult?.signature === currentSnapshotSignature
@@ -312,7 +352,10 @@ export function StarDetails({
 
   const copyPointingSnapshot =
     observationDate && location
-      ? async () => {
+      ? async (format: StarPointingCopyFormat) => {
+          const operationId =
+            latestCopyOperationRef.current + 1;
+          latestCopyOperationRef.current = operationId;
           const snapshot = {
             earthOrientationEstimate: earthOrientationEstimate
               ? {
@@ -322,8 +365,15 @@ export function StarDetails({
                   },
                 }
               : null,
+            earthOrientationSourceIdentifier,
             location: { ...location },
             observationDate: new Date(observationDate.getTime()),
+            polarMotionSnapshot: polarMotionSnapshot
+              ? { ...polarMotionSnapshot }
+              : null,
+            refractionAtmosphere: refractionAtmosphere
+              ? { ...refractionAtmosphere }
+              : null,
             star: { ...star, aliases: [...star.aliases] },
             timeScales: timeScales
               ? {
@@ -339,23 +389,44 @@ export function StarDetails({
           if (pausedPlayback) {
             onPausePlayback();
           }
-          const payload = buildStarPointingPayload({
-            ...snapshot,
-          });
           const utc = snapshot.observationDate.toISOString();
+          setCopyResult(null);
           try {
+            const payload =
+              format === "precision-json-v1"
+                ? precisionJsonAvailable
+                  ? serializeStarPointingJsonProfile(snapshot)
+                  : null
+                : buildStarPointingPayload(snapshot);
+            if (payload === null) {
+              throw new Error(
+                "A complete precision snapshot is unavailable",
+              );
+            }
             if (!navigator.clipboard?.writeText) {
               throw new Error("Clipboard API is unavailable");
             }
             await navigator.clipboard.writeText(payload);
+            if (
+              latestCopyOperationRef.current !== operationId
+            ) {
+              return;
+            }
             setCopyResult({
+              format,
               pausedPlayback,
               signature,
               status: "copied",
               utc,
             });
           } catch {
+            if (
+              latestCopyOperationRef.current !== operationId
+            ) {
+              return;
+            }
             setCopyResult({
+              format,
               pausedPlayback,
               signature,
               status: "error",
@@ -428,10 +499,29 @@ export function StarDetails({
           <div className="star-details__pointing-copy">
             <button
               className="button button--secondary"
-              onClick={copyPointingSnapshot ?? undefined}
+              onClick={() => {
+                void copyPointingSnapshot?.("readable-text");
+              }}
               type="button"
             >
               導入用データをコピー
+            </button>
+            <button
+              className="button button--secondary"
+              disabled={!precisionJsonAvailable}
+              onClick={() => {
+                void copyPointingSnapshot?.(
+                  "precision-json-v1",
+                );
+              }}
+              type="button"
+              title={
+                precisionJsonAvailable
+                  ? "座標系・単位・適用したEOPを含むversion付きJSONをコピー"
+                  : "精密モデルv2の完全な計算snapshotがある場合だけ利用できます"
+              }
+            >
+              JSONをコピー
             </button>
             <span aria-atomic="true" aria-live="polite" role="status">
               {currentCopyResult?.status === "copied"
@@ -439,13 +529,23 @@ export function StarDetails({
                     currentCopyResult.pausedPlayback
                       ? "時刻を停止し、"
                       : ""
-                  }UTC ${currentCopyResult.utc} 時点の座標をコピーしました`
+                  }UTC ${currentCopyResult.utc} 時点の${
+                    currentCopyResult.format ===
+                    "precision-json-v1"
+                      ? "JSON"
+                      : "座標"
+                  }をコピーしました`
                 : currentCopyResult?.status === "error"
                   ? `${
                       currentCopyResult.pausedPlayback
                         ? "時刻を停止しましたが、"
                         : ""
-                    }UTC ${currentCopyResult.utc} 時点の座標をコピーできませんでした`
+                    }UTC ${currentCopyResult.utc} 時点の${
+                      currentCopyResult.format ===
+                      "precision-json-v1"
+                        ? "JSON"
+                        : "座標"
+                    }をコピーできませんでした`
                   : ""}
             </span>
           </div>

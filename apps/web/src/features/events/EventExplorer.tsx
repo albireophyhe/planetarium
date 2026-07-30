@@ -136,6 +136,12 @@ type PendingEventSceneSample = {
   readonly session: EventSceneSamplingSession;
 };
 
+type EventScenePlaybackClock = {
+  readonly sceneStartMilliseconds: number;
+  readonly session: EventSceneSamplingSession;
+  readonly wallStartMilliseconds: number;
+};
+
 function eventPhaseId(contact: EventContact) {
   return `${contact.phase}:${contact.instantUtc.getTime()}`;
 }
@@ -865,6 +871,7 @@ function EventSceneSimulationControls({
 }) {
   const titleId = useId();
   const rangeId = useId();
+  const rangeDescriptionId = useId();
   const title = (
     <h3 id={titleId}>連続シミュレーション</h3>
   );
@@ -940,6 +947,8 @@ function EventSceneSimulationControls({
   const { endMilliseconds, startMilliseconds } =
     session.rangeUtc;
   const currentDate = new Date(currentMilliseconds);
+  const startDate = new Date(startMilliseconds);
+  const endDate = new Date(endMilliseconds);
   const isAtEnd = currentMilliseconds >= endMilliseconds;
   return (
     <section
@@ -964,11 +973,17 @@ function EventSceneSimulationControls({
         画面座標の補間はせず、全区間で固定した角度縮尺を使います。
       </p>
       <label htmlFor={rangeId}>シミュレーション時刻</label>
+      <p className="sr-only" id={rangeDescriptionId}>
+        シミュレーション範囲。開始は現地時刻
+        {formatDateTime(startDate, localTimeZone)}（
+        {localTimeZone}）、{formatUtcDateTime(startDate)}
+        。終了は現地時刻
+        {formatDateTime(endDate, localTimeZone)}（
+        {localTimeZone}）、{formatUtcDateTime(endDate)}。
+      </p>
       <input
-        aria-valuetext={formatDateTime(
-          currentDate,
-          localTimeZone,
-        )}
+        aria-describedby={rangeDescriptionId}
+        aria-valuetext={`現地時刻 ${formatDateTime(currentDate, localTimeZone)}（${localTimeZone}）、${formatUtcDateTime(currentDate)}`}
         id={rangeId}
         max={endMilliseconds}
         min={startMilliseconds}
@@ -984,16 +999,10 @@ function EventSceneSimulationControls({
         className="event-scene-simulation__range-labels"
       >
         <span>
-          {formatDateTime(
-            new Date(startMilliseconds),
-            localTimeZone,
-          )}
+          {formatDateTime(startDate, localTimeZone)}
         </span>
         <span>
-          {formatDateTime(
-            new Date(endMilliseconds),
-            localTimeZone,
-          )}
+          {formatDateTime(endDate, localTimeZone)}
         </span>
       </div>
       <div className="event-scene-simulation__actions">
@@ -1115,11 +1124,17 @@ function EventDetails({
     useState(false);
   const [playingSession, setPlayingSession] =
     useState<EventSceneSamplingSession | null>(null);
+  const playbackClockRef =
+    useRef<EventScenePlaybackClock | null>(null);
   const pendingSampleRef =
     useRef<PendingEventSceneSample | null>(null);
   const samplingTimerRef = useRef<number | null>(null);
   const previousSamplingSessionRef =
     useRef<EventSceneSamplingSession | null>(samplingSession);
+  const stopPhysicalPlayback = useCallback(() => {
+    playbackClockRef.current = null;
+    setPlayingSession(null);
+  }, []);
   const clearPendingSample = useCallback(() => {
     pendingSampleRef.current = null;
     if (samplingTimerRef.current !== null) {
@@ -1133,8 +1148,8 @@ function EventDetails({
     clearPendingSample();
     setPhysicalSceneSelection(null);
     setSamplingError(null);
-    setPlayingSession(null);
-  }, [clearPendingSample]);
+    stopPhysicalPlayback();
+  }, [clearPendingSample, stopPhysicalPlayback]);
   const commitPhysicalSample = useCallback(
     (
       session: EventSceneSamplingSession,
@@ -1158,11 +1173,11 @@ function EventDetails({
         });
         setRequestedSceneInstant(null);
         setSamplingIsPending(false);
-        setPlayingSession(null);
+        stopPhysicalPlayback();
         return false;
       }
     },
-    [],
+    [stopPhysicalPlayback],
   );
   const requestPhysicalSample = useCallback(
     (instantMilliseconds: number) => {
@@ -1179,7 +1194,7 @@ function EventDetails({
       pendingSampleRef.current = request;
       setRequestedSceneInstant(request);
       setSamplingIsPending(true);
-      setPlayingSession(null);
+      stopPhysicalPlayback();
       if (samplingTimerRef.current !== null) {
         return;
       }
@@ -1195,7 +1210,11 @@ function EventDetails({
         }
       }, EVENT_SCENE_PLAYBACK_INTERVAL_MILLISECONDS);
     },
-    [commitPhysicalSample, samplingSession],
+    [
+      commitPhysicalSample,
+      samplingSession,
+      stopPhysicalPlayback,
+    ],
   );
   useEffect(
     () => () => {
@@ -1321,7 +1340,7 @@ function EventDetails({
     );
   };
   const showSceneSampleOnSky = () => {
-    setPlayingSession(null);
+    stopPhysicalPlayback();
     if (!physicalSceneSample) {
       showContactOnSky(solvedSceneSample);
       return;
@@ -1342,7 +1361,7 @@ function EventDetails({
       return;
     }
     if (isPlaying) {
-      setPlayingSession(null);
+      stopPhysicalPlayback();
       return;
     }
     let playbackStartMilliseconds =
@@ -1363,30 +1382,50 @@ function EventDetails({
     ) {
       return;
     }
+    playbackClockRef.current = {
+      sceneStartMilliseconds: playbackStartMilliseconds,
+      session: samplingSession,
+      wallStartMilliseconds: performance.now(),
+    };
     setPlayingSession(samplingSession);
   };
   useEffect(() => {
-    if (
-      !isPlaying ||
-      !samplingSession ||
-      simulationMilliseconds === null
-    ) {
+    if (!isPlaying || !samplingSession) {
       return;
     }
-    const timer = window.setTimeout(() => {
+    const timer = window.setInterval(() => {
+      const playbackClock = playbackClockRef.current;
+      if (
+        !playbackClock ||
+        playbackClock.session !== samplingSession
+      ) {
+        stopPhysicalPlayback();
+        return;
+      }
       const durationMilliseconds =
         samplingSession.rangeUtc.endMilliseconds -
         samplingSession.rangeUtc.startMilliseconds;
-      const stepMilliseconds = Math.max(
+      const elapsedWallMilliseconds =
+        performance.now() -
+        playbackClock.wallStartMilliseconds;
+      if (
+        !Number.isFinite(elapsedWallMilliseconds) ||
+        elapsedWallMilliseconds < 0
+      ) {
+        stopPhysicalPlayback();
+        return;
+      }
+      const elapsedSceneMilliseconds = Math.max(
         1,
         Math.ceil(
           durationMilliseconds *
-            (EVENT_SCENE_PLAYBACK_INTERVAL_MILLISECONDS /
+            (elapsedWallMilliseconds /
               EVENT_SCENE_PLAYBACK_DURATION_MILLISECONDS),
         ),
       );
       const nextMilliseconds = clampEventSceneInstant(
-        simulationMilliseconds + stepMilliseconds,
+        playbackClock.sceneStartMilliseconds +
+          elapsedSceneMilliseconds,
         samplingSession.rangeUtc,
       );
       const succeeded = commitPhysicalSample(
@@ -1398,30 +1437,30 @@ function EventDetails({
         nextMilliseconds >=
           samplingSession.rangeUtc.endMilliseconds
       ) {
-        setPlayingSession(null);
+        stopPhysicalPlayback();
       }
     }, EVENT_SCENE_PLAYBACK_INTERVAL_MILLISECONDS);
-    return () => window.clearTimeout(timer);
+    return () => window.clearInterval(timer);
   }, [
     commitPhysicalSample,
     isPlaying,
     samplingSession,
-    simulationMilliseconds,
+    stopPhysicalPlayback,
   ]);
   useEffect(() => {
     if (!isActive) {
       // A mounted but hidden feature panel must stop computation immediately.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPlayingSession(null);
+      stopPhysicalPlayback();
     }
-  }, [isActive]);
+  }, [isActive, stopPhysicalPlayback]);
   useEffect(() => {
     if (!isPlaying) {
       return;
     }
     const pauseWhenHidden = () => {
       if (document.hidden) {
-        setPlayingSession(null);
+        stopPhysicalPlayback();
       }
     };
     document.addEventListener(
@@ -1433,15 +1472,15 @@ function EventDetails({
         "visibilitychange",
         pauseWhenHidden,
       );
-  }, [isPlaying]);
+  }, [isPlaying, stopPhysicalPlayback]);
   useEffect(() => {
     if (prefersReducedMotion) {
       // An external accessibility preference change must stop, not suspend,
       // playback so disabling and re-enabling it never auto-resumes.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPlayingSession(null);
+      stopPhysicalPlayback();
     }
-  }, [prefersReducedMotion]);
+  }, [prefersReducedMotion, stopPhysicalPlayback]);
   return (
     <section
       aria-labelledby={titleId}

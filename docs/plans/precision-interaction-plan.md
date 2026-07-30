@@ -35,7 +35,7 @@ WebGLが使えない場合は2Dへ戻る。自動回転は行わない。
 | 共有地球暦 | 実装済み | SOFA `epv00` 1,323項から決定的に選ぶVSOP2000由来200項、解析微分、schema、generator、両bundle検査、1900–2100年293,657時点走査を完了 |
 | 太陽・薄明 | 実装済み | 恒星と同じ時刻系・地球姿勢を使い、水平位置だけWGS84観測地点の日周視差を含む太陽中心の幾何高度へ統合。地心の見かけ赤経・赤緯を別に保持し、Web/macOSの2D・3Dへ選択対象でない太陽方向マーカーを追加 |
 | 観測時計・軌跡 | 実装済み | 停止、順逆、速度、境界、reduced-motion、非表示停止と、既定OFFの前後3時間・13点軌跡を両版へ実装。Webは連続変化する太陽高度と軌跡再計算をlive region外に置き、低頻度の計算状態・時刻仮定だけ`polite`に通知。軌跡の凡例とCanvas説明は維持 |
-| 精密導入readout | 実装済み | J2000、地心見かけ、真空／大気差後水平座標と再現条件を表示・コピーする。再生中のコピーはクリック時frameを固定して一度停止する。カードは同じUTC・地点・大気差、完了状態は固定UTC・停止有無・成否を示す。座標profile選択とversion付き機械可読payloadは後段 |
+| 精密導入readout | 実装済み | J2000、地心見かけ、真空／大気差後水平座標と再現条件を表示・コピーする。読みやすい本文と`planetarium.precision-pointing.full-v1`／`schemaVersion: 1`のJSONを選べ、frame・origin・epoch/equinox・単位・方位規約、UTC/UT1/TT、EOP、大気差、診断情報を区別する。両形式ともクリック時frameを固定し、再生中だけ一度停止する。完了状態は同じsnapshotのUTC・停止有無・成否・形式を示し、古い非同期操作で上書きしない |
 | Web 3D | 実装済み | lazy-load、回転・zoom・reset、北東南西＋天頂・天底の追従DOMラベル、星座線・星名・薄明・選択同期、context loss等からの2D復旧を自動テストと実ブラウザーで確認。2D/3D共通helperでdevice pixel ratioを1–2倍へ制限し、240pxでは操作を一段化 |
 | macOS 3Dナビゲーション | 実装済み | 6方向ラベル、trackball drag、75–250% pinch/ボタン、方向操作、向きと倍率のreset、狭幅配置、VoiceOver倍率、`⌃⌘矢印`・`⌘＋ / ⌘−`・`⌘0`を全Swiftテスト、release build、bundle起動検証で確認 |
 | 初期表示と時刻系警告 | 実装済み | WebはCSP互換の同一origin `boot-shell.css`、JavaScript無効時の`noscript`説明、成果物検査を実装。Web/macOSとも1900年の`TAI−UTC=0秒近似`と将来の`37秒仮定`を通常期間では出さず、macOS Inspectorでは詳細な根拠も表示する。v1星表、React、vendorを分割し、本番相当WranglerとCSPでもshellからReactへ置換できる |
@@ -120,6 +120,11 @@ WebGLが使えない場合は2Dへ戻る。自動回転は行わない。
      clipboardへ渡すpayload、カードの計算条件、完了状態のUTCは同じsnapshotを
      指す。失敗時も停止有無と固定UTCを曖昧にせず、星・日時・地点・大気差の
      変更後に以前の完了状態を現在値として扱わない。
+   - 人間向け本文とversion付きJSONで同じsnapshot契約を使う。JSONは
+     profile ID、schema version、frame、origin、epoch/equinox、単位と
+     大気差を明示し、利用できない精密値は`null`と状態を組み合わせる。
+     EOPの`0`は実際に0近似を適用した場合だけ、`assumed-zero`と共に出す。
+     機械可読化と表示桁を位置精度の保証として扱わない。
    - 観察、変更、検証、残るリスクを改善ログへ追記する。
 
 ## 再監査後の実施順
@@ -133,9 +138,9 @@ WebGLが使えない場合は2Dへ戻る。自動回転は行わない。
 4. 太陽方向とmacOS 3Dの回転・倍率を、専門知識やgestureなしでも操作・理解できるようにする。
 5. 実配布、物理支援技術、実機PWAの未完了ゲートを残件として維持する。
 
-現在の継続監査では、既存機能の誤った一時frameを防ぐ順に、UTC日跨ぎの
-EOP atomic frame、座標profileとversion付きpayload、実気象に基づく大気差、
-Gaia/Hipparcosを使うprecision-v3を次候補とする。食・掩蔽の任意時刻samplerは
+現在の継続監査では、座標profileを選べるversion付きpayloadまでを実装した。
+次候補はUTC日跨ぎのEOP atomic frame、実気象に基づく大気差、
+Gaia/Hipparcosを使うprecision-v3の順とする。食・掩蔽の任意時刻samplerは
 現象フェーズの計画で別に管理する。
 
 ## 精度tier

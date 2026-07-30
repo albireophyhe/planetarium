@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "profileId": "planetarium.precision-pointing.full-v1",
+  "catalogKinematicsStatuses": [
+    "three-dimensional",
+    "angular-proper-motion",
+    "catalog-position-only"
+  ],
+  "earthOrientationStatuses": [
+    "iers",
+    "assumed-zero",
+    "partial"
+  ],
+  "dut1Statuses": [
+    "available",
+    "assumed-zero",
+    "caller",
+    "unavailable",
+    "applied-without-matching-estimate-metadata",
+    "invalid-assumed-zero-value"
+  ],
+  "polarMotionStatuses": [
+    "available",
+    "assumed-zero",
+    "unavailable",
+    "applied-without-matching-estimate-metadata",
+    "invalid-assumed-zero-value"
+  ],
+  "omittedCorrectionTokens": [
+    "annual-parallax",
+    "stellar-diurnal-parallax",
+    "solar-light-deflection",
+    "planetary-light-deflection",
+    "annual-aberration",
+    "diurnal-aberration",
+    "polar-motion",
+    "subdaily-polar-motion-tides"
+  ]
+}

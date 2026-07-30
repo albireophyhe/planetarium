@@ -198,6 +198,10 @@ final class SkyStore {
     private var isRecomputingSky = false
 
     @ObservationIgnored
+    private var currentApparentPositionContext:
+        ApparentPositionContextV2?
+
+    @ObservationIgnored
     private var playbackTask: Task<Void, Never>?
 
     var isPlaybackDriverRunning: Bool {
@@ -314,10 +318,88 @@ final class SkyStore {
     }
 
     var selectedStarPointingPayload: String? {
+        selectedStarPointingPayload(
+            profile: .readableText
+        )
+    }
+
+    func selectedStarPointingPayloadSignature(
+        profile: StarPointingPayloadProfile
+    ) -> StarPointingPayloadSignature? {
+        guard
+            let star = selectedStar,
+            let timeScales = currentTimeScales,
+            profile == .readableText
+                || currentApparentPositionContext
+                    != nil
+        else {
+            return nil
+        }
+        return StarPointingPayloadSignature(
+            profile: profile,
+            observationDate: observationDate,
+            location: location,
+            star: star,
+            timeScales: timeScales,
+            earthOrientationEstimate:
+                currentEarthOrientationEstimate,
+            solarLightDeflectionMode:
+                currentSolarLightDeflectionMode,
+            usesStandardAtmosphericRefraction:
+                useStandardAtmosphericRefraction
+        )
+    }
+
+    func isSelectedStarPointingPayloadAvailable(
+        profile: StarPointingPayloadProfile
+    ) -> Bool {
+        selectedStarPointingPayloadSignature(
+            profile: profile
+        ) != nil
+    }
+
+    func selectedStarPointingPayload(
+        profile: StarPointingPayloadProfile
+    ) -> String? {
         guard let star = selectedStar,
               let timeScales = currentTimeScales
         else {
             return nil
+        }
+        let precisionContext:
+            StarPointingPrecisionContext?
+        switch profile {
+        case .readableText:
+            precisionContext = nil
+        case .precisionJSON:
+            guard
+                let frame =
+                    currentApparentPositionContext,
+                let position = try? Astronomy
+                    .calculateApparentStarPositionWithContextV2(
+                        star.catalog,
+                        context: frame
+                    ),
+                let resolved =
+                    StarPointingPrecisionContext(
+                        position: position,
+                        frame: frame,
+                        atmosphere:
+                            useStandardAtmosphericRefraction
+                            ? .standardVisual
+                            : nil,
+                        earthOrientationEstimate:
+                            currentEarthOrientationEstimate,
+                        earthOrientationSourceIdentifier:
+                            currentEarthOrientationEstimate
+                                == nil
+                            ? nil
+                            : pointingEarthOrientationIdentifier
+                    )
+            else {
+                return nil
+            }
+            precisionContext = resolved
         }
         return StarPointingPayloadFormatter.payload(
             for: star,
@@ -328,15 +410,21 @@ final class SkyStore {
                 earthOrientationIdentifier:
                     pointingEarthOrientationIdentifier,
                 refractionDescription:
-                    pointingRefractionDescription
-            )
+                    pointingRefractionDescription,
+                precisionContext: precisionContext
+            ),
+            profile: profile
         )
     }
 
     /// Stops a moving sky before capturing the exact date and its matching
     /// pointing payload. The returned payload and timestamp therefore always
     /// describe the same immutable frame.
-    func captureSelectedStarPointingSnapshot()
+    func captureSelectedStarPointingSnapshot(
+        profile:
+            StarPointingPayloadProfile =
+            .readableText
+    )
         -> StarPointingSnapshot?
     {
         let didPausePlayback =
@@ -349,7 +437,11 @@ final class SkyStore {
             }
 
         let frozenDate = observationDate
-        guard let payload = selectedStarPointingPayload
+        guard
+            let payload =
+                selectedStarPointingPayload(
+                    profile: profile
+                )
         else {
             return nil
         }
@@ -1154,6 +1246,7 @@ final class SkyStore {
     private func recomputeSky() {
         isRecomputingSky = true
         currentTimeScales = nil
+        currentApparentPositionContext = nil
         var hasPrecisionFrame = false
         defer {
             isRecomputingSky = false
@@ -1193,6 +1286,7 @@ final class SkyStore {
             currentSolarLightDeflectionMode =
                 context.solarLightDeflection.mode
             currentTimeScales = context.timeScales
+            currentApparentPositionContext = context
             hasPrecisionFrame = true
             currentEarthOrientationEstimate =
                 earthOrientationEstimate
@@ -1235,6 +1329,8 @@ final class SkyStore {
                     currentSolarLightDeflectionMode =
                         context.solarLightDeflection.mode
                     currentTimeScales = context.timeScales
+                    currentApparentPositionContext =
+                        context
                     hasPrecisionFrame = true
                 } catch {
                     renderedStars = []

@@ -1,4 +1,5 @@
 import type {
+  AberrationMode,
   AnnualParallaxMode,
   DiurnalAberrationMode,
   PolarMotionMode,
@@ -10,6 +11,7 @@ import type {
 export type StarViewModel = {
   aliases: readonly string[];
   altitudeDeg: number;
+  annualAberrationMode: AberrationMode | null;
   apparentDecRad: number | null;
   apparentRaRad: number | null;
   annualParallaxMode: AnnualParallaxMode | null;
@@ -24,6 +26,7 @@ export type StarViewModel = {
   geometricAltitudeDeg: number;
   geometricAzimuthDefined: boolean;
   geometricAzimuthDeg: number;
+  hd: number | null;
   hr: number;
   japaneseName: string;
   parallaxArcsec: number | null;

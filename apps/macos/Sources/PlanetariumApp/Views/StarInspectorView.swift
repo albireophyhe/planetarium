@@ -7,6 +7,8 @@ struct StarInspectorView: View {
     @Bindable var store: SkyStore
     @State private var pointingCopyStatus: String?
     @State private var pointingCopyFailed = false
+    @State private var pointingPayloadProfile:
+        StarPointingPayloadProfile = .readableText
 
     var body: some View {
         ScrollView {
@@ -141,8 +143,14 @@ struct StarInspectorView: View {
             .padding(18)
         }
         .onChange(
-            of: store.selectedStarPointingPayload
+            of: store
+                .selectedStarPointingPayloadSignature(
+                profile: pointingPayloadProfile
+            )
         ) {
+            clearPointingCopyStatus()
+        }
+        .onChange(of: pointingPayloadProfile) {
             clearPointingCopyStatus()
         }
     }
@@ -592,19 +600,46 @@ struct StarInspectorView: View {
             }
             .font(.caption)
 
+            Picker(
+                "コピー形式",
+                selection: $pointingPayloadProfile
+            ) {
+                ForEach(
+                    StarPointingPayloadProfile.allCases
+                ) { profile in
+                    Text(profile.label)
+                        .tag(profile)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityHint(
+                "読みやすい本文または座標系と単位を明示したversion付きJSONを選択"
+            )
+
             Button {
                 copyPointingPayload()
             } label: {
                 Label(
-                    "導入用データをコピー",
-                    systemImage: "doc.on.doc"
+                    pointingPayloadProfile.copyLabel,
+                    systemImage:
+                        pointingPayloadProfile
+                            == .precisionJSON
+                        ? "curlybraces"
+                        : "doc.on.doc"
                 )
             }
             .buttonStyle(.borderedProminent)
-            .disabled(store.selectedStarPointingPayload == nil)
+            .disabled(
+                !store
+                    .isSelectedStarPointingPayloadAvailable(
+                        profile:
+                            pointingPayloadProfile
+                    )
+            )
             .help(
-                "J2000・見かけ座標・真空/大気差後の水平座標と"
-                    + "UTC/UT1/TT・EOP識別情報をコピー"
+                pointingPayloadProfile == .precisionJSON
+                    ? "profile ID・座標系・原点・単位・UTC/UT1/TT・EOPをJSONでコピー"
+                    : "J2000・見かけ座標・真空/大気差後の水平座標とUTC/UT1/TT・EOP識別情報をコピー"
             )
 
             if let pointingCopyStatus {
@@ -648,7 +683,10 @@ struct StarInspectorView: View {
         guard
             let snapshot =
                 store
-                .captureSelectedStarPointingSnapshot()
+                .captureSelectedStarPointingSnapshot(
+                    profile:
+                        pointingPayloadProfile
+                )
         else {
             let message =
                 "導入用データを作成できませんでした。"
@@ -669,11 +707,18 @@ struct StarInspectorView: View {
                 snapshot.didPausePlayback
                 ? "時刻を停止し、"
                 : ""
+            let payloadKind =
+                pointingPayloadProfile
+                    == .precisionJSON
+                ? "JSON導入用データ"
+                : "導入用データ"
             updatePointingCopyStatus(
                 prefix
                     + "UTC "
                     + snapshot.utcTimestamp
-                    + " 時点の導入用データをコピーしました。",
+                    + " 時点の"
+                    + payloadKind
+                    + "をコピーしました。",
                 failed: false
             )
         } else {

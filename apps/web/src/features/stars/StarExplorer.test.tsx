@@ -6,6 +6,7 @@ import type { StarViewModel } from "../../app/types";
 import { StarExplorer } from "./StarExplorer";
 
 const TEST_ASTROMETRY = {
+  annualAberrationMode: null,
   annualParallaxMode: null,
   apparentDecRad: null,
   apparentRaRad: null,
@@ -15,6 +16,7 @@ const TEST_ASTROMETRY = {
   geometricAltitudeDeg: 0,
   geometricAzimuthDefined: true,
   geometricAzimuthDeg: 0,
+  hd: null,
   parallaxArcsec: null,
   pmDecArcsecPerYear: null,
   pmRaCosDecArcsecPerYear: null,

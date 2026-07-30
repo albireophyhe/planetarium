@@ -1,12 +1,203 @@
 import Foundation
 import PlanetariumCore
 
+struct StarPointingPrecisionContext: Hashable, Sendable {
+    let position: ApparentStarPositionV2
+    let frame: ApparentPositionContextV2
+    let atmosphere: AtmosphereV2?
+    let earthOrientationEstimate:
+        IERSEarthOrientationEstimateV1?
+    let earthOrientationSourceIdentifier: String?
+
+    init?(
+        position: ApparentStarPositionV2,
+        frame: ApparentPositionContextV2,
+        atmosphere: AtmosphereV2?,
+        earthOrientationEstimate:
+            IERSEarthOrientationEstimateV1?,
+        earthOrientationSourceIdentifier: String?
+    ) {
+        guard
+            position.metadata.timeScales
+                == frame.timeScales,
+            position.solarLightDeflectionMode
+                == frame.solarLightDeflection.mode,
+            position.metadata.aberrationMode
+                == frame.aberration.mode,
+            position.diurnalAberrationMode
+                == frame.diurnalAberration.mode,
+            position.polarMotionMode
+                == frame.polarMotion.mode,
+            Self.atmosphereMatchesAppliedFrame(
+                atmosphere,
+                frame: frame
+            )
+        else {
+            return nil
+        }
+
+        self.position = position
+        self.frame = frame
+        self.atmosphere = atmosphere
+
+        if Self.estimateMatchesAppliedFrame(
+            earthOrientationEstimate,
+            frame: frame
+        ) {
+            self.earthOrientationEstimate =
+                earthOrientationEstimate
+            self.earthOrientationSourceIdentifier =
+                earthOrientationSourceIdentifier
+        } else {
+            // Source metadata is supplementary. If it does not describe
+            // the applied frame exactly, omit it rather than exporting a
+            // contradictory provenance/value pair.
+            self.earthOrientationEstimate = nil
+            self.earthOrientationSourceIdentifier = nil
+        }
+    }
+
+    private static func estimateMatchesAppliedFrame(
+        _ estimate: IERSEarthOrientationEstimateV1?,
+        frame: ApparentPositionContextV2
+    ) -> Bool {
+        guard let estimate else {
+            return false
+        }
+        let expectedDUT1Source: DUT1SourceV2 =
+            estimate.dut1.source == .observed
+            ? .iersObserved
+            : .iersPredicted
+        let expectedPolarMotionMode: PolarMotionModeV2 =
+            estimate.polarMotion.source == .observed
+            ? .iersObserved
+            : .iersPredicted
+
+        return
+            frame.timeScales.dut1Seconds
+                == estimate.dut1.dut1Seconds
+            && frame.timeScales.dut1Source
+                == expectedDUT1Source
+            && frame.timeScales
+                .dut1UncertaintySeconds
+                == estimate.dut1.uncertaintySeconds
+            && frame.polarMotion.mode
+                == expectedPolarMotionMode
+            && frame.polarMotion.xpRadians
+                == estimate.polarMotion.xpRadians
+            && frame.polarMotion.ypRadians
+                == estimate.polarMotion.ypRadians
+            && frame.polarMotion
+                .xpReportedErrorRadians
+                == estimate.polarMotion
+                .xpReportedErrorRadians
+            && frame.polarMotion
+                .ypReportedErrorRadians
+                == estimate.polarMotion
+                .ypReportedErrorRadians
+    }
+
+    private static func atmosphereMatchesAppliedFrame(
+        _ atmosphere: AtmosphereV2?,
+        frame: ApparentPositionContextV2
+    ) -> Bool {
+        switch (atmosphere, frame.refraction) {
+        case (nil, .disabled):
+            return true
+        case let (
+            .some(atmosphere),
+            .configured(
+                coefficients,
+                minimumGeometricAltitudeDegrees
+            )
+        ):
+            guard
+                let expected = try? Astronomy
+                    .refractionCoefficientsV2(
+                        for: atmosphere
+                    )
+            else {
+                return false
+            }
+            return expected == coefficients
+                && atmosphere
+                    .minimumGeometricAltitudeDegrees
+                    == minimumGeometricAltitudeDegrees
+        case (.none, .configured),
+             (.some, .disabled):
+            return false
+        }
+    }
+}
+
 struct StarPointingPayloadContext: Hashable, Sendable {
     let observationDate: Date
     let location: ObservingLocation
     let timeScales: ResolvedTimeScalesV2
     let earthOrientationIdentifier: String
     let refractionDescription: String
+    let precisionContext: StarPointingPrecisionContext?
+
+    init(
+        observationDate: Date,
+        location: ObservingLocation,
+        timeScales: ResolvedTimeScalesV2,
+        earthOrientationIdentifier: String,
+        refractionDescription: String,
+        precisionContext:
+            StarPointingPrecisionContext? = nil
+    ) {
+        self.observationDate = observationDate
+        self.location = location
+        self.timeScales = timeScales
+        self.earthOrientationIdentifier =
+            earthOrientationIdentifier
+        self.refractionDescription =
+            refractionDescription
+        self.precisionContext = precisionContext
+    }
+}
+
+enum StarPointingPayloadProfile:
+    String, CaseIterable, Hashable, Identifiable, Sendable
+{
+    case readableText = "readable-text"
+    case precisionJSON = "precision-json-v1"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .readableText:
+            "読みやすい形式"
+        case .precisionJSON:
+            "JSON v1"
+        }
+    }
+
+    var copyLabel: String {
+        switch self {
+        case .readableText:
+            "導入用データをコピー"
+        case .precisionJSON:
+            "JSON導入データをコピー"
+        }
+    }
+}
+
+struct StarPointingPayloadSignature:
+    Hashable, Sendable
+{
+    let profile: StarPointingPayloadProfile
+    let observationDate: Date
+    let location: ObservingLocation
+    let star: RenderedStar
+    let timeScales: ResolvedTimeScalesV2
+    let earthOrientationEstimate:
+        IERSEarthOrientationEstimateV1?
+    let solarLightDeflectionMode:
+        SolarLightDeflectionModeV2
+    let usesStandardAtmosphericRefraction: Bool
 }
 
 struct StarPointingSnapshot: Hashable, Sendable {
@@ -43,6 +234,22 @@ enum StarPointingCopyStatusPolicy {
 }
 
 enum StarPointingPayloadFormatter {
+    static func payload(
+        for star: RenderedStar,
+        context: StarPointingPayloadContext,
+        profile: StarPointingPayloadProfile
+    ) -> String? {
+        switch profile {
+        case .readableText:
+            payload(for: star, context: context)
+        case .precisionJSON:
+            machineReadablePayload(
+                for: star,
+                context: context
+            )
+        }
+    }
+
     static func payload(
         for star: RenderedStar,
         context: StarPointingPayloadContext
@@ -141,6 +348,16 @@ enum StarPointingPayloadFormatter {
         ].joined(separator: "\n")
     }
 
+    static func machineReadablePayload(
+        for star: RenderedStar,
+        context: StarPointingPayloadContext
+    ) -> String? {
+        StarPointingJSONProfileV1.serialize(
+            star: star,
+            context: context
+        )
+    }
+
     static func preciseRightAscension(
         _ radians: Double
     ) -> String {
@@ -207,6 +424,7 @@ enum StarPointingPayloadFormatter {
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         return formatter.string(from: date)
     }
+
 }
 
 private extension Optional where Wrapped == String {

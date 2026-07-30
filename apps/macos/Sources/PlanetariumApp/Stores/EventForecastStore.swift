@@ -10,6 +10,12 @@ enum EventForecastPhase: Equatable {
     case failed(String)
 }
 
+struct EventSceneSessionLease:
+    Hashable, Sendable
+{
+    private let id = UUID()
+}
+
 enum EventForecastVisibility:
     Hashable, Sendable
 {
@@ -291,6 +297,12 @@ final class EventForecastStore {
         let location: ObservingLocation
     }
 
+    private struct SceneLeaseRequest {
+        let item: EventForecastItem
+        let initialDate: Date?
+        let initialLabel: String?
+    }
+
     private(set) var selectedYear: Int
     private(set) var phase: EventForecastPhase = .idle
     private(set) var forecasts: [EventForecastItem] = []
@@ -364,6 +376,14 @@ final class EventForecastStore {
                 EventForecastStore
                 .sceneSampleCacheCapacity
         )
+
+    @ObservationIgnored
+    private var sceneLeaseRequests:
+        [EventSceneSessionLease: SceneLeaseRequest] = [:]
+
+    @ObservationIgnored
+    private var sceneLeaseRecency:
+        [EventSceneSessionLease] = []
 
     init(
         initialYear: Int = EventForecastStore.utcYear(Date()),
@@ -692,7 +712,7 @@ final class EventForecastStore {
         {
             return
         }
-        deactivateSceneSession()
+        resetSceneSession()
 
         guard let plan =
             EventSceneSessionPlan(item: item)
@@ -887,6 +907,74 @@ final class EventForecastStore {
             }
     }
 
+    func acquireSceneSession(
+        for item: EventForecastItem,
+        lease: EventSceneSessionLease,
+        initialDate: Date? = nil,
+        initialLabel: String? = nil
+    ) {
+        sceneLeaseRequests[lease] =
+            SceneLeaseRequest(
+                item: item,
+                initialDate: initialDate,
+                initialLabel: initialLabel
+            )
+        sceneLeaseRecency.removeAll {
+            $0 == lease
+        }
+        sceneLeaseRecency.append(lease)
+        activateSceneSession(
+            for: item,
+            initialDate: initialDate,
+            initialLabel: initialLabel
+        )
+    }
+
+    func releaseSceneSession(
+        lease: EventSceneSessionLease
+    ) {
+        guard
+            sceneLeaseRequests
+                .removeValue(forKey: lease)
+                != nil
+        else {
+            return
+        }
+        sceneLeaseRecency.removeAll {
+            $0 == lease
+        }
+
+        guard !sceneLeaseRequests.isEmpty
+        else {
+            resetSceneSession()
+            return
+        }
+        if let activeSceneItem,
+           sceneLeaseRequests.values
+            .contains(where: {
+                $0.item == activeSceneItem
+            })
+        {
+            return
+        }
+        guard
+            let survivingLease =
+                sceneLeaseRecency.last,
+            let request =
+                sceneLeaseRequests[
+                    survivingLease
+                ]
+        else {
+            resetSceneSession()
+            return
+        }
+        activateSceneSession(
+            for: request.item,
+            initialDate: request.initialDate,
+            initialLabel: request.initialLabel
+        )
+    }
+
     func retrySceneSession(
         for item: EventForecastItem
     ) {
@@ -894,7 +982,7 @@ final class EventForecastStore {
             sceneSession?.requestedDate
         let requestedLabel =
             sceneSession?.requestedLabel
-        deactivateSceneSession()
+        resetSceneSession()
         activateSceneSession(
             for: item,
             initialDate: requestedDate,
@@ -1167,6 +1255,12 @@ final class EventForecastStore {
     }
 
     func deactivateSceneSession() {
+        sceneLeaseRequests.removeAll()
+        sceneLeaseRecency.removeAll()
+        resetSceneSession()
+    }
+
+    private func resetSceneSession() {
         sceneGeneration += 1
         sceneSampleGeneration += 1
         sceneProjectionTask?.cancel()

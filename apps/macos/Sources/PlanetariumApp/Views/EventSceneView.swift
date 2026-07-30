@@ -13,6 +13,8 @@ struct EventSceneView: View {
     let onShowOnSky: (Date, String) -> Void
 
     @State private var selectedMomentID: String?
+    @State private var sceneSessionLease =
+        EventSceneSessionLease()
 
     @Environment(\.accessibilityDifferentiateWithoutColor)
     private var differentiateWithoutColor
@@ -90,7 +92,9 @@ struct EventSceneView: View {
             )
         }
         .onDisappear {
-            eventStore.deactivateSceneSession()
+            eventStore.releaseSceneSession(
+                lease: sceneSessionLease
+            )
         }
         .transaction { transaction in
             if reduceMotion {
@@ -640,8 +644,9 @@ struct EventSceneView: View {
         let initial = resolvedMoment(
             in: moments
         )
-        eventStore.activateSceneSession(
+        eventStore.acquireSceneSession(
             for: item,
+            lease: sceneSessionLease,
             initialDate:
                 initial?.instantUTC,
             initialLabel: initial?.label

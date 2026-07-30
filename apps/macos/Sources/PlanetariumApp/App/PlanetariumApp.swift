@@ -25,17 +25,9 @@ struct PlanetariumApp: App {
     @State
     private var store = SkyStore()
 
-    @State
-    private var eventStore = EventForecastStore()
-
     var body: some Scene {
         WindowGroup("Planetarium", id: "main") {
-            ContentView(
-                store: store,
-                eventStore: eventStore
-            )
-                .frame(minWidth: 980, minHeight: 680)
-                .preferredColorScheme(.dark)
+            PlanetariumWindowRoot(store: store)
         }
         .defaultSize(width: 1_360, height: 860)
         .windowResizability(.contentMinSize)
@@ -46,5 +38,25 @@ struct PlanetariumApp: App {
         Settings {
             SettingsView(store: store)
         }
+    }
+}
+
+/// Event forecasts retain decoded ephemeris data and view-owned scene leases.
+/// Keep that mutable resource graph inside one WindowGroup instance so closing
+/// or changing mode in one window cannot tear down another window's scene.
+@MainActor
+private struct PlanetariumWindowRoot: View {
+    let store: SkyStore
+
+    @State
+    private var eventStore = EventForecastStore()
+
+    var body: some View {
+        ContentView(
+            store: store,
+            eventStore: eventStore
+        )
+        .frame(minWidth: 980, minHeight: 680)
+        .preferredColorScheme(.dark)
     }
 }

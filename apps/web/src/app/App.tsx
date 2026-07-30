@@ -73,6 +73,10 @@ import {
 import { calculatePrecisionSkyFrame } from "./precisionSkyFrame";
 import { selectRenderableStars } from "./renderCatalogPolicy";
 import { calculateSelectedStarTrack } from "./selectedStarTrack";
+import {
+  STANDARD_REFRACTION_OPTIONS,
+  STANDARD_VISUAL_ATMOSPHERE,
+} from "./standardAtmosphere";
 import { timeScaleAssumptionText } from "./timeScaleAssumption";
 import { useIersEarthOrientation } from "./useIersEarthOrientation";
 import { usePrecisionCatalog } from "./usePrecisionCatalog";
@@ -137,17 +141,6 @@ function useMobileSidePanelLayout(): boolean {
   }, []);
   return matches;
 }
-
-const STANDARD_REFRACTION_OPTIONS: ApparentPositionOptionsV2 =
-  Object.freeze({
-    refraction: Object.freeze({
-      minimumGeometricAltitudeDegrees: 5,
-      pressureHpa: 1_013.25,
-      relativeHumidity: 0.5,
-      temperatureCelsius: 10,
-      wavelengthMicrometers: 0.55,
-    }),
-  });
 
 const OBSERVATION_DATE_ADJUSTMENT_MESSAGE =
   "対応期間は1900年から2100年です。最も近い日時へ調整しました。";
@@ -454,6 +447,8 @@ export function App() {
           altitudeDeg: radiansToDegrees(
             position.observedHorizontal.altitude,
           ),
+          annualAberrationMode:
+            precisionFrame.context.aberration.mode,
           apparentDecRad: position.apparentEquatorial.declination,
           apparentRaRad: position.apparentEquatorial.rightAscension,
           annualParallaxMode: position.annualParallaxMode,
@@ -472,6 +467,7 @@ export function App() {
           geometricAzimuthDeg: radiansToDegrees(
             position.geometricHorizontal.azimuth,
           ),
+          hd: star.hd,
           hr: star.hr,
           parallaxArcsec: star.parallaxArcsec,
           pmDecArcsecPerYear: star.pmDecArcsecPerYear,
@@ -495,6 +491,7 @@ export function App() {
       const result = calculateStarPosition(star, date, location);
       return {
         altitudeDeg: radiansToDegrees(result.horizontal.altitude),
+        annualAberrationMode: null,
         apparentDecRad: null,
         apparentRaRad: null,
         annualParallaxMode: null,
@@ -511,6 +508,7 @@ export function App() {
         geometricAzimuthDeg: radiansToDegrees(
           result.horizontal.azimuth,
         ),
+        hd: star.hd,
         hr: star.hr,
         parallaxArcsec: null,
         pmDecArcsecPerYear: null,
@@ -539,6 +537,7 @@ export function App() {
       result.set(calculated.hr, {
         aliases: named?.aliases ?? [],
         altitudeDeg: calculated.altitudeDeg,
+        annualAberrationMode: calculated.annualAberrationMode,
         apparentDecRad: calculated.apparentDecRad,
         apparentRaRad: calculated.apparentRaRad,
         annualParallaxMode: calculated.annualParallaxMode,
@@ -558,6 +557,7 @@ export function App() {
         geometricAzimuthDefined:
           calculated.geometricAzimuthDefined,
         geometricAzimuthDeg: calculated.geometricAzimuthDeg,
+        hd: calculated.hd,
         hr: calculated.hr,
         japaneseName: fallbackName,
         parallaxArcsec: calculated.parallaxArcsec,
@@ -1164,10 +1164,21 @@ export function App() {
                 />
                 <StarDetails
                   earthOrientationEstimate={currentEarthOrientationEstimate}
+                  earthOrientationSourceIdentifier={
+                    iersEarthOrientation.sourceIdentifier
+                  }
                   isPlaybackPlaying={playback.isPlaying}
                   location={location}
                   observationDate={date}
                   onPausePlayback={playback.pause}
+                  polarMotionSnapshot={
+                    precisionFrame?.context.polarMotion ?? null
+                  }
+                  refractionAtmosphere={
+                    layers.atmosphericRefraction
+                      ? STANDARD_VISUAL_ATMOSPHERE
+                      : null
+                  }
                   star={selectedStar}
                   timeScales={precisionFrame?.context.timeScales ?? null}
                 />
