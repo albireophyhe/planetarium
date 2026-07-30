@@ -32,6 +32,13 @@ type ResolvedState = {
   readonly status: "ready" | "unavailable" | "error";
 };
 
+export type SettledEarthOrientationFrame = Readonly<{
+  estimate: IersEarthOrientationEstimateV1 | null;
+  instantMs: number;
+  sourceIdentifier: string | null;
+  status: "ready" | "unavailable" | "error";
+}>;
+
 const INITIAL_STATE: ResolvedState = {
   dayMjdUtc: null,
   estimate: null,
@@ -59,8 +66,10 @@ async function sourceIdentifierForEstimate(
  * Resolve the bundled integrated IERS EOP estimate without allowing an older
  * asynchronous request to overwrite a newer observation time.
  *
- * A same-UTC-day estimate remains a safe temporary playback seed. It is
- * never reused across UTC midnight because DUT1 can step at a leap second.
+ * The current estimate is exposed only after the exact requested instant
+ * settles. `settledFrame` retains the last complete
+ * instant/EOP/status/source tuple so callers can keep one atomic published
+ * frame while a newer request is pending.
  */
 export function useIersEarthOrientation(
   date: Date,
@@ -73,12 +82,16 @@ export function useIersEarthOrientation(
     return mjd === null ? null : Math.floor(mjd);
   }, [instantMs]);
   const [state, setState] = useState<ResolvedState>(INITIAL_STATE);
+  const [requestPending, setRequestPending] = useState(true);
   const [retryAttempt, setRetryAttempt] = useState(0);
   const latestRequestRef = useRef({
     dayMjdUtc: requestedDayMjdUtc,
     instantMs
   });
-  const mountedRef = useRef(true);
+  const lastSettledRequestRef = useRef({
+    instantMs: null as number | null,
+    retryAttempt: -1
+  });
 
   useLayoutEffect(() => {
     latestRequestRef.current = {
@@ -88,13 +101,13 @@ export function useIersEarthOrientation(
   }, [instantMs, requestedDayMjdUtc]);
 
   useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
+    if (
+      lastSettledRequestRef.current.instantMs === instantMs &&
+      lastSettledRequestRef.current.retryAttempt === retryAttempt
+    ) {
+      return;
+    }
+    let cancelled = false;
     const requestedDate = new Date(instantMs);
 
     void lookup(requestedDate)
@@ -102,60 +115,58 @@ export function useIersEarthOrientation(
         const sourceIdentifier =
           await sourceIdentifierForEstimate(estimate, lookup);
         if (
-          !mountedRef.current ||
-          latestRequestRef.current.dayMjdUtc !== requestedDayMjdUtc
+          cancelled ||
+          latestRequestRef.current.dayMjdUtc !== requestedDayMjdUtc ||
+          latestRequestRef.current.instantMs !== instantMs
         ) {
           return;
         }
-        setState((current) => {
-          const isLatest =
-            latestRequestRef.current.instantMs === instantMs;
-          const hasSameDayEstimate =
-            current.dayMjdUtc === requestedDayMjdUtc &&
-            current.estimate !== null;
-          if (!isLatest && hasSameDayEstimate) {
-            return current;
-          }
-          return {
-            dayMjdUtc: requestedDayMjdUtc,
-            estimate,
-            instantMs,
-            sourceIdentifier,
-            status: estimate === null ? "unavailable" : "ready"
-          };
+        lastSettledRequestRef.current = {
+          instantMs,
+          retryAttempt
+        };
+        setState({
+          dayMjdUtc: requestedDayMjdUtc,
+          estimate,
+          instantMs,
+          sourceIdentifier,
+          status: estimate === null ? "unavailable" : "ready"
         });
+        setRequestPending(false);
       })
       .catch(() => {
         if (
-          !mountedRef.current ||
-          latestRequestRef.current.dayMjdUtc !== requestedDayMjdUtc
+          cancelled ||
+          latestRequestRef.current.dayMjdUtc !== requestedDayMjdUtc ||
+          latestRequestRef.current.instantMs !== instantMs
         ) {
           return;
         }
-        setState((current) => {
-          if (
-            latestRequestRef.current.instantMs !== instantMs ||
-            (current.dayMjdUtc === requestedDayMjdUtc &&
-              current.estimate !== null)
-          ) {
-            return current;
-          }
-          return {
-            dayMjdUtc: requestedDayMjdUtc,
-            estimate: null,
-            instantMs,
-            sourceIdentifier: null,
-            status: "error"
-          };
+        lastSettledRequestRef.current = {
+          instantMs,
+          retryAttempt
+        };
+        setState({
+          dayMjdUtc: requestedDayMjdUtc,
+          estimate: null,
+          instantMs,
+          sourceIdentifier: null,
+          status: "error"
         });
+        setRequestPending(false);
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [instantMs, lookup, requestedDayMjdUtc, retryAttempt]);
 
   const sameDay =
     requestedDayMjdUtc !== null &&
     state.dayMjdUtc === requestedDayMjdUtc;
-  const current = state.instantMs === instantMs;
-  const estimate = sameDay ? state.estimate : null;
+  const current =
+    state.instantMs === instantMs && !requestPending;
+  const estimate = current ? state.estimate : null;
   let status: IersEarthOrientationStatus;
   if (current) {
     status = state.status;
@@ -166,15 +177,7 @@ export function useIersEarthOrientation(
   }
 
   const retry = useCallback(() => {
-    setState((currentState) =>
-      currentState.status === "error"
-        ? {
-            ...currentState,
-            instantMs: null,
-            status: "unavailable"
-          }
-        : currentState
-    );
+    setRequestPending(true);
     setRetryAttempt((currentAttempt) => currentAttempt + 1);
   }, []);
 
@@ -184,12 +187,31 @@ export function useIersEarthOrientation(
     [lookup]
   );
 
+  const settledFrame = useMemo<SettledEarthOrientationFrame | null>(
+    () =>
+      state.instantMs === null
+        ? null
+        : Object.freeze({
+            estimate: state.estimate,
+            instantMs: state.instantMs,
+            sourceIdentifier: state.sourceIdentifier,
+            status: state.status
+          }),
+    [
+      state.estimate,
+      state.instantMs,
+      state.sourceIdentifier,
+      state.status
+    ]
+  );
+
   return {
     estimate,
     isCurrent: current,
     lookupAt,
     retry,
-    sourceIdentifier: sameDay ? state.sourceIdentifier : null,
+    settledFrame,
+    sourceIdentifier: current ? state.sourceIdentifier : null,
     status
   } as const;
 }

@@ -1,0 +1,1551 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/star-pointing-profile-v1.schema.json",
+  "title": "Planetarium precision pointing profile v1",
+  "description": "Strict interchange contract for planetarium.precision-pointing.full-v1. It describes the currently emitted Web and macOS shapes; fields that only one implementation emits today are optional until the serializers are aligned.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "profileId",
+    "target",
+    "observation",
+    "coordinates",
+    "timeScales",
+    "earthOrientation",
+    "units",
+    "conventions",
+    "diagnostics"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "profileId": {
+      "const": "planetarium.precision-pointing.full-v1"
+    },
+    "target": { "$ref": "#/$defs/target" },
+    "observation": { "$ref": "#/$defs/observation" },
+    "coordinates": { "$ref": "#/$defs/coordinates" },
+    "timeScales": { "$ref": "#/$defs/timeScales" },
+    "earthOrientation": { "$ref": "#/$defs/earthOrientation" },
+    "units": { "$ref": "#/$defs/units" },
+    "conventions": { "$ref": "#/$defs/conventions" },
+    "diagnostics": { "$ref": "#/$defs/diagnostics" }
+  },
+  "$defs": {
+    "nullableNumber": {
+      "type": ["number", "null"]
+    },
+    "nullableNonnegativeNumber": {
+      "anyOf": [
+        { "type": "number", "minimum": 0 },
+        { "type": "null" }
+      ]
+    },
+    "nullableString": {
+      "type": ["string", "null"]
+    },
+    "target": {
+      "type": "object",
+      "required": [
+        "catalog",
+        "hd",
+        "hr",
+        "catalogName",
+        "nameJapanese",
+        "nameEnglish",
+        "aliases",
+        "constellation",
+        "visualMagnitude",
+        "catalogKinematics"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "catalog": { "const": "BSC5P" },
+        "hd": {
+          "anyOf": [
+            { "type": "integer", "minimum": 1 },
+            { "type": "null" }
+          ]
+        },
+        "hr": { "type": "integer", "minimum": 1 },
+        "catalogName": { "$ref": "#/$defs/nullableString" },
+        "nameJapanese": { "$ref": "#/$defs/nullableString" },
+        "nameEnglish": { "$ref": "#/$defs/nullableString" },
+        "aliases": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "constellation": { "$ref": "#/$defs/nullableString" },
+        "visualMagnitude": { "$ref": "#/$defs/nullableNumber" },
+        "catalogKinematics": {
+          "$ref": "#/$defs/catalogKinematics"
+        }
+      }
+    },
+    "catalogKinematics": {
+      "type": "object",
+      "required": [
+        "status",
+        "spaceMotionMode",
+        "properMotionRaCosDecArcsecondsPerYear",
+        "properMotionDecArcsecondsPerYear",
+        "parallaxArcseconds",
+        "radialVelocityKilometersPerSecond"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "three-dimensional",
+            "angular-proper-motion",
+            "catalog-position-only"
+          ]
+        },
+        "spaceMotionMode": {
+          "enum": [
+            "three-dimensional",
+            "angular-proper-motion",
+            "none"
+          ]
+        },
+        "properMotionStatus": {
+          "enum": [
+            "applied",
+            "not-applied-missing",
+            "unavailable",
+            "unavailable-simple-model"
+          ]
+        },
+        "properMotionRaCosDecArcsecondsPerYear": {
+          "$ref": "#/$defs/nullableNumber"
+        },
+        "properMotionDecArcsecondsPerYear": {
+          "$ref": "#/$defs/nullableNumber"
+        },
+        "parallaxArcseconds": {
+          "$ref": "#/$defs/nullableNumber"
+        },
+        "parallaxStatus": {
+          "enum": [
+            "applied",
+            "not-applied-missing",
+            "disabled",
+            "unavailable",
+            "unavailable-simple-model"
+          ]
+        },
+        "radialVelocityKilometersPerSecond": {
+          "$ref": "#/$defs/nullableNumber"
+        },
+        "radialVelocityStatus": {
+          "enum": [
+            "applied",
+            "assumed-zero",
+            "not-applied-without-distance",
+            "unavailable-not-required",
+            "unavailable-simple-model"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": { "const": "three-dimensional" }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "spaceMotionMode": { "const": "three-dimensional" }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": { "const": "angular-proper-motion" }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "spaceMotionMode": {
+                "const": "angular-proper-motion"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": { "const": "catalog-position-only" }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "spaceMotionMode": { "const": "none" }
+            }
+          }
+        }
+      ]
+    },
+    "observation": {
+      "type": "object",
+      "required": ["utc", "timeZone", "localDateTime", "location"],
+      "additionalProperties": false,
+      "properties": {
+        "utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "timeZone": { "type": "string", "minLength": 1 },
+        "localDateTime": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$"
+        },
+        "location": { "$ref": "#/$defs/location" }
+      }
+    },
+    "location": {
+      "type": "object",
+      "required": [
+        "status",
+        "referenceFrame",
+        "latitudeDegrees",
+        "longitudeDegrees",
+        "heightMeters",
+        "name",
+        "source",
+        "horizontalAccuracyMeters",
+        "horizontalAccuracyStatus"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "enum": ["available", "invalid"] },
+        "referenceFrame": { "const": "WGS84" },
+        "latitudeDegrees": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            },
+            { "type": "null" }
+          ]
+        },
+        "longitudeDegrees": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            },
+            { "type": "null" }
+          ]
+        },
+        "heightMeters": { "$ref": "#/$defs/nullableNumber" },
+        "name": { "type": "string" },
+        "source": {
+          "enum": [
+            "bundled-city",
+            "manual",
+            "device-geolocation"
+          ]
+        },
+        "horizontalAccuracyMeters": {
+          "$ref": "#/$defs/nullableNonnegativeNumber"
+        },
+        "horizontalAccuracyStatus": {
+          "enum": ["available", "unavailable"]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": { "const": "available" }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "latitudeDegrees": { "type": "number" },
+              "longitudeDegrees": { "type": "number" },
+              "heightMeters": { "type": "number" }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "horizontalAccuracyStatus": {
+                "const": "available"
+              }
+            },
+            "required": ["horizontalAccuracyStatus"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "horizontalAccuracyMeters": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          },
+          "else": {
+            "type": "object",
+            "properties": {
+              "horizontalAccuracyMeters": { "type": "null" }
+            }
+          }
+        }
+      ]
+    },
+    "coordinates": {
+      "type": "object",
+      "required": [
+        "catalogJ2000",
+        "geocentricApparent",
+        "vacuumTopocentric",
+        "observedTopocentric"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "catalogJ2000": { "$ref": "#/$defs/catalogCoordinates" },
+        "geocentricApparent": {
+          "$ref": "#/$defs/apparentCoordinates"
+        },
+        "vacuumTopocentric": {
+          "$ref": "#/$defs/vacuumHorizontalCoordinates"
+        },
+        "observedTopocentric": {
+          "$ref": "#/$defs/observedHorizontalCoordinates"
+        }
+      }
+    },
+    "rightAscension": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 6.283185307179586
+        },
+        { "type": "null" }
+      ]
+    },
+    "declination": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": -1.5707963267948966,
+          "maximum": 1.5707963267948966
+        },
+        { "type": "null" }
+      ]
+    },
+    "catalogCoordinates": {
+      "type": "object",
+      "required": [
+        "status",
+        "frame",
+        "origin",
+        "equinox",
+        "epoch",
+        "units",
+        "rightAscensionRadians",
+        "declinationRadians"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "enum": ["calculated", "invalid"] },
+        "frame": { "const": "FK5" },
+        "origin": { "const": "catalog-direction" },
+        "equinox": { "const": "J2000.0" },
+        "epoch": { "const": "J2000.0" },
+        "units": { "const": "radian" },
+        "rightAscensionRadians": {
+          "$ref": "#/$defs/rightAscension"
+        },
+        "declinationRadians": {
+          "$ref": "#/$defs/declination"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": { "const": "calculated" }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "rightAscensionRadians": { "type": "number" },
+              "declinationRadians": { "type": "number" }
+            }
+          },
+          "else": {
+            "type": "object",
+            "properties": {
+              "rightAscensionRadians": { "type": "null" },
+              "declinationRadians": { "type": "null" }
+            }
+          }
+        }
+      ]
+    },
+    "apparentCoordinates": {
+      "type": "object",
+      "required": [
+        "status",
+        "frame",
+        "origin",
+        "equinox",
+        "units",
+        "rightAscensionRadians",
+        "declinationRadians"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "calculated",
+            "unavailable",
+            "unavailable-simple-model"
+          ]
+        },
+        "frame": {
+          "const": "true-equator-and-equinox-of-date"
+        },
+        "origin": { "const": "geocenter" },
+        "equinox": { "const": "observation-date" },
+        "units": { "const": "radian" },
+        "rightAscensionRadians": {
+          "$ref": "#/$defs/rightAscension"
+        },
+        "declinationRadians": {
+          "$ref": "#/$defs/declination"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": { "const": "calculated" }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "rightAscensionRadians": { "type": "number" },
+              "declinationRadians": { "type": "number" }
+            }
+          },
+          "else": {
+            "type": "object",
+            "properties": {
+              "rightAscensionRadians": { "type": "null" },
+              "declinationRadians": { "type": "null" }
+            }
+          }
+        }
+      ]
+    },
+    "altitudeDegrees": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        { "type": "null" }
+      ]
+    },
+    "azimuthDegrees": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 360
+        },
+        { "type": "null" }
+      ]
+    },
+    "vacuumHorizontalCoordinates": {
+      "type": "object",
+      "required": [
+        "altitudeDegrees",
+        "azimuthDegrees",
+        "azimuthStatus",
+        "status",
+        "frame",
+        "origin",
+        "units",
+        "azimuthConvention",
+        "atmosphere"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "altitudeDegrees": { "$ref": "#/$defs/altitudeDegrees" },
+        "azimuthDegrees": { "$ref": "#/$defs/azimuthDegrees" },
+        "azimuthStatus": {
+          "enum": [
+            "defined",
+            "undefined-at-zenith-or-nadir",
+            "invalid"
+          ]
+        },
+        "status": {
+          "enum": [
+            "calculated",
+            "approximate-simple-model",
+            "invalid"
+          ]
+        },
+        "frame": { "const": "local-ENU" },
+        "origin": { "const": "WGS84-observer" },
+        "units": { "const": "degree" },
+        "azimuthConvention": {
+          "const": "north-zero-east-positive"
+        },
+        "atmosphere": { "const": "vacuum" }
+      },
+      "allOf": [{ "$ref": "#/$defs/horizontalConditions" }]
+    },
+    "observedHorizontalCoordinates": {
+      "type": "object",
+      "required": [
+        "altitudeDegrees",
+        "azimuthDegrees",
+        "azimuthStatus",
+        "status",
+        "frame",
+        "origin",
+        "units",
+        "azimuthConvention",
+        "refractionMode"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "altitudeDegrees": { "$ref": "#/$defs/altitudeDegrees" },
+        "azimuthDegrees": { "$ref": "#/$defs/azimuthDegrees" },
+        "azimuthStatus": {
+          "enum": [
+            "defined",
+            "undefined-at-zenith-or-nadir",
+            "invalid"
+          ]
+        },
+        "status": {
+          "enum": [
+            "refraction-applied",
+            "refraction-not-applied-outside-model-domain",
+            "refraction-disabled",
+            "approximate-simple-model",
+            "unavailable",
+            "invalid"
+          ]
+        },
+        "frame": { "const": "local-ENU" },
+        "origin": { "const": "WGS84-observer" },
+        "units": { "const": "degree" },
+        "azimuthConvention": {
+          "const": "north-zero-east-positive"
+        },
+        "refractionMode": {
+          "enum": ["applied", "below-model-altitude", "disabled", null]
+        }
+      },
+      "allOf": [
+        { "$ref": "#/$defs/horizontalConditions" },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": { "const": "refraction-applied" }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "refractionMode": { "const": "applied" }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "refraction-not-applied-outside-model-domain"
+              }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "refractionMode": {
+                "const": "below-model-altitude"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": { "const": "refraction-disabled" }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "refractionMode": { "const": "disabled" }
+            }
+          }
+        }
+      ]
+    },
+    "horizontalConditions": {
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "azimuthStatus": { "const": "defined" }
+            },
+            "required": ["azimuthStatus"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "azimuthDegrees": {
+                "type": "number",
+                "minimum": 0,
+                "exclusiveMaximum": 360
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "azimuthStatus": {
+                "const": "undefined-at-zenith-or-nadir"
+              }
+            },
+            "required": ["azimuthStatus"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "azimuthDegrees": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "enum": [
+                  "calculated",
+                  "approximate-simple-model",
+                  "refraction-applied",
+                  "refraction-not-applied-outside-model-domain",
+                  "refraction-disabled"
+                ]
+              }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "altitudeDegrees": { "type": "number" }
+            }
+          }
+        }
+      ]
+    },
+    "timeScales": {
+      "type": "object",
+      "required": [
+        "status",
+        "jdUTC",
+        "jdUT1",
+        "jdTT",
+        "dut1Seconds",
+        "dut1UncertaintySeconds",
+        "dut1Source",
+        "taiMinusUTCSeconds",
+        "taiMinusUTCSource"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "available",
+            "available-with-assumed-zero-dut1",
+            "not-applied-simple-model",
+            "unavailable"
+          ]
+        },
+        "jdUTC": { "$ref": "#/$defs/nullableNumber" },
+        "jdUT1": { "$ref": "#/$defs/nullableNumber" },
+        "jdTT": { "$ref": "#/$defs/nullableNumber" },
+        "dut1Seconds": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": -3600,
+              "maximum": 3600
+            },
+            { "type": "null" }
+          ]
+        },
+        "dut1UncertaintySeconds": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 3600
+            },
+            { "type": "null" }
+          ]
+        },
+        "dut1Source": {
+          "enum": [
+            "caller",
+            "iers-observed",
+            "iers-predicted",
+            "assumed-zero",
+            null
+          ]
+        },
+        "taiMinusUTCSeconds": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": -100,
+              "maximum": 200
+            },
+            { "type": "null" }
+          ]
+        },
+        "taiMinusUTCSource": {
+          "enum": [
+            "caller",
+            "iers-history",
+            "pre-1972-approximation",
+            null
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "enum": [
+                  "available",
+                  "available-with-assumed-zero-dut1"
+                ]
+              }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "jdUTC": { "type": "number" },
+              "jdUT1": { "type": "number" },
+              "jdTT": { "type": "number" },
+              "dut1Seconds": { "type": "number" },
+              "dut1Source": { "type": "string" },
+              "taiMinusUTCSeconds": { "type": "number" },
+              "taiMinusUTCSource": { "type": "string" }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "available-with-assumed-zero-dut1"
+              }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "dut1Seconds": { "const": 0 },
+              "dut1UncertaintySeconds": { "type": "null" },
+              "dut1Source": { "const": "assumed-zero" }
+            }
+          }
+        }
+      ]
+    },
+    "earthOrientation": {
+      "type": "object",
+      "required": [
+        "status",
+        "sourceIdentifier",
+        "appliedDut1Seconds",
+        "dut1Status",
+        "dut1Source",
+        "dut1Quality",
+        "dut1ReportedErrorSeconds",
+        "polarMotionStatus",
+        "polarMotionSource",
+        "polarMotionQuality",
+        "xpAppliedRadians",
+        "ypAppliedRadians",
+        "xpReportedErrorRadians",
+        "ypReportedErrorRadians",
+        "usesPrediction"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "iers",
+            "assumed-zero",
+            "partial",
+            "unavailable",
+            "not-applied-simple-model"
+          ]
+        },
+        "sourceIdentifier": { "$ref": "#/$defs/nullableString" },
+        "sourceIdentifierStatus": {
+          "enum": [
+            "available",
+            "unavailable",
+            "unavailable-from-render-snapshot"
+          ]
+        },
+        "appliedDut1Seconds": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": -3600,
+              "maximum": 3600
+            },
+            { "type": "null" }
+          ]
+        },
+        "dut1Status": {
+          "enum": [
+            "available",
+            "assumed-zero",
+            "caller",
+            "unavailable",
+            "applied-without-matching-estimate-metadata",
+            "invalid-assumed-zero-value",
+            "not-applied-simple-model"
+          ]
+        },
+        "dut1Source": {
+          "enum": [
+            "caller",
+            "iers-observed",
+            "iers-predicted",
+            "assumed-zero",
+            null
+          ]
+        },
+        "dut1Quality": {
+          "enum": ["observed", "predicted", "mixed", null]
+        },
+        "dut1ReportedErrorSeconds": {
+          "$ref": "#/$defs/nullableNonnegativeNumber"
+        },
+        "dut1MetadataMatchesAppliedValue": {
+          "type": ["boolean", "null"]
+        },
+        "estimateStatus": {
+          "enum": [
+            "available",
+            "unavailable",
+            "available-not-applied"
+          ]
+        },
+        "polarMotionStatus": {
+          "enum": [
+            "available",
+            "assumed-zero",
+            "unavailable",
+            "applied-without-matching-estimate-metadata",
+            "invalid-assumed-zero-value",
+            "not-applied-simple-model"
+          ]
+        },
+        "polarMotionSource": {
+          "enum": [
+            "observed",
+            "predicted",
+            "caller",
+            "assumed-zero",
+            "disabled",
+            null
+          ]
+        },
+        "polarMotionQuality": {
+          "enum": ["observed", "predicted", "mixed", null]
+        },
+        "polarMotionMetadataMatchesAppliedValue": {
+          "type": ["boolean", "null"]
+        },
+        "xpAppliedRadians": { "$ref": "#/$defs/nullableNumber" },
+        "ypAppliedRadians": { "$ref": "#/$defs/nullableNumber" },
+        "xpReportedErrorRadians": {
+          "$ref": "#/$defs/nullableNonnegativeNumber"
+        },
+        "ypReportedErrorRadians": {
+          "$ref": "#/$defs/nullableNonnegativeNumber"
+        },
+        "usesPrediction": { "type": ["boolean", "null"] },
+        "consistencyIssues": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "dut1Status": { "const": "assumed-zero" }
+            },
+            "required": ["dut1Status"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "appliedDut1Seconds": { "const": 0 },
+              "dut1Source": { "const": "assumed-zero" },
+              "dut1Quality": { "type": "null" },
+              "dut1ReportedErrorSeconds": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "dut1Status": {
+                "const": "invalid-assumed-zero-value"
+              }
+            },
+            "required": ["dut1Status"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "appliedDut1Seconds": { "type": "null" },
+              "dut1Source": { "const": "assumed-zero" }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "dut1Status": {
+                "enum": [
+                  "available",
+                  "applied-without-matching-estimate-metadata"
+                ]
+              }
+            },
+            "required": ["dut1Status"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "appliedDut1Seconds": { "type": "number" },
+              "dut1Source": {
+                "enum": ["iers-observed", "iers-predicted"]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "dut1Status": { "const": "caller" }
+            },
+            "required": ["dut1Status"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "appliedDut1Seconds": { "type": "number" },
+              "dut1Source": { "const": "caller" }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "polarMotionStatus": { "const": "assumed-zero" }
+            },
+            "required": ["polarMotionStatus"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "polarMotionSource": { "const": "assumed-zero" },
+              "polarMotionQuality": { "type": "null" },
+              "xpAppliedRadians": { "const": 0 },
+              "ypAppliedRadians": { "const": 0 },
+              "xpReportedErrorRadians": { "type": "null" },
+              "ypReportedErrorRadians": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "polarMotionStatus": {
+                "const": "invalid-assumed-zero-value"
+              }
+            },
+            "required": ["polarMotionStatus"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "polarMotionSource": { "const": "assumed-zero" },
+              "xpAppliedRadians": { "type": "null" },
+              "ypAppliedRadians": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": { "const": "assumed-zero" }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "sourceIdentifier": { "type": "null" },
+              "dut1Status": { "const": "assumed-zero" },
+              "polarMotionStatus": { "const": "assumed-zero" }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": { "const": "iers" }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "dut1Source": {
+                "enum": ["iers-observed", "iers-predicted"]
+              },
+              "polarMotionSource": {
+                "enum": ["observed", "predicted"]
+              },
+              "appliedDut1Seconds": { "type": "number" },
+              "xpAppliedRadians": { "type": "number" },
+              "ypAppliedRadians": { "type": "number" }
+            }
+          }
+        }
+      ]
+    },
+    "units": {
+      "type": "object",
+      "required": [
+        "rightAscension",
+        "declination",
+        "altitude",
+        "azimuth",
+        "polarMotion",
+        "properMotion",
+        "parallax",
+        "radialVelocity",
+        "dut1",
+        "julianDate",
+        "siteHeight"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "rightAscension": { "const": "radian" },
+        "declination": { "const": "radian" },
+        "altitude": { "const": "degree" },
+        "azimuth": { "const": "degree" },
+        "polarMotion": { "const": "radian" },
+        "properMotion": { "const": "arcsecond/year" },
+        "parallax": { "const": "arcsecond" },
+        "radialVelocity": { "const": "kilometer/second" },
+        "dut1": { "const": "second" },
+        "julianDate": { "const": "day" },
+        "siteHeight": { "const": "meter" }
+      }
+    },
+    "conventions": {
+      "type": "object",
+      "required": ["azimuth", "altitude", "longitude", "rightAscension"],
+      "additionalProperties": false,
+      "properties": {
+        "azimuth": {
+          "type": "object",
+          "required": [
+            "zeroDirection",
+            "positiveDirection",
+            "rangeDegrees",
+            "undefinedRepresentation",
+            "undefinedWhen"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "zeroDirection": { "const": "true-north" },
+            "positiveDirection": {
+              "const": "clockwise-toward-east"
+            },
+            "rangeDegrees": { "const": "[0,360)" },
+            "undefinedRepresentation": { "type": "null" },
+            "undefinedWhen": { "const": "zenith-or-nadir" }
+          }
+        },
+        "altitude": {
+          "type": "object",
+          "required": ["zeroPlane", "positiveDirection", "rangeDegrees"],
+          "additionalProperties": false,
+          "properties": {
+            "zeroPlane": { "const": "mathematical-horizon" },
+            "positiveDirection": { "const": "up" },
+            "rangeDegrees": { "const": "[-90,90]" }
+          }
+        },
+        "longitude": {
+          "type": "object",
+          "required": ["positiveDirection", "rangeDegrees"],
+          "additionalProperties": false,
+          "properties": {
+            "positiveDirection": { "const": "east" },
+            "rangeDegrees": { "const": "[-180,180]" }
+          }
+        },
+        "rightAscension": {
+          "type": "object",
+          "required": ["positiveDirection", "rangeRadians"],
+          "additionalProperties": false,
+          "properties": {
+            "positiveDirection": { "const": "east" },
+            "rangeRadians": { "const": "[0,2pi)" }
+          }
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "object",
+      "required": [
+        "status",
+        "modelId",
+        "omittedCorrections",
+        "refraction",
+        "timeScaleWarnings",
+        "models",
+        "approximations",
+        "warnings",
+        "precisionStatement"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "const": "precision-model-v2" },
+        "modelId": { "const": "planetarium-precision-v2" },
+        "omittedCorrections": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "annual-parallax",
+              "stellar-diurnal-parallax",
+              "solar-light-deflection",
+              "solar-system-light-deflection",
+              "planetary-light-deflection",
+              "annual-aberration",
+              "diurnal-aberration",
+              "polar-motion",
+              "subdaily-polar-motion-tides"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "refraction": { "$ref": "#/$defs/refraction" },
+        "timeScaleWarnings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/precisionWarning" },
+          "uniqueItems": true
+        },
+        "models": { "$ref": "#/$defs/models" },
+        "approximations": { "$ref": "#/$defs/approximations" },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              { "$ref": "#/$defs/precisionWarning" },
+              { "const": "refraction-parameters-invalid" },
+              {
+                "type": "string",
+                "pattern": "^earth-orientation-inconsistent: .+$"
+              }
+            ]
+          },
+          "uniqueItems": true
+        },
+        "precisionStatement": {
+          "const": "Digits preserve calculation inputs and outputs; they do not guarantee measurement accuracy."
+        }
+      }
+    },
+    "precisionWarning": {
+      "enum": [
+        "dut1-assumed-zero",
+        "pre-1972-utc-tt-approximation",
+        "future-leap-seconds-unknown",
+        "catalog-fk5-precision-limited",
+        "proper-motion-missing",
+        "radial-velocity-missing-assumed-zero",
+        "annual-parallax-disabled",
+        "annual-parallax-unavailable",
+        "annual-parallax-approximate-ephemeris",
+        "solar-light-deflection-disabled",
+        "solar-light-deflection-approximate-ephemeris",
+        "aberration-disabled",
+        "aberration-approximate-ephemeris",
+        "diurnal-aberration-disabled",
+        "observer-height-assumed-zero",
+        "polar-motion-assumed-zero",
+        "refraction-disabled",
+        "refraction-below-model-altitude"
+      ]
+    },
+    "refraction": {
+      "type": "object",
+      "required": [
+        "mode",
+        "status",
+        "description",
+        "parametersStatus",
+        "parameters"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": ["disabled", "applied", "below-model-altitude"]
+        },
+        "status": {
+          "enum": [
+            "refraction-disabled",
+            "refraction-applied",
+            "refraction-not-applied-outside-model-domain",
+            "approximate-simple-model",
+            "unavailable"
+          ]
+        },
+        "description": { "type": "string", "minLength": 1 },
+        "parametersStatus": {
+          "enum": [
+            "configured",
+            "not-configured",
+            "not-applied-simple-model",
+            "unavailable",
+            "unavailable-from-render-snapshot",
+            "invalid"
+          ]
+        },
+        "parameters": {
+          "anyOf": [
+            { "$ref": "#/$defs/refractionParameters" },
+            { "type": "null" }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "mode": { "const": "disabled" }
+            },
+            "required": ["mode"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "status": { "const": "refraction-disabled" },
+              "parametersStatus": { "const": "not-configured" },
+              "parameters": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "mode": { "const": "applied" }
+            },
+            "required": ["mode"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "status": { "const": "refraction-applied" },
+              "parametersStatus": { "const": "configured" },
+              "parameters": { "$ref": "#/$defs/refractionParameters" }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "mode": { "const": "below-model-altitude" }
+            },
+            "required": ["mode"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "refraction-not-applied-outside-model-domain"
+              },
+              "parametersStatus": { "const": "configured" },
+              "parameters": { "$ref": "#/$defs/refractionParameters" }
+            }
+          }
+        }
+      ]
+    },
+    "refractionParameters": {
+      "type": "object",
+      "required": [
+        "inputSource",
+        "pressureHpa",
+        "temperatureCelsius",
+        "relativeHumidity",
+        "wavelengthMicrometers",
+        "minimumGeometricAltitudeDegrees"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "inputSource": { "enum": ["standard", "manual"] },
+        "pressureHpa": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1100
+        },
+        "temperatureCelsius": {
+          "type": "number",
+          "minimum": -100,
+          "maximum": 60
+        },
+        "relativeHumidity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "wavelengthMicrometers": {
+          "type": "number",
+          "minimum": 0.3,
+          "maximum": 2
+        },
+        "minimumGeometricAltitudeDegrees": {
+          "type": "number",
+          "minimum": 5,
+          "maximum": 30
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "inputSource": { "const": "standard" }
+            },
+            "required": ["inputSource"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "pressureHpa": { "const": 1013.25 },
+              "temperatureCelsius": { "const": 10 },
+              "relativeHumidity": { "const": 0.5 },
+              "wavelengthMicrometers": { "const": 0.55 },
+              "minimumGeometricAltitudeDegrees": { "const": 5 }
+            }
+          }
+        }
+      ]
+    },
+    "models": {
+      "type": "object",
+      "required": [
+        "calculationModel",
+        "catalogFrame",
+        "frameConnectionModel",
+        "precessionModel",
+        "nutationModel",
+        "siderealTimeModel",
+        "spaceMotionMode",
+        "annualParallaxMode",
+        "annualAberrationMode",
+        "solarLightDeflectionMode",
+        "diurnalAberrationMode",
+        "polarMotionMode",
+        "refractionMode"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "calculationModel": { "const": "v2" },
+        "catalogFrame": { "const": "J2000.0 FK5" },
+        "frameConnectionModel": {
+          "const": "SOFA FK5-to-Hipparcos J2000 rotation and spin"
+        },
+        "precessionModel": {
+          "const": "IAU 2006 Fukushima-Williams"
+        },
+        "nutationModel": { "const": "IAU 2000B 77-term" },
+        "siderealTimeModel": {
+          "const": "IAU 2006 GMST + IAU 2000B leading equation of equinoxes"
+        },
+        "spaceMotionMode": {
+          "enum": [
+            "none",
+            "angular-proper-motion",
+            "three-dimensional"
+          ]
+        },
+        "radialVelocityAssumedZero": { "type": "boolean" },
+        "annualParallaxMode": {
+          "enum": [
+            "disabled",
+            "unavailable",
+            "truncated-vsop2000-heliocentric-earth",
+            "jpl-approximate-earth-moon-barycenter",
+            "caller-observer-position"
+          ]
+        },
+        "annualAberrationMode": {
+          "enum": [
+            "disabled",
+            "truncated-vsop2000-heliocentric-earth",
+            "jpl-approximate-earth-moon-barycenter",
+            "caller-barycentric-velocity"
+          ]
+        },
+        "solarLightDeflectionMode": {
+          "enum": [
+            "disabled",
+            "truncated-vsop2000-heliocentric-earth",
+            "jpl-approximate-earth-moon-barycenter",
+            "caller-sun-observer-geometry"
+          ]
+        },
+        "diurnalAberrationMode": {
+          "enum": ["disabled", "wgs84-observer"]
+        },
+        "polarMotionMode": {
+          "enum": [
+            "disabled",
+            "caller",
+            "iers-observed",
+            "iers-predicted",
+            "assumed-zero"
+          ]
+        },
+        "refractionMode": {
+          "enum": ["disabled", "applied", "below-model-altitude"]
+        }
+      }
+    },
+    "approximations": {
+      "type": "object",
+      "required": [
+        "simplifiedPositionModel",
+        "apparentCoordinatesUnavailable",
+        "timeScalesUnavailable",
+        "earthOrientationEstimateUnavailable",
+        "dut1AssumedZero",
+        "polarMotionAssumedZero",
+        "radialVelocityAssumedZero",
+        "approximateEarthEphemeris",
+        "refractionOutsideModelDomain"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "simplifiedPositionModel": { "const": false },
+        "apparentCoordinatesUnavailable": { "const": false },
+        "timeScalesUnavailable": { "const": false },
+        "earthOrientationEstimateUnavailable": {
+          "type": "boolean"
+        },
+        "earthOrientationNotApplied": { "type": "boolean" },
+        "dut1AssumedZero": { "type": "boolean" },
+        "polarMotionAssumedZero": { "type": "boolean" },
+        "properMotionMissing": { "type": "boolean" },
+        "properMotionUnavailable": { "type": "boolean" },
+        "radialVelocityAssumedZero": { "type": "boolean" },
+        "approximateEarthEphemeris": { "type": "boolean" },
+        "refractionOutsideModelDomain": { "type": "boolean" },
+        "refractionParametersUnavailable": { "type": "boolean" }
+      },
+      "anyOf": [
+        {
+          "type": "object",
+          "required": ["properMotionMissing"],
+          "properties": {
+            "properMotionMissing": { "type": "boolean" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["properMotionUnavailable"],
+          "properties": {
+            "properMotionUnavailable": { "type": "boolean" }
+          }
+        }
+      ]
+    }
+  }
+}

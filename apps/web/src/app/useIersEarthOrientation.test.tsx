@@ -5,10 +5,12 @@ import { useIersEarthOrientation } from "./useIersEarthOrientation";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((promiseResolve) => {
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
     resolve = promiseResolve;
+    reject = promiseReject;
   });
-  return { promise, resolve };
+  return { promise, reject, resolve };
 }
 
 const OBSERVED: IersEarthOrientationEstimateV1 = {
@@ -53,7 +55,12 @@ describe("useIersEarthOrientation", () => {
       date: new Date("2026-07-29T06:00:00.000Z")
     });
     expect(result.current.status).toBe("refreshing");
-    expect(result.current.estimate).toEqual(OBSERVED);
+    expect(result.current.estimate).toBeNull();
+    expect(result.current.settledFrame).toMatchObject({
+      estimate: OBSERVED,
+      instantMs: Date.parse("2026-07-29T00:00:00.000Z"),
+      status: "ready"
+    });
 
     const predicted: IersEarthOrientationEstimateV1 = {
       ...OBSERVED,
@@ -69,6 +76,11 @@ describe("useIersEarthOrientation", () => {
     });
     expect(result.current.status).toBe("ready");
     expect(result.current.estimate).toEqual(predicted);
+    expect(result.current.settledFrame).toMatchObject({
+      estimate: predicted,
+      instantMs: Date.parse("2026-07-29T06:00:00.000Z"),
+      status: "ready"
+    });
   });
 
   it("never reuses an estimate across UTC midnight", async () => {
@@ -97,6 +109,142 @@ describe("useIersEarthOrientation", () => {
     });
     expect(result.current.status).toBe("loading");
     expect(result.current.estimate).toBeNull();
+    expect(result.current.settledFrame).toMatchObject({
+      estimate: OBSERVED,
+      instantMs: Date.parse("2016-12-31T23:59:59.000Z"),
+      status: "ready"
+    });
+  });
+
+  it("commits only the latest request when same-day responses resolve out of order", async () => {
+    const first = deferred<IersEarthOrientationEstimateV1 | null>();
+    const latest = deferred<IersEarthOrientationEstimateV1 | null>();
+    const lookup = vi
+      .fn<
+        (
+          date: Date
+        ) => Promise<IersEarthOrientationEstimateV1 | null>
+      >()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(latest.promise);
+    const { result, rerender } = renderHook(
+      ({ date }) => useIersEarthOrientation(date, lookup),
+      {
+        initialProps: {
+          date: new Date("2026-07-29T00:00:00.000Z")
+        }
+      }
+    );
+
+    rerender({
+      date: new Date("2026-07-29T00:00:01.000Z")
+    });
+    await act(async () => {
+      first.resolve(OBSERVED);
+      await first.promise;
+    });
+    expect(result.current.settledFrame).toBeNull();
+
+    const latestEstimate = {
+      ...OBSERVED,
+      dut1: {
+        ...OBSERVED.dut1,
+        seconds: 0.073
+      }
+    };
+    await act(async () => {
+      latest.resolve(latestEstimate);
+      await latest.promise;
+    });
+    expect(result.current.settledFrame).toMatchObject({
+      estimate: latestEstimate,
+      instantMs: Date.parse("2026-07-29T00:00:01.000Z"),
+      status: "ready"
+    });
+  });
+
+  it("settles a real latest-request failure without letting a stale failure replace it", async () => {
+    const stale = deferred<IersEarthOrientationEstimateV1 | null>();
+    const latest = deferred<IersEarthOrientationEstimateV1 | null>();
+    const lookup = vi
+      .fn<
+        (
+          date: Date
+        ) => Promise<IersEarthOrientationEstimateV1 | null>
+      >()
+      .mockReturnValueOnce(stale.promise)
+      .mockReturnValueOnce(latest.promise);
+    const { result, rerender } = renderHook(
+      ({ date }) => useIersEarthOrientation(date, lookup),
+      {
+        initialProps: {
+          date: new Date("2026-07-29T23:59:59.000Z")
+        }
+      }
+    );
+
+    rerender({
+      date: new Date("2026-07-30T00:00:00.000Z")
+    });
+    await act(async () => {
+      stale.reject(new Error("stale chunk failure"));
+      await stale.promise.catch(() => undefined);
+    });
+    expect(result.current.settledFrame).toBeNull();
+
+    await act(async () => {
+      latest.reject(new Error("latest chunk failure"));
+      await latest.promise.catch(() => undefined);
+    });
+    expect(result.current.settledFrame).toMatchObject({
+      estimate: null,
+      instantMs: Date.parse("2026-07-30T00:00:00.000Z"),
+      status: "error"
+    });
+    expect(result.current.status).toBe("error");
+  });
+
+  it("restores an already settled instant without a fallible duplicate lookup", async () => {
+    const newer =
+      deferred<IersEarthOrientationEstimateV1 | null>();
+    const lookup = vi
+      .fn<
+        (
+          date: Date
+        ) => Promise<IersEarthOrientationEstimateV1 | null>
+      >()
+      .mockResolvedValueOnce(OBSERVED)
+      .mockReturnValueOnce(newer.promise);
+    const settledDate = new Date("2026-07-29T00:00:00.000Z");
+    const { result, rerender } = renderHook(
+      ({ date }) => useIersEarthOrientation(date, lookup),
+      {
+        initialProps: { date: settledDate }
+      }
+    );
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+
+    rerender({
+      date: new Date("2026-07-29T00:00:01.000Z")
+    });
+    expect(result.current.isCurrent).toBe(false);
+    expect(lookup).toHaveBeenCalledTimes(2);
+
+    rerender({ date: new Date(settledDate.getTime()) });
+    expect(result.current.isCurrent).toBe(true);
+    expect(result.current.estimate).toEqual(OBSERVED);
+    expect(lookup).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      newer.reject(new Error("cancelled newer request"));
+      await newer.promise.catch(() => undefined);
+    });
+    expect(result.current.status).toBe("ready");
+    expect(result.current.settledFrame).toMatchObject({
+      estimate: OBSERVED,
+      instantMs: settledDate.getTime(),
+      status: "ready"
+    });
   });
 
   it("reports errors, retries, and propagates auxiliary integrity failures", async () => {
@@ -121,6 +269,13 @@ describe("useIersEarthOrientation", () => {
       )
     ).rejects.toThrow("chunk digest mismatch");
     act(() => result.current.retry());
+    expect(result.current.status).toBe("loading");
+    expect(result.current.isCurrent).toBe(false);
+    expect(result.current.settledFrame).toMatchObject({
+      estimate: null,
+      instantMs: date.getTime(),
+      status: "error"
+    });
     await waitFor(() => expect(result.current.status).toBe("ready"));
     expect(result.current.estimate).toEqual(OBSERVED);
   });

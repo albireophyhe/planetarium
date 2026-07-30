@@ -35,7 +35,7 @@
     "data:check:de442s": "node script/build_de442s_ephemeris.mjs --check",
     "data:build:events": "node script/build_event_candidates.mjs",
     "data:check:events": "node script/build_event_candidates.mjs --check",
-    "data:validate": "node script/validate_schemas.mjs && node script/validate_data.mjs && npm run data:check:render && npm run data:test:eop && npm run data:check:eop",
+    "data:validate": "node script/validate_schemas.mjs && node script/validate_star_pointing_profile_schema.mjs && node script/validate_data.mjs && npm run data:check:render && npm run data:test:eop && npm run data:check:eop",
     "scripts:lint": "eslint script && bash -n script/*.sh",
     "privacy:check": "node script/check_privacy.mjs",
     "web:dev": "npm run dev --workspace=@planetarium/web",

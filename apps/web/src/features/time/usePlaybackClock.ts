@@ -16,6 +16,7 @@ type UsePlaybackClockOptions = {
   date: Date;
   onBoundary: (boundary: Exclude<PlaybackBoundary, null>) => void;
   onDateChange: (date: Date) => void;
+  onPause?: () => void;
 };
 
 function reducedMotionQuery() {
@@ -29,6 +30,7 @@ export function usePlaybackClock({
   date,
   onBoundary,
   onDateChange,
+  onPause,
 }: UsePlaybackClockOptions) {
   const [direction, setDirectionState] =
     useState<PlaybackDirection>(1);
@@ -62,16 +64,22 @@ export function usePlaybackClock({
     const handleChange = () => {
       setMotionRestricted(query.matches);
       if (query.matches) {
+        if (isPlayingRef.current) {
+          onPause?.();
+        }
         setPlaying(false);
       }
     };
     query.addEventListener("change", handleChange);
     return () => query.removeEventListener("change", handleChange);
-  }, [setPlaying]);
+  }, [onPause, setPlaying]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden) {
+        if (isPlayingRef.current) {
+          onPause?.();
+        }
         setPlaying(false);
       }
     };
@@ -81,7 +89,7 @@ export function usePlaybackClock({
         "visibilitychange",
         handleVisibilityChange,
       );
-  }, [setPlaying]);
+  }, [onPause, setPlaying]);
 
   useEffect(() => {
     if (!isPlaying || motionRestricted) {
@@ -124,7 +132,12 @@ export function usePlaybackClock({
     setPlaying,
   ]);
 
-  const pause = useCallback(() => setPlaying(false), [setPlaying]);
+  const pause = useCallback(() => {
+    if (isPlayingRef.current) {
+      onPause?.();
+    }
+    setPlaying(false);
+  }, [onPause, setPlaying]);
   const setDirection = useCallback(
     (nextDirection: PlaybackDirection) => {
       directionRef.current = nextDirection;
@@ -165,12 +178,13 @@ export function usePlaybackClock({
   const play = startPlayback;
   const toggle = useCallback(() => {
     if (isPlayingRef.current) {
+      onPause?.();
       setPlaying(false);
       return;
     }
 
     startPlayback();
-  }, [setPlaying, startPlayback]);
+  }, [onPause, setPlaying, startPlayback]);
 
   return {
     direction,

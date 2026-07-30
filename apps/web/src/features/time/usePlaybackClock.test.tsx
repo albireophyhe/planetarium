@@ -109,12 +109,14 @@ describe("usePlaybackClock", () => {
     vi.spyOn(performance, "now").mockReturnValue(1_000);
     const onBoundary = vi.fn();
     const onDateChange = vi.fn();
+    const onPause = vi.fn();
 
     const { result } = renderHook(() =>
       usePlaybackClock({
         date: new Date("2100-12-31T23:59:59.900Z"),
         onBoundary,
         onDateChange,
+        onPause,
       }),
     );
 
@@ -128,6 +130,7 @@ describe("usePlaybackClock", () => {
       "2100-12-31T23:59:59.999Z",
     );
     expect(onBoundary).toHaveBeenCalledWith("maximum");
+    expect(onPause).not.toHaveBeenCalled();
     expect(result.current.isPlaying).toBe(false);
   });
 
@@ -363,11 +366,13 @@ describe("usePlaybackClock", () => {
     const frames = createAnimationFrames();
     vi.stubGlobal("requestAnimationFrame", frames.requestAnimationFrame);
     vi.stubGlobal("cancelAnimationFrame", frames.cancelAnimationFrame);
+    const onPause = vi.fn();
     const { result } = renderHook(() =>
       usePlaybackClock({
         date: new Date("2026-07-29T00:00:00.000Z"),
         onBoundary: vi.fn(),
         onDateChange: vi.fn(),
+        onPause,
       }),
     );
 
@@ -377,6 +382,7 @@ describe("usePlaybackClock", () => {
     });
 
     expect(result.current.isPlaying).toBe(false);
+    expect(onPause).toHaveBeenCalledOnce();
     expect(frames.requestAnimationFrame).not.toHaveBeenCalled();
   });
 
@@ -401,6 +407,32 @@ describe("usePlaybackClock", () => {
 
     expect(result.current.isPlaying).toBe(false);
     expect(frames.requestAnimationFrame).not.toHaveBeenCalled();
+  });
+
+  it("notifies an explicit pause only while playback is active", () => {
+    const motion = createMotionPreference();
+    vi.stubGlobal("matchMedia", vi.fn(() => motion.query));
+    const frames = createAnimationFrames();
+    vi.stubGlobal("requestAnimationFrame", frames.requestAnimationFrame);
+    vi.stubGlobal("cancelAnimationFrame", frames.cancelAnimationFrame);
+    const onPause = vi.fn();
+    const { result } = renderHook(() =>
+      usePlaybackClock({
+        date: new Date("2026-07-29T00:00:00.000Z"),
+        onBoundary: vi.fn(),
+        onDateChange: vi.fn(),
+        onPause,
+      }),
+    );
+
+    act(() => result.current.pause());
+    expect(onPause).not.toHaveBeenCalled();
+
+    act(() => result.current.play());
+    act(() => result.current.pause());
+
+    expect(result.current.isPlaying).toBe(false);
+    expect(onPause).toHaveBeenCalledOnce();
   });
 
   it("stops an inward play turned outward in the same act", () => {
@@ -437,11 +469,13 @@ describe("usePlaybackClock", () => {
     const frames = createAnimationFrames();
     vi.stubGlobal("requestAnimationFrame", frames.requestAnimationFrame);
     vi.stubGlobal("cancelAnimationFrame", frames.cancelAnimationFrame);
+    const onPause = vi.fn();
     const { result } = renderHook(() =>
       usePlaybackClock({
         date: new Date("2026-07-29T00:00:00.000Z"),
         onBoundary: vi.fn(),
         onDateChange: vi.fn(),
+        onPause,
       }),
     );
 
@@ -457,6 +491,7 @@ describe("usePlaybackClock", () => {
     });
 
     expect(result.current.isPlaying).toBe(false);
+    expect(onPause).toHaveBeenCalledOnce();
     expect(frames.cancelAnimationFrame).toHaveBeenCalled();
   });
 
@@ -466,11 +501,13 @@ describe("usePlaybackClock", () => {
     const frames = createAnimationFrames();
     vi.stubGlobal("requestAnimationFrame", frames.requestAnimationFrame);
     vi.stubGlobal("cancelAnimationFrame", frames.cancelAnimationFrame);
+    const onPause = vi.fn();
     const { result } = renderHook(() =>
       usePlaybackClock({
         date: new Date("2026-07-29T00:00:00.000Z"),
         onBoundary: vi.fn(),
         onDateChange: vi.fn(),
+        onPause,
       }),
     );
 
@@ -481,6 +518,7 @@ describe("usePlaybackClock", () => {
 
     expect(result.current.motionRestricted).toBe(true);
     expect(result.current.isPlaying).toBe(false);
+    expect(onPause).toHaveBeenCalledOnce();
 
     act(() => result.current.play());
     expect(result.current.isPlaying).toBe(false);

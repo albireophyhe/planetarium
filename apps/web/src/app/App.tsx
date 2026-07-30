@@ -11,6 +11,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -272,7 +273,9 @@ export function App() {
       date,
     };
   });
-  const [date, setDate] = useState(initialClock.date);
+  const [requestedDate, setRequestedDate] = useState(
+    initialClock.date,
+  );
   const [drawError, setDrawError] = useState<DrawError | null>(null);
   const [helpActivated, setHelpActivated] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -317,6 +320,12 @@ export function App() {
   const timeBoundaryNoticeSequence = useRef(
     initialClock.adjusted ? 1 : 0,
   );
+  const requestedDateRef = useRef(initialClock.date);
+  const publishedInstantMsRef = useRef(
+    initialClock.date.getTime(),
+  );
+  const eopRequestPendingRef = useRef(true);
+  const queuedPlaybackDateRef = useRef<Date | null>(null);
   const {
     catalog: precisionCatalog,
     retry: retryPrecisionCatalog,
@@ -326,6 +335,18 @@ export function App() {
   const clearTimeBoundaryNotice = useCallback(() => {
     setTimeBoundaryNotice(null);
     setTimeBoundaryAnnouncement("");
+  }, []);
+  const requestObservationDate = useCallback((nextDate: Date) => {
+    const nextInstant = new Date(nextDate.getTime());
+    queuedPlaybackDateRef.current = null;
+    if (
+      nextInstant.getTime() === requestedDateRef.current.getTime()
+    ) {
+      return;
+    }
+    requestedDateRef.current = nextInstant;
+    eopRequestPendingRef.current = true;
+    setRequestedDate(nextInstant);
   }, []);
 
   useEffect(() => {
@@ -379,10 +400,32 @@ export function App() {
     [showTimeBoundaryNotice],
   );
   const handlePlaybackDateChange = useCallback((nextDate: Date) => {
-    setDate(nextDate);
+    const nextInstant = new Date(nextDate.getTime());
+    if (eopRequestPendingRef.current) {
+      queuedPlaybackDateRef.current = nextInstant;
+    } else if (
+      nextInstant.getTime() !== requestedDateRef.current.getTime()
+    ) {
+      requestedDateRef.current = nextInstant;
+      eopRequestPendingRef.current = true;
+      setRequestedDate(nextInstant);
+    }
     setTimeError(null);
     clearTimeBoundaryNotice();
   }, [clearTimeBoundaryNotice]);
+  const handlePlaybackPause = useCallback(() => {
+    queuedPlaybackDateRef.current = null;
+    const publishedInstant = publishedInstantMsRef.current;
+    if (
+      publishedInstant === requestedDateRef.current.getTime()
+    ) {
+      return;
+    }
+    const frozenDate = new Date(publishedInstant);
+    requestedDateRef.current = frozenDate;
+    eopRequestPendingRef.current = true;
+    setRequestedDate(frozenDate);
+  }, []);
   const handlePlaybackBoundary = useCallback(
     (boundary: "maximum" | "minimum") => {
       announceTimeBoundary(boundary, "playback");
@@ -390,9 +433,10 @@ export function App() {
     [announceTimeBoundary],
   );
   const playback = usePlaybackClock({
-    date,
+    date: requestedDate,
     onBoundary: handlePlaybackBoundary,
     onDateChange: handlePlaybackDateChange,
+    onPause: handlePlaybackPause,
   });
   useEffect(() => {
     if (!timeBoundaryNotice) {
@@ -404,11 +448,58 @@ export function App() {
     }, 50);
     return () => window.clearTimeout(timeout);
   }, [timeBoundaryNotice]);
-  const iersEarthOrientation = useIersEarthOrientation(date);
+  const iersEarthOrientation =
+    useIersEarthOrientation(requestedDate);
+  const settledEarthOrientationFrame =
+    iersEarthOrientation.settledFrame;
+  const settledInstantMs =
+    settledEarthOrientationFrame?.instantMs ?? null;
+  const publishedInstantMs =
+    settledInstantMs ?? requestedDate.getTime();
+  const date = useMemo(
+    () => new Date(publishedInstantMs),
+    [publishedInstantMs],
+  );
+  useLayoutEffect(() => {
+    publishedInstantMsRef.current = publishedInstantMs;
+  }, [publishedInstantMs]);
+  const hasSettledEarthOrientationFrame =
+    settledEarthOrientationFrame !== null;
   const currentEarthOrientationEstimate =
-    iersEarthOrientation.estimate;
+    settledEarthOrientationFrame?.estimate ?? null;
+  const currentEarthOrientationSourceIdentifier =
+    settledEarthOrientationFrame?.sourceIdentifier ?? null;
+  const settledEarthOrientationStatus =
+    settledEarthOrientationFrame?.status ??
+    iersEarthOrientation.status;
+  const earthOrientationRequestPending =
+    !iersEarthOrientation.isCurrent ||
+    queuedPlaybackDateRef.current !== null;
   const lookupIersEarthOrientationAt =
     iersEarthOrientation.lookupAt;
+  useEffect(() => {
+    if (!iersEarthOrientation.isCurrent) {
+      eopRequestPendingRef.current = true;
+      return;
+    }
+
+    eopRequestPendingRef.current = false;
+    const queuedDate = queuedPlaybackDateRef.current;
+    queuedPlaybackDateRef.current = null;
+    if (
+      !queuedDate ||
+      queuedDate.getTime() === requestedDateRef.current.getTime()
+    ) {
+      return;
+    }
+
+    requestedDateRef.current = queuedDate;
+    eopRequestPendingRef.current = true;
+    setRequestedDate(queuedDate);
+  }, [
+    iersEarthOrientation.isCurrent,
+    settledEarthOrientationFrame?.instantMs,
+  ]);
 
   const precisionRenderCatalog = useMemo(
     () =>
@@ -439,7 +530,8 @@ export function App() {
 
   const precisionFrame = useMemo(
     () =>
-      precisionRenderCatalog
+      precisionRenderCatalog &&
+      hasSettledEarthOrientationFrame
         ? calculatePrecisionSkyFrame(
             precisionRenderCatalog,
             date,
@@ -450,6 +542,7 @@ export function App() {
     [
       apparentPositionOptions,
       date,
+      hasSettledEarthOrientationFrame,
       location,
       precisionRenderCatalog,
     ],
@@ -644,7 +737,8 @@ export function App() {
   const selectedStarTrackRequestKey =
     layers.selectedStarTrack &&
     selectedHr !== null &&
-    precisionCatalog
+    precisionCatalog &&
+    hasSettledEarthOrientationFrame
       ? [
           selectedHr,
           date.getTime(),
@@ -652,6 +746,21 @@ export function App() {
           location.longitude,
           location.heightMeters,
           location.timeZone,
+          settledEarthOrientationFrame?.status,
+          settledEarthOrientationFrame?.sourceIdentifier ?? "no-source",
+          currentEarthOrientationEstimate
+            ? [
+                currentEarthOrientationEstimate.dut1.seconds,
+                currentEarthOrientationEstimate.dut1.source,
+                currentEarthOrientationEstimate.dut1
+                  .reportedErrorSeconds,
+                currentEarthOrientationEstimate.polarMotion
+                  .xpRadians,
+                currentEarthOrientationEstimate.polarMotion
+                  .ypRadians,
+                currentEarthOrientationEstimate.polarMotion.source,
+              ].join(",")
+            : "zero-eop",
           appliedRefraction
             ? [
                 appliedRefraction.inputSource,
@@ -692,9 +801,11 @@ export function App() {
       async (sampleDate) =>
         apparentPositionOptionsWithEarthOrientation(
           base,
-          await lookupIersEarthOrientationAt(sampleDate).catch(
-            () => null,
-          ),
+          sampleDate.getTime() === date.getTime()
+            ? currentEarthOrientationEstimate
+            : await lookupIersEarthOrientationAt(sampleDate).catch(
+                () => null,
+              ),
           location.heightMeters,
         ),
     )
@@ -781,42 +892,50 @@ export function App() {
   const timeScaleAssumption = timeScaleAssumptionText(
     precisionFrame?.context.timeScales ?? null,
   );
-  const dut1StatusText = iersEarthOrientation.estimate
-    ? iersEarthOrientation.estimate.dut1.source === "observed"
+  const dut1StatusText = currentEarthOrientationEstimate
+    ? currentEarthOrientationEstimate.dut1.source === "observed"
       ? "DUT1はIERS観測値"
       : "DUT1はIERS予測値"
-    : iersEarthOrientation.status === "unavailable"
+    : settledEarthOrientationStatus === "unavailable"
       ? "DUT1収録外（0秒近似）"
-      : iersEarthOrientation.status === "error"
+      : settledEarthOrientationStatus === "error"
         ? "DUT1読込失敗（0秒近似）"
-        : "DUT1準備中（0秒近似）";
-  const polarMotionStatusText = iersEarthOrientation.estimate
-    ? iersEarthOrientation.estimate.polarMotion.source === "observed"
+        : "DUT1準備中";
+  const polarMotionStatusText = currentEarthOrientationEstimate
+    ? currentEarthOrientationEstimate.polarMotion.source === "observed"
       ? "極運動はIERS観測値"
       : "極運動はIERS予測値"
-    : iersEarthOrientation.status === "unavailable"
+    : settledEarthOrientationStatus === "unavailable"
       ? "極運動収録外（xp/yp=0近似）"
-      : iersEarthOrientation.status === "error"
+      : settledEarthOrientationStatus === "error"
         ? "極運動読込失敗（xp/yp=0近似）"
-        : "極運動準備中（xp/yp=0近似）";
+        : "極運動準備中";
   const earthOrientationStatusText =
-    iersEarthOrientation.estimate &&
-    iersEarthOrientation.estimate.dut1.source ===
-      iersEarthOrientation.estimate.polarMotion.source
+    currentEarthOrientationEstimate &&
+    currentEarthOrientationEstimate.dut1.source ===
+      currentEarthOrientationEstimate.polarMotion.source
       ? `IERS EOP${
-          iersEarthOrientation.estimate.dut1.source === "observed"
+          currentEarthOrientationEstimate.dut1.source === "observed"
             ? "観測値"
             : "予測値"
         }（DUT1・極運動）`
-      : iersEarthOrientation.estimate
+      : currentEarthOrientationEstimate
         ? `${dut1StatusText}・${polarMotionStatusText}`
-        : iersEarthOrientation.status === "unavailable"
+        : settledEarthOrientationStatus === "unavailable"
           ? "IERS EOP収録外（DUT1・極運動は0近似）"
-          : iersEarthOrientation.status === "error"
+          : settledEarthOrientationStatus === "error"
             ? "IERS EOP読込失敗（DUT1・極運動は0近似）"
-            : "IERS EOP準備中（DUT1・極運動は0近似）";
+            : "IERS EOP準備中";
+  const earthOrientationPendingText =
+    earthOrientationRequestPending &&
+    hasSettledEarthOrientationFrame
+      ? "・新しい観測日時のIERS EOPを準備中（整合済みの直前フレームを表示）"
+      : "";
   const calculationStatusText =
-    precisionCatalogStatus === "ready"
+    precisionCatalogStatus === "ready" &&
+    !hasSettledEarthOrientationFrame
+      ? "IERS EOPを準備中・一時的に簡易計算で幾何高度を表示"
+      : precisionCatalogStatus === "ready"
       ? `精密計算 v2・年周視差（収録星）／太陽光偏向・年周・日周光行差・${
           appliedRefraction
             ? `${
@@ -828,7 +947,7 @@ export function App() {
                   .minimumGeometricAltitudeDegrees ?? 5
               }°以上）`
             : "幾何高度（大気差なし）"
-        }・${earthOrientationStatusText}`
+        }・${earthOrientationStatusText}${earthOrientationPendingText}`
       : precisionCatalogStatus === "loading"
         ? `精密星表を準備中・一時的に簡易計算で幾何高度を表示${
             appliedRefraction
@@ -894,7 +1013,7 @@ export function App() {
       setTimeError(result.error);
       return;
     }
-    setDate(result.date);
+    requestObservationDate(result.date);
     setTimeError(null);
   }
 
@@ -913,7 +1032,7 @@ export function App() {
   function handleShowEventTime(nextDate: Date) {
     playback.pause();
     setEventReturnDate((current) => current ?? date);
-    setDate(clampObservationDate(nextDate));
+    requestObservationDate(clampObservationDate(nextDate));
     setTimeError(null);
     clearTimeBoundaryNotice();
   }
@@ -923,7 +1042,7 @@ export function App() {
       return;
     }
     playback.pause();
-    setDate(eventReturnDate);
+    requestObservationDate(eventReturnDate);
     setEventReturnDate(null);
     setTimeError(null);
     clearTimeBoundaryNotice();
@@ -1030,7 +1149,11 @@ export function App() {
                 {TWILIGHT_LABELS[twilight]}・太陽高度
                 {solarAltitudeText}
               </strong>
-              <p aria-live="polite">{calculationStatusText}</p>
+              <p
+                aria-live={playback.isPlaying ? "off" : "polite"}
+              >
+                {calculationStatusText}
+              </p>
               {timeScaleAssumption ? (
                 <p
                   aria-live="polite"
@@ -1104,7 +1227,7 @@ export function App() {
               playback.pause();
               const now = new Date();
               const nextDate = clampObservationDate(now);
-              setDate(nextDate);
+              requestObservationDate(nextDate);
               setTimeError(null);
               if (nextDate.getTime() !== now.getTime()) {
                 showTimeBoundaryNotice(
@@ -1129,7 +1252,7 @@ export function App() {
                 clearTimeBoundaryNotice();
                 return;
               }
-              setDate(result.date);
+              requestObservationDate(result.date);
               setTimeError(null);
               if (result.reachedBoundary) {
                 announceTimeBoundary(
@@ -1225,7 +1348,7 @@ export function App() {
                 <StarDetails
                   earthOrientationEstimate={currentEarthOrientationEstimate}
                   earthOrientationSourceIdentifier={
-                    iersEarthOrientation.sourceIdentifier
+                    currentEarthOrientationSourceIdentifier
                   }
                   isPlaybackPlaying={playback.isPlaying}
                   location={location}

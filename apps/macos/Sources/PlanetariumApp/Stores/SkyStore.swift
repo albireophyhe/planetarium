@@ -1431,7 +1431,18 @@ final class SkyStore {
                     location: location,
                     enabled: showSelectedStarTrajectory,
                     optionsAt: { date in
-                        apparentPositionOptions(at: date)
+                        if date == observationDate {
+                            // The present trajectory marker is part of the
+                            // already-published sky frame. Reuse its settled
+                            // EOP result, including an explicit zero fallback,
+                            // instead of independently retrying the same
+                            // instant and risking a center mismatch.
+                            return apparentPositionOptions(
+                                for:
+                                    currentEarthOrientationEstimate
+                            )
+                        }
+                        return apparentPositionOptions(at: date)
                     }
                 )
         } catch {

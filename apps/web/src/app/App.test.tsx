@@ -19,6 +19,7 @@ import { App } from "./App";
 const trackCalculationSpy = vi.hoisted(() => vi.fn());
 const dut1LookupAtSpy = vi.hoisted(() => vi.fn());
 const dut1RetrySpy = vi.hoisted(() => vi.fn());
+const dut1HookDateSpy = vi.hoisted(() => vi.fn());
 const eventPanelRenderSpy = vi.hoisted(() => vi.fn());
 const dut1HookState = vi.hoisted(() => ({
   estimate: {
@@ -50,18 +51,90 @@ const dut1HookState = vi.hoisted(() => ({
       usesPrediction: boolean;
     };
   } | null,
-  status: "ready" as "error" | "ready" | "unavailable",
+  isCurrent: true,
+  settledInstantMs: "requested" as "requested" | number | null,
+  settledStatus: "ready" as "error" | "ready" | "unavailable",
+  sourceIdentifier: "IERS test-old-source" as string | null,
+  status: "ready" as
+    | "error"
+    | "loading"
+    | "ready"
+    | "refreshing"
+    | "unavailable",
 }));
 
 vi.mock("./useIersEarthOrientation", () => ({
-  useIersEarthOrientation: () => ({
-    estimate: dut1HookState.estimate,
-    isCurrent: true,
-    lookupAt: dut1LookupAtSpy,
-    retry: dut1RetrySpy,
-    status: dut1HookState.status,
-  }),
+  useIersEarthOrientation: (date: Date) => {
+    dut1HookDateSpy(new Date(date.getTime()));
+    const settledInstantMs =
+      dut1HookState.settledInstantMs === "requested"
+        ? date.getTime()
+        : dut1HookState.settledInstantMs;
+    const settledStatus =
+      dut1HookState.status === "ready" ||
+      dut1HookState.status === "error" ||
+      dut1HookState.status === "unavailable"
+        ? dut1HookState.status
+        : dut1HookState.settledStatus;
+    const isCurrent =
+      dut1HookState.isCurrent &&
+      settledInstantMs === date.getTime();
+    return {
+      estimate: isCurrent
+        ? dut1HookState.estimate
+        : null,
+      isCurrent,
+      lookupAt: dut1LookupAtSpy,
+      retry: dut1RetrySpy,
+      settledFrame:
+        settledInstantMs === null
+          ? null
+          : {
+              estimate: dut1HookState.estimate,
+              instantMs: settledInstantMs,
+              sourceIdentifier:
+                dut1HookState.sourceIdentifier,
+              status: settledStatus,
+            },
+      sourceIdentifier: isCurrent
+        ? dut1HookState.sourceIdentifier
+        : null,
+      status: dut1HookState.status,
+    };
+  },
 }));
+
+function createAnimationFrames() {
+  let nextId = 1;
+  const callbacks = new Map<number, FrameRequestCallback>();
+  const requestAnimationFrame = vi.fn(
+    (callback: FrameRequestCallback) => {
+      const id = nextId;
+      nextId += 1;
+      callbacks.set(id, callback);
+      return id;
+    },
+  );
+  const cancelAnimationFrame = vi.fn((id: number) => {
+    callbacks.delete(id);
+  });
+
+  return {
+    cancelAnimationFrame,
+    requestAnimationFrame,
+    runNext(now: number) {
+      const entry = callbacks.entries().next().value as
+        | [number, FrameRequestCallback]
+        | undefined;
+      if (!entry) {
+        throw new Error("No animation frame was scheduled");
+      }
+      const [id, callback] = entry;
+      callbacks.delete(id);
+      callback(now);
+    },
+  };
+}
 
 vi.mock("./selectedStarTrack", async (importOriginal) => {
   const actual =
@@ -205,12 +278,17 @@ describe("App selection announcements", () => {
         usesPrediction: true,
       },
     };
+    dut1HookState.isCurrent = true;
+    dut1HookState.settledInstantMs = "requested";
+    dut1HookState.settledStatus = "ready";
+    dut1HookState.sourceIdentifier = "IERS test-old-source";
     dut1HookState.status = "ready";
     dut1LookupAtSpy.mockReset();
     dut1LookupAtSpy.mockImplementation(
       async () => dut1HookState.estimate,
     );
     dut1RetrySpy.mockClear();
+    dut1HookDateSpy.mockClear();
     trackCalculationSpy.mockClear();
     eventPanelRenderSpy.mockClear();
   });
@@ -267,6 +345,313 @@ describe("App selection announcements", () => {
     expect(
       screen.getByText(/IERS EOP予測値（DUT1・極運動）/),
     ).toBeVisible();
+  });
+
+  it("keeps precision JSON unavailable until the first EOP frame settles", async () => {
+    dut1HookState.estimate = null;
+    dut1HookState.isCurrent = false;
+    dut1HookState.settledInstantMs = null;
+    dut1HookState.sourceIdentifier = null;
+    dut1HookState.status = "loading";
+    render(<App />);
+
+    expect(
+      await screen.findByText(
+        "IERS EOPを準備中・一時的に簡易計算で幾何高度を表示",
+      ),
+    ).toBeVisible();
+    expect(document.querySelector(".app-shell")).toHaveAttribute(
+      "data-calculation-model",
+      "v1",
+    );
+    expect(
+      await screen.findByRole("button", { name: "JSONをコピー" }),
+    ).toBeDisabled();
+  });
+
+  it("publishes UTC, EOP, source, sky, and JSON as one settled frame across UTC midnight", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const { rerender } = render(<App />);
+    const input = screen.getByLabelText("観測日時（Asia/Tokyo）");
+    const readout = document.querySelector(
+      ".playback-readout time",
+    );
+
+    fireEvent.change(input, {
+      target: { value: "2026-07-30T08:59:59" },
+    });
+    await waitFor(() =>
+      expect(readout).toHaveAttribute(
+        "datetime",
+        "2026-07-29T23:59:59.000Z",
+      ),
+    );
+    await screen.findByText(/精密計算 v2/);
+
+    const oldInstant = Date.parse("2026-07-29T23:59:59.000Z");
+    dut1HookState.isCurrent = false;
+    dut1HookState.settledInstantMs = oldInstant;
+    dut1HookState.settledStatus = "ready";
+    dut1HookState.status = "loading";
+    fireEvent.change(input, {
+      target: { value: "2026-07-30T09:00:00" },
+    });
+
+    expect(readout).toHaveAttribute(
+      "datetime",
+      "2026-07-29T23:59:59.000Z",
+    );
+    expect(input).toHaveValue("2026-07-30T08:59:59.000");
+    expect(
+      screen.getByText(
+        /新しい観測日時のIERS EOPを準備中（整合済みの直前フレームを表示）/,
+      ),
+    ).toBeVisible();
+    expect(document.querySelector(".app-shell")).toHaveAttribute(
+      "data-calculation-model",
+      "v2",
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "JSONをコピー" }),
+    );
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    const oldProfile = JSON.parse(
+      writeText.mock.calls[0]?.[0] as string,
+    );
+    expect(oldProfile.observation.utc).toBe(
+      "2026-07-29T23:59:59.000Z",
+    );
+    expect(oldProfile.earthOrientation.sourceIdentifier).toBe(
+      "IERS test-old-source",
+    );
+
+    dut1HookState.estimate = {
+      ...dut1HookState.estimate!,
+      dut1: {
+        ...dut1HookState.estimate!.dut1,
+        seconds: 0.052_5,
+      },
+    };
+    dut1HookState.isCurrent = true;
+    dut1HookState.settledInstantMs = Date.parse(
+      "2026-07-30T00:00:00.000Z",
+    );
+    dut1HookState.sourceIdentifier = "IERS test-new-source";
+    dut1HookState.status = "ready";
+    rerender(<App />);
+
+    await waitFor(() =>
+      expect(readout).toHaveAttribute(
+        "datetime",
+        "2026-07-30T00:00:00.000Z",
+      ),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "JSONをコピー" }),
+    );
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(2));
+    const newProfile = JSON.parse(
+      writeText.mock.calls[1]?.[0] as string,
+    );
+    expect(newProfile.observation.utc).toBe(
+      "2026-07-30T00:00:00.000Z",
+    );
+    expect(newProfile.earthOrientation.sourceIdentifier).toBe(
+      "IERS test-new-source",
+    );
+    expect(newProfile.timeScales.dut1Seconds).toBe(0.052_5);
+  });
+
+  it("coalesces 12 Hz playback requests without starving EOP publication or recomputing the retained sky", async () => {
+    const frames = createAnimationFrames();
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      frames.requestAnimationFrame,
+    );
+    vi.stubGlobal(
+      "cancelAnimationFrame",
+      frames.cancelAnimationFrame,
+    );
+    vi.spyOn(performance, "now").mockReturnValue(1_000);
+    const user = userEvent.setup();
+    const { rerender, unmount } = render(<App />);
+    try {
+      await screen.findByText(/精密計算 v2/);
+      await user.click(
+        screen.getByRole("checkbox", { name: "選択星の軌跡" }),
+      );
+      await waitFor(() =>
+        expect(trackCalculationSpy).toHaveBeenCalledTimes(1),
+      );
+      const readout = document.querySelector(
+        ".playback-readout time",
+      );
+      const originalInstant = Date.parse(
+        readout?.getAttribute("datetime") ?? "",
+      );
+      await user.click(
+        screen.getByRole("button", { name: "時間を再生" }),
+      );
+      dut1HookState.isCurrent = false;
+      dut1HookState.settledInstantMs = originalInstant;
+      dut1HookState.settledStatus = "ready";
+      dut1HookState.status = "refreshing";
+      act(() => frames.runNext(1_100));
+      act(() => frames.runNext(1_200));
+      act(() => frames.runNext(1_300));
+
+      const requestedInstants = [
+        ...new Set(
+          dut1HookDateSpy.mock.calls.map(([requested]) =>
+            (requested as Date).getTime(),
+          ),
+        ),
+      ];
+      expect(requestedInstants).toHaveLength(2);
+      expect(readout).toHaveAttribute(
+        "datetime",
+        new Date(originalInstant).toISOString(),
+      );
+      expect(trackCalculationSpy).toHaveBeenCalledTimes(1);
+      expect(
+        screen.getByText(
+          /新しい観測日時のIERS EOPを準備中/,
+        ),
+      ).toBeVisible();
+
+      const firstRequestedInstant = requestedInstants[1]!;
+      dut1HookState.isCurrent = true;
+      dut1HookState.settledInstantMs = firstRequestedInstant;
+      dut1HookState.status = "ready";
+      rerender(<App />);
+
+      await waitFor(() => {
+        const uniqueRequests = new Set(
+          dut1HookDateSpy.mock.calls.map(([requested]) =>
+            (requested as Date).getTime(),
+          ),
+        );
+        expect(uniqueRequests.size).toBe(3);
+      });
+      const latestRequestedInstant = Math.max(
+        ...dut1HookDateSpy.mock.calls.map(([requested]) =>
+          (requested as Date).getTime(),
+        ),
+      );
+      expect(latestRequestedInstant).toBeGreaterThan(
+        firstRequestedInstant,
+      );
+      expect(readout).toHaveAttribute(
+        "datetime",
+        new Date(firstRequestedInstant).toISOString(),
+      );
+      expect(
+        screen.getByText(
+          /新しい観測日時のIERS EOPを準備中/,
+        ),
+      ).toBeVisible();
+
+      dut1HookState.settledInstantMs = latestRequestedInstant;
+      rerender(<App />);
+      await waitFor(() =>
+        expect(readout).toHaveAttribute(
+          "datetime",
+          new Date(latestRequestedInstant).toISOString(),
+        ),
+      );
+      expect(
+        screen.queryByText(
+          /新しい観測日時のIERS EOPを準備中/,
+        ),
+      ).not.toBeInTheDocument();
+    } finally {
+      unmount();
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("drops queued playback time and copies only the published frame when copy pauses an in-flight lookup", async () => {
+    const frames = createAnimationFrames();
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      frames.requestAnimationFrame,
+    );
+    vi.stubGlobal(
+      "cancelAnimationFrame",
+      frames.cancelAnimationFrame,
+    );
+    vi.spyOn(performance, "now").mockReturnValue(2_000);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const { rerender, unmount } = render(<App />);
+    try {
+      await screen.findByText(/精密計算 v2/);
+      const readout = document.querySelector(
+        ".playback-readout time",
+      );
+      const publishedIso =
+        readout?.getAttribute("datetime") ?? "";
+      const publishedInstant = Date.parse(publishedIso);
+
+      await user.click(
+        screen.getByRole("button", { name: "時間を再生" }),
+      );
+      dut1HookState.isCurrent = false;
+      dut1HookState.settledInstantMs = publishedInstant;
+      dut1HookState.settledStatus = "ready";
+      dut1HookState.status = "refreshing";
+      act(() => frames.runNext(2_100));
+      act(() => frames.runNext(2_200));
+
+      await user.click(
+        screen.getByRole("button", { name: "JSONをコピー" }),
+      );
+      await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+      const copiedProfile = JSON.parse(
+        writeText.mock.calls[0]?.[0] as string,
+      );
+      expect(copiedProfile.observation.utc).toBe(publishedIso);
+      expect(readout).toHaveAttribute("datetime", publishedIso);
+      expect(
+        screen.getByRole("button", { name: "時間を再生" }),
+      ).toHaveAttribute("aria-pressed", "false");
+
+      const requestedInstants = new Set(
+        dut1HookDateSpy.mock.calls.map(([requested]) =>
+          (requested as Date).getTime(),
+        ),
+      );
+      expect(requestedInstants.size).toBe(2);
+      expect(requestedInstants.has(publishedInstant)).toBe(true);
+
+      dut1HookState.isCurrent = true;
+      dut1HookState.settledInstantMs = publishedInstant;
+      dut1HookState.status = "ready";
+      rerender(<App />);
+      expect(readout).toHaveAttribute("datetime", publishedIso);
+      expect(
+        new Set(
+          dut1HookDateSpy.mock.calls.map(([requested]) =>
+            (requested as Date).getTime(),
+          ),
+        ).size,
+      ).toBe(2);
+    } finally {
+      unmount();
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    }
   });
 
   it("loads forecasts only after the events tab and changes time only on an explicit action", async () => {
@@ -647,6 +1032,8 @@ describe("App selection announcements", () => {
   );
 
   it("does not announce continuously changing solar altitude during playback", async () => {
+    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
     render(<App />);
 
     const calculationStatus = await screen.findByText(
@@ -657,6 +1044,15 @@ describe("App selection announcements", () => {
 
     expect(twilightSection).not.toHaveAttribute("aria-live");
     expect(calculationStatus).toHaveAttribute("aria-live", "polite");
+    fireEvent.click(
+      screen.getByRole("button", { name: "時間を再生" }),
+    );
+    expect(calculationStatus).toHaveAttribute("aria-live", "off");
+    fireEvent.click(
+      screen.getByRole("button", { name: "時間を一時停止" }),
+    );
+    expect(calculationStatus).toHaveAttribute("aria-live", "polite");
+    vi.unstubAllGlobals();
   });
 
   it("makes the opt-in standard-atmosphere altitude model explicit and pauses playback", async () => {
@@ -842,7 +1238,7 @@ describe("App selection announcements", () => {
         screen.getByTestId("selected-track-point-count"),
       ).toHaveTextContent("13"),
     );
-    expect(dut1LookupAtSpy).toHaveBeenCalledTimes(13);
+    expect(dut1LookupAtSpy).toHaveBeenCalledTimes(12);
     expect(
       dut1LookupAtSpy.mock.calls.map(([sampleDate]) =>
         (sampleDate as Date).getTime(),
@@ -882,7 +1278,87 @@ describe("App selection announcements", () => {
         screen.getByTestId("selected-track-point-count"),
       ).toHaveTextContent("13"),
     );
-    expect(dut1LookupAtSpy).toHaveBeenCalledTimes(13);
+    expect(dut1LookupAtSpy).toHaveBeenCalledTimes(12);
+  });
+
+  it("invalidates a zero-EOP track on same-instant retry and fixes its center to the settled frame", async () => {
+    const recoveredEstimate = dut1HookState.estimate;
+    dut1HookState.estimate = null;
+    dut1HookState.sourceIdentifier = null;
+    dut1HookState.status = "error";
+    dut1LookupAtSpy.mockResolvedValue(null);
+    const user = userEvent.setup();
+    const { rerender } = render(<App />);
+
+    await screen.findByText(
+      /IERS EOP読込失敗（DUT1・極運動は0近似）/,
+    );
+    await user.click(
+      screen.getByRole("checkbox", { name: "選択星の軌跡" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("selected-track-point-count"),
+      ).toHaveTextContent("13"),
+    );
+    const centerIso = screen.getByTestId(
+      "selected-track-center-time",
+    ).textContent!;
+    const firstOptionsAtDate =
+      trackCalculationSpy.mock.calls.at(-1)?.[3];
+    await expect(
+      firstOptionsAtDate?.(new Date(centerIso)),
+    ).resolves.toMatchObject({
+      earthOrientation: {
+        polarMotion: { source: "assumed-zero" },
+      },
+    });
+
+    let resolveAuxiliary!: (
+      value: typeof recoveredEstimate,
+    ) => void;
+    const auxiliaryLookup = new Promise<
+      typeof recoveredEstimate
+    >((resolve) => {
+      resolveAuxiliary = resolve;
+    });
+    dut1LookupAtSpy.mockReset();
+    dut1LookupAtSpy.mockImplementation(() => auxiliaryLookup);
+    dut1HookState.estimate = recoveredEstimate;
+    dut1HookState.sourceIdentifier = "IERS retry-source";
+    dut1HookState.status = "ready";
+    rerender(<App />);
+
+    expect(
+      screen.getByTestId("selected-track-point-count"),
+    ).toHaveTextContent("0");
+    await waitFor(() =>
+      expect(trackCalculationSpy).toHaveBeenCalledTimes(2),
+    );
+    const retriedOptionsAtDate =
+      trackCalculationSpy.mock.calls.at(-1)?.[3];
+    await expect(
+      retriedOptionsAtDate?.(new Date(centerIso)),
+    ).resolves.toMatchObject({
+      earthOrientation: {
+        dut1Seconds: recoveredEstimate?.dut1.seconds,
+        polarMotion: {
+          source: "iers-predicted",
+          xpRadians:
+            recoveredEstimate?.polarMotion.xpRadians,
+          ypRadians:
+            recoveredEstimate?.polarMotion.ypRadians,
+        },
+      },
+    });
+    expect(dut1LookupAtSpy).toHaveBeenCalledTimes(12);
+
+    resolveAuxiliary(recoveredEstimate);
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("selected-track-point-count"),
+      ).toHaveTextContent("13"),
+    );
   });
 
   it("hides a stale trajectory until its new observation-time samples resolve", async () => {

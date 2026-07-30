@@ -258,11 +258,237 @@ final class SkyStoreEarthOrientationIntegrationTests:
         }
         XCTAssertEqual(
             provider.requestedDates,
-            expectedDates
+            expectedDates.filter { $0 != nextDate }
         )
         XCTAssertEqual(
             store.selectedStarTrajectory.map(\.date),
             expectedDates
+        )
+    }
+
+    @MainActor
+    func testTrajectoryCenterReusesSettledZeroEOPFallback()
+        throws
+    {
+        let formatter = ISO8601DateFormatter()
+        let center = try XCTUnwrap(
+            formatter.date(
+                from: "2026-07-30T00:00:00Z"
+            )
+        )
+        let provider = try RecordingEOPProvider(
+            failFirstLookupAt: center
+        )
+        let store = SkyStore(
+            earthOrientationServiceLoader: {
+                provider
+            },
+            now: center.addingTimeInterval(-86_400)
+        )
+
+        store.showSelectedStarTrajectory = false
+        store.useStandardAtmosphericRefraction = false
+        store.selectedStarHR = try XCTUnwrap(
+            store.catalog.stars.first?.hr
+        )
+        provider.reset()
+
+        store.observationDate = center
+
+        XCTAssertEqual(provider.requestedDates, [center])
+        XCTAssertNil(store.currentEarthOrientationEstimate)
+        XCTAssertNotNil(
+            store.currentEarthOrientationLookupFailure
+        )
+        let selectedHR = try XCTUnwrap(store.selectedStarHR)
+        let renderedCenter = try XCTUnwrap(
+            store.renderedStarsByHR[selectedHR]
+        )
+
+        provider.reset()
+        store.showSelectedStarTrajectory = true
+
+        XCTAssertFalse(
+            provider.requestedDates.contains(center)
+        )
+        let trajectoryCenter = try XCTUnwrap(
+            store.selectedStarTrajectory.first {
+                $0.offsetMinutes == 0
+            }
+        )
+        XCTAssertEqual(
+            trajectoryCenter.horizontal,
+            renderedCenter.observedHorizontal
+        )
+        XCTAssertEqual(
+            trajectoryCenter.projection,
+            renderedCenter.projection
+        )
+    }
+
+    @MainActor
+    func testUTCDayBoundaryPublishesOneSynchronousFrameAcrossSkyAndPointingData()
+        throws
+    {
+        let formatter = ISO8601DateFormatter()
+        let boundary = try XCTUnwrap(
+            formatter.date(
+                from: "2026-07-30T00:00:00Z"
+            )
+        )
+        let before = try XCTUnwrap(
+            formatter.date(
+                from: "2026-07-29T23:59:59Z"
+            )
+        )
+        let after = try XCTUnwrap(
+            formatter.date(
+                from: "2026-07-30T00:00:01Z"
+            )
+        )
+        let provider = try RecordingEOPProvider(
+            dut1SecondsAt: { date in
+                date < boundary ? -0.4 : 0.6
+            }
+        )
+        let store = SkyStore(
+            earthOrientationServiceLoader: {
+                provider
+            },
+            now: before
+        )
+
+        // Normalize persisted display preferences, then exercise every
+        // date-dependent value that SkyStore publishes from one recompute.
+        store.showSelectedStarTrajectory = false
+        store.useStandardAtmosphericRefraction = false
+        store.selectedStarHR = try XCTUnwrap(
+            store.catalog.stars.first?.hr
+        )
+        store.showSelectedStarTrajectory = true
+        let oldSnapshot = try XCTUnwrap(
+            store.captureSelectedStarPointingSnapshot(
+                profile: .precisionJSON
+            )
+        )
+        provider.reset()
+
+        store.observationDate = after
+
+        let estimate = provider.estimate(at: after)
+        let options = ApparentPositionOptionsV2(
+            earthOrientation:
+                estimate.earthOrientationOptionsV2,
+            diurnalAberration:
+                .wgs84Observer(
+                    heightMeters:
+                        store.location.heightMeters
+                ),
+            refraction: .disabled
+        )
+        let expectedContext =
+            try Astronomy.createApparentPositionContextV2(
+                at: after,
+                location: store.location,
+                options: options
+            )
+        let expectedStars = try Astronomy.renderV2(
+            catalog: store.catalog,
+            context: expectedContext
+        )
+        let selectedHR = try XCTUnwrap(
+            store.selectedStarHR
+        )
+        let expectedTrajectory =
+            try SelectedStarTrajectorySampler.samples(
+                for: store.catalog.starsByHR[selectedHR],
+                centeredAt: after,
+                location: store.location,
+                enabled: true,
+                optionsAt: { date in
+                    ApparentPositionOptionsV2(
+                        earthOrientation:
+                            provider.estimate(at: date)
+                            .earthOrientationOptionsV2,
+                        diurnalAberration:
+                            .wgs84Observer(
+                                heightMeters:
+                                    store.location
+                                    .heightMeters
+                            ),
+                        refraction: .disabled
+                    )
+                }
+            )
+
+        XCTAssertEqual(store.observationDate, after)
+        XCTAssertEqual(
+            store.currentEarthOrientationEstimate,
+            estimate
+        )
+        XCTAssertEqual(
+            store.currentTimeScales,
+            expectedContext.timeScales
+        )
+        XCTAssertEqual(store.renderedStars, expectedStars)
+        XCTAssertEqual(
+            store.sunState,
+            try Sun.state(context: expectedContext)
+        )
+        XCTAssertEqual(
+            store.selectedStarTrajectory,
+            expectedTrajectory
+        )
+        XCTAssertEqual(
+            provider.requestedDates,
+            [after]
+                + expectedTrajectory
+                .map(\.date)
+                .filter { $0 != after }
+        )
+
+        let snapshot = try XCTUnwrap(
+            store.captureSelectedStarPointingSnapshot(
+                profile: .precisionJSON
+            )
+        )
+        XCTAssertEqual(snapshot.observationDate, after)
+        XCTAssertNotEqual(snapshot.payload, oldSnapshot.payload)
+        let payloadData = try XCTUnwrap(
+            snapshot.payload.data(using: .utf8)
+        )
+        let root = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: payloadData
+            ) as? [String: Any]
+        )
+        let observation = try XCTUnwrap(
+            root["observation"] as? [String: Any]
+        )
+        let timeScales = try XCTUnwrap(
+            root["timeScales"] as? [String: Any]
+        )
+        let earthOrientation = try XCTUnwrap(
+            root["earthOrientation"] as? [String: Any]
+        )
+        XCTAssertEqual(
+            observation["utc"] as? String,
+            StarPointingPayloadFormatter
+                .utcTimestamp(after)
+        )
+        XCTAssertEqual(
+            timeScales["jdUTC"] as? Double,
+            expectedContext.timeScales.utcJulianDate
+        )
+        XCTAssertEqual(
+            timeScales["dut1Seconds"] as? Double,
+            0.6
+        )
+        XCTAssertEqual(
+            earthOrientation[
+                "appliedDut1Seconds"
+            ] as? Double,
+            0.6
         )
     }
 
@@ -531,10 +757,16 @@ private final class RecordingEOPProvider:
     let coverage: IERSEarthOrientationCoverageV1
     let source: IERSEarthOrientationSourceSummaryV1
     private let polarMotionArcseconds: Double
+    private let dut1SecondsAt: (Date) -> Double
+    private let failFirstLookupAt: Date?
+    private var didFailFirstLookup = false
     private(set) var requestedDates: [Date] = []
 
     init(
-        polarMotionArcseconds: Double = 0.2
+        polarMotionArcseconds: Double = 0.2,
+        dut1SecondsAt:
+            @escaping (Date) -> Double = { _ in 0.01 },
+        failFirstLookupAt: Date? = nil
     ) throws {
         let bundled =
             try IERSEarthOrientationServiceV1.loadBundled()
@@ -542,18 +774,36 @@ private final class RecordingEOPProvider:
         source = bundled.source
         self.polarMotionArcseconds =
             polarMotionArcseconds
+        self.dut1SecondsAt = dut1SecondsAt
+        self.failFirstLookupAt = failFirstLookupAt
     }
 
     func lookup(
         at date: Date
     ) throws -> IERSEarthOrientationEstimateV1? {
         requestedDates.append(date)
+        if date == failFirstLookupAt,
+           !didFailFirstLookup
+        {
+            didFailFirstLookup = true
+            throw IERSEarthOrientationError
+                .resourceUnavailable(
+                    "synthetic center lookup"
+                )
+        }
+        return estimate(at: date)
+    }
+
+    func estimate(
+        at date: Date
+    ) -> IERSEarthOrientationEstimateV1 {
         let radians =
             polarMotionArcseconds
             * Double.pi / (180 * 3_600)
         return IERSEarthOrientationEstimateV1(
             dut1: IERSDUT1EstimateV1(
-                dut1Seconds: 0.01,
+                dut1Seconds:
+                    dut1SecondsAt(date),
                 source: .observed,
                 uncertaintySeconds: 0.000_1
             ),

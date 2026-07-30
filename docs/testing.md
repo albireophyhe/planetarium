@@ -7,7 +7,8 @@
 1. 固定したNode.jsツールチェーンの確認
 2. Web PNGとmacOS ICNSの原画・生成物hash
 3. リポジトリ用Node.jsスクリプトのESLintとshell scriptの構文検査
-4. 共有データのJSON Schemaと意味・参照・再現性
+4. 共有データと精密導入profileのJSON Schema、意味・参照・再現性、
+   正例・負例mutation
 5. 外部通信API、CSP、dependency install script allowlistの静的検査
 6. WebのESLint、Vitest、本番ビルド
 7. HTML/CSSから参照される初期アセット768 KiB gzip以下・12ファイル以下、
@@ -30,6 +31,13 @@ Apple touch iconは寸法、不透明RGB、manifest用途、source/dist一致を
 `script/requirements-fonts.txt`を使い、`script/subset_fonts.py --check`を
 追加で実行する。
 
+精密導入JSONは`shared/schema/star-pointing-profile-v1.schema.json`を
+正本とし、AJV Draft 2020-12のstrict modeでWeb、macOS、EOP 0近似を模した
+3正例を受理する。未知キー、profile ID、座標範囲、利用不能状態、
+EOP 0近似、大気差状態・標準値、警告tokenを壊す11負例は拒否する。
+Schema単体で表しにくい座標間の数値一致と、両serializerの実出力は
+runtime統合テストで段階的に追加する。
+
 天文計算v2では、未改変SOFAの公式単体値と、独立Cドライバによる
 `fk52h → starpm → pmpx → aberration → precession/nutation`の合成値を
 共有fixtureへ固定します。赤経・赤緯の成分差だけでなく、極や天頂でも安定する
@@ -41,6 +49,17 @@ IERS公表誤差の保守的envelope、chunk境界、収録外fallbackを
 WebとSwiftの独立decoderで検証します。macOS配布物には統合manifestが列挙する
 全chunk（現在は5件）だけが入り、公式原本、lock、checksumが入らないことも
 検査します。将来の正規更新でchunkが増えてもmanifest駆動で追従します。
+
+画面統合では、UTC日境界の前後でEOP応答を意図的に遅らせ、要求中の新日時と
+直前日時のEOPを混ぜないことを検査します。Webは同一日・日跨ぎ・応答順逆転・
+読込失敗・再試行・12 Hz再生の最新要求集約を、日時表示、恒星、太陽、軌跡、
+詳細、コピーまで同じ公開frameとして確認します。初回未解決中は精密JSONを
+作らず、収録外または実際の読込失敗が解決した時だけ0近似frameを許可します。
+macOSは日時設定からEOP、時刻系、全恒星、太陽、13点軌跡、コピーJSONまでが
+一回の同期Store更新で切り替わることを統合テストで固定します。
+軌跡の中心点は独立に同時刻を再取得せず、公開済みframeのEOPまたは0近似を
+再利用し、補助取得の再試行結果が星本体と中心マーカーを分離しないことも
+両版で検査します。
 
 極運動行列は未改変SOFA `sp00` / `pom00`の公式参照値、符号・軸ごとの
 変位、無効化、xp/yp=0 fallback、GAST→TIRS→ITRS→ENU→日周光行差→大気差
