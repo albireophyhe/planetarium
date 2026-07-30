@@ -42,6 +42,19 @@ const REFRACTION_OPTIONS: ApparentPositionOptionsV2 = {
   },
 };
 
+function sampleOptions(
+  positionOptions: ApparentPositionOptionsV2,
+  earthOrientationStatus:
+    | "ready"
+    | "unavailable"
+    | "error" = "ready",
+) {
+  return {
+    earthOrientationStatus,
+    positionOptions,
+  } as const;
+}
+
 describe("calculateSelectedStarTrack", () => {
   it("returns thirteen ordered precision-v2 samples across ±3 hours", async () => {
     const center = new Date("2026-07-29T12:00:00.000Z");
@@ -49,7 +62,7 @@ describe("calculateSelectedStarTrack", () => {
       TEST_STAR,
       center,
       TOKYO,
-      () => REFRACTION_OPTIONS,
+      () => sampleOptions(REFRACTION_OPTIONS),
     );
 
     expect(track.points).toHaveLength(13);
@@ -58,6 +71,11 @@ describe("calculateSelectedStarTrack", () => {
     ]);
     expect(track.truncatedPast).toBe(false);
     expect(track.truncatedFuture).toBe(false);
+    expect(track.earthOrientationProvenance).toEqual({
+      auxiliaryFallbackSampleCount: 0,
+      auxiliarySampleCount: 12,
+      centerStatus: "ready",
+    });
     expect(track.points[6]?.observedAtIso).toBe(center.toISOString());
 
     const directContext = createApparentPositionContextV2(
@@ -86,7 +104,7 @@ describe("calculateSelectedStarTrack", () => {
       TEST_STAR,
       new Date("1900-01-01T00:30:00.000Z"),
       TOKYO,
-      () => ({ refraction: false }),
+      () => sampleOptions({ refraction: false }),
     );
     expect(minimumTrack.truncatedPast).toBe(true);
     expect(minimumTrack.truncatedFuture).toBe(false);
@@ -101,7 +119,7 @@ describe("calculateSelectedStarTrack", () => {
       TEST_STAR,
       new Date("2100-12-31T23:29:59.999Z"),
       TOKYO,
-      () => ({ refraction: false }),
+      () => sampleOptions({ refraction: false }),
     );
     expect(maximumTrack.truncatedPast).toBe(false);
     expect(maximumTrack.truncatedFuture).toBe(true);
@@ -119,7 +137,9 @@ describe("calculateSelectedStarTrack", () => {
     new Date("1899-12-31T23:59:59.999Z"),
     new Date("2101-01-01T00:00:00.000Z"),
   ])("rejects an unsupported center before resolving samples", async (center) => {
-    const optionsAtDate = vi.fn(() => ({ refraction: false as const }));
+    const optionsAtDate = vi.fn(() =>
+      sampleOptions({ refraction: false }),
+    );
 
     await expect(
       calculateSelectedStarTrack(
@@ -134,14 +154,16 @@ describe("calculateSelectedStarTrack", () => {
 
   it("resolves time-dependent Earth orientation for every sample", async () => {
     const center = new Date("2017-01-01T00:00:00.000Z");
-    const optionsAtDate = vi.fn((sampleDate: Date) => ({
-      earthOrientation: {
-        dut1Seconds:
-          sampleDate.getTime() < center.getTime() ? -0.4 : 0.6,
-        dut1Source: "caller" as const,
-      },
-      refraction: false as const,
-    }));
+    const optionsAtDate = vi.fn((sampleDate: Date) =>
+      sampleOptions({
+        earthOrientation: {
+          dut1Seconds:
+            sampleDate.getTime() < center.getTime() ? -0.4 : 0.6,
+          dut1Source: "caller" as const,
+        },
+        refraction: false as const,
+      }),
+    );
 
     const track = await calculateSelectedStarTrack(
       TEST_STAR,
@@ -168,7 +190,7 @@ describe("calculateSelectedStarTrack", () => {
       const directContext = createApparentPositionContextV2(
         sampleDate,
         TOKYO,
-        optionsAtDate(sampleDate),
+        optionsAtDate(sampleDate).positionOptions,
       );
       const direct =
         calculateLightweightApparentStarPositionWithContextV2(
@@ -178,6 +200,34 @@ describe("calculateSelectedStarTrack", () => {
       expect(point?.projectionX).toBeCloseTo(direct.projection.x, 12);
       expect(point?.projectionY).toBeCloseTo(direct.projection.y, 12);
     }
+  });
+
+  it("keeps center status and counts only fallback auxiliary samples", async () => {
+    const center = new Date("2026-07-29T12:00:00.000Z");
+    const track = await calculateSelectedStarTrack(
+      TEST_STAR,
+      center,
+      TOKYO,
+      (sampleDate) => {
+        const relativeMinutes =
+          (sampleDate.getTime() - center.getTime()) / 60_000;
+        const status =
+          relativeMinutes === 0
+            ? "error"
+            : relativeMinutes === -30
+              ? "unavailable"
+              : relativeMinutes === 30
+                ? "error"
+                : "ready";
+        return sampleOptions(REFRACTION_OPTIONS, status);
+      },
+    );
+
+    expect(track.earthOrientationProvenance).toEqual({
+      auxiliaryFallbackSampleCount: 2,
+      auxiliarySampleCount: 12,
+      centerStatus: "error",
+    });
   });
 
   it("formats the direction-key offsets compactly", () => {

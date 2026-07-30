@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+
 import {
   formatStarPointingProfileErrors,
   validateStarPointingProfile
@@ -189,6 +191,7 @@ function webProfile() {
         siderealTimeModel:
           "IAU 2006 GMST + IAU 2000B leading equation of equinoxes",
         spaceMotionMode: "three-dimensional",
+        radialVelocityAssumedZero: false,
         annualParallaxMode:
           "truncated-vsop2000-heliocentric-earth",
         annualAberrationMode:
@@ -208,6 +211,7 @@ function webProfile() {
         dut1AssumedZero: false,
         polarMotionAssumedZero: false,
         properMotionMissing: false,
+        properMotionUnavailable: false,
         radialVelocityAssumedZero: false,
         approximateEarthEphemeris: true,
         refractionOutsideModelDomain: false,
@@ -226,26 +230,7 @@ function webProfile() {
 }
 
 function macProfile() {
-  const profile = structuredClone(webProfile());
-  const kinematics = profile.target.catalogKinematics;
-  delete kinematics.properMotionStatus;
-  delete kinematics.parallaxStatus;
-  delete kinematics.radialVelocityStatus;
-
-  const earthOrientation = profile.earthOrientation;
-  delete earthOrientation.sourceIdentifierStatus;
-  delete earthOrientation.dut1MetadataMatchesAppliedValue;
-  delete earthOrientation.estimateStatus;
-  delete earthOrientation.polarMotionMetadataMatchesAppliedValue;
-  delete earthOrientation.consistencyIssues;
-
-  profile.diagnostics.models.radialVelocityAssumedZero = false;
-  const approximations = profile.diagnostics.approximations;
-  delete approximations.earthOrientationNotApplied;
-  delete approximations.properMotionMissing;
-  delete approximations.refractionParametersUnavailable;
-  approximations.properMotionUnavailable = false;
-  return profile;
+  return structuredClone(webProfile());
 }
 
 function assumedZeroProfile() {
@@ -255,6 +240,7 @@ function assumedZeroProfile() {
   profile.timeScales.dut1Seconds = 0;
   profile.timeScales.dut1UncertaintySeconds = null;
   profile.timeScales.dut1Source = "assumed-zero";
+  profile.timeScales.jdUT1 = profile.timeScales.jdUTC;
 
   profile.earthOrientation = {
     status: "assumed-zero",
@@ -282,6 +268,12 @@ function assumedZeroProfile() {
     "refraction-disabled";
   profile.coordinates.observedTopocentric.refractionMode =
     "disabled";
+  profile.coordinates.observedTopocentric.altitudeDegrees =
+    profile.coordinates.vacuumTopocentric.altitudeDegrees;
+  profile.coordinates.observedTopocentric.azimuthDegrees =
+    profile.coordinates.vacuumTopocentric.azimuthDegrees;
+  profile.coordinates.observedTopocentric.azimuthStatus =
+    profile.coordinates.vacuumTopocentric.azimuthStatus;
   profile.diagnostics.refraction = {
     mode: "disabled",
     status: "refraction-disabled",
@@ -301,6 +293,50 @@ function assumedZeroProfile() {
     "polar-motion-assumed-zero",
     "refraction-disabled"
   );
+  return profile;
+}
+
+function julianDateToleranceProfile() {
+  const profile = webProfile();
+  const toleratedOffsetDays = 1.9 / 86_400_000;
+  profile.timeScales.jdUTC += toleratedOffsetDays;
+  profile.timeScales.jdUT1 += toleratedOffsetDays;
+  return profile;
+}
+
+function unmatchedMetadataProfile() {
+  const profile = webProfile();
+  profile.earthOrientation.sourceIdentifier = null;
+  profile.earthOrientation.sourceIdentifierStatus = "unavailable";
+  profile.earthOrientation.estimateStatus = "unavailable";
+  profile.earthOrientation.dut1Status =
+    "applied-without-matching-estimate-metadata";
+  profile.earthOrientation.dut1Quality = null;
+  profile.earthOrientation.dut1ReportedErrorSeconds = null;
+  profile.earthOrientation.dut1MetadataMatchesAppliedValue = null;
+  profile.earthOrientation.polarMotionStatus =
+    "applied-without-matching-estimate-metadata";
+  profile.earthOrientation.polarMotionQuality = null;
+  profile.earthOrientation.polarMotionMetadataMatchesAppliedValue =
+    null;
+  profile.earthOrientation.consistencyIssues = [
+    "Applied DUT1 does not have a matching IERS estimate snapshot.",
+    "Applied polar motion does not have a matching IERS estimate snapshot."
+  ];
+  profile.diagnostics.approximations
+    .earthOrientationEstimateUnavailable = true;
+  return profile;
+}
+
+function assumedZeroRadialVelocityProfile() {
+  const profile = webProfile();
+  profile.target.catalogKinematics.radialVelocityKilometersPerSecond =
+    null;
+  profile.target.catalogKinematics.radialVelocityStatus =
+    "assumed-zero";
+  profile.diagnostics.models.radialVelocityAssumedZero = true;
+  profile.diagnostics.approximations.radialVelocityAssumedZero =
+    true;
   return profile;
 }
 
@@ -326,10 +362,35 @@ async function expectInvalid(label, mutate) {
 const positiveCases = [
   ["Webの完全精度payload", webProfile()],
   ["macOSの完全精度payload", macProfile()],
-  ["assumed-zero fallback payload", assumedZeroProfile()]
+  ["assumed-zero fallback payload", assumedZeroProfile()],
+  ["UTC/JD UTC許容差内payload", julianDateToleranceProfile()],
+  [
+    "照合metadataのないapplied EOP payload",
+    unmatchedMetadataProfile()
+  ],
+  [
+    "視線速度assumed-zero payload",
+    assumedZeroRadialVelocityProfile()
+  ]
 ];
 for (const [label, profile] of positiveCases) {
   await expectValid(label, profile);
+}
+
+const macProductionFixtureFiles = [
+  "star-pointing-profile-v1-macos-iers-standard.json",
+  "star-pointing-profile-v1-macos-assumed-zero-disabled.json",
+  "star-pointing-profile-v1-macos-manual.json",
+  "star-pointing-profile-v1-macos-below-domain-missing-kinematics.json"
+];
+for (const file of macProductionFixtureFiles) {
+  const profile = JSON.parse(
+    await readFile(
+      new URL(`../shared/fixtures/${file}`, import.meta.url),
+      "utf8"
+    )
+  );
+  await expectValid(`macOS production fixture ${file}`, profile);
 }
 
 const negativeCases = [
@@ -405,6 +466,146 @@ const negativeCases = [
     (profile) => {
       profile.diagnostics.warnings.push("unknown-warning");
     }
+  ],
+  [
+    "available statusとassumed-zero DUT1 sourceの混在",
+    (profile) => {
+      profile.timeScales.status = "available";
+      profile.timeScales.dut1Seconds = 0;
+      profile.timeScales.dut1UncertaintySeconds = null;
+      profile.timeScales.dut1Source = "assumed-zero";
+      profile.timeScales.jdUT1 = profile.timeScales.jdUTC;
+    }
+  ],
+  [
+    "IERS全体statusと利用不可の要素statusの混在",
+    (profile) => {
+      profile.earthOrientation.dut1Status = "unavailable";
+      profile.earthOrientation.polarMotionStatus = "unavailable";
+    }
+  ],
+  [
+    "利用可能source statusとnull identifierの混在",
+    (profile) => {
+      profile.earthOrientation.sourceIdentifier = null;
+      profile.earthOrientation.sourceIdentifierStatus = "available";
+    }
+  ],
+  [
+    "照合不能metadataとsource identifierの混在",
+    (profile) => {
+      profile.earthOrientation.dut1Status =
+        "applied-without-matching-estimate-metadata";
+      profile.earthOrientation.dut1Quality = null;
+      profile.earthOrientation.dut1ReportedErrorSeconds = null;
+      profile.earthOrientation.dut1MetadataMatchesAppliedValue =
+        null;
+      profile.earthOrientation.polarMotionStatus =
+        "applied-without-matching-estimate-metadata";
+      profile.earthOrientation.polarMotionQuality = null;
+      profile.earthOrientation
+        .polarMotionMetadataMatchesAppliedValue = null;
+      profile.earthOrientation.consistencyIssues = [
+        "Applied DUT1 does not have a matching IERS estimate snapshot.",
+        "Applied polar motion does not have a matching IERS estimate snapshot."
+      ];
+    }
+  ],
+  [
+    "照合不能statusとconsistency issue欠落の混在",
+    (profile) => {
+      profile.earthOrientation.sourceIdentifier = null;
+      profile.earthOrientation.sourceIdentifierStatus = "unavailable";
+      profile.earthOrientation.dut1Status =
+        "applied-without-matching-estimate-metadata";
+      profile.earthOrientation.dut1Quality = null;
+      profile.earthOrientation.dut1ReportedErrorSeconds = null;
+      profile.earthOrientation.dut1MetadataMatchesAppliedValue =
+        null;
+    }
+  ],
+  [
+    "IERS適用とassumed-zero診断flagの混在",
+    (profile) => {
+      profile.diagnostics.approximations.dut1AssumedZero = true;
+    }
+  ],
+  [
+    "大気差diagnosticsと観測座標の混在",
+    (profile) => {
+      profile.diagnostics.refraction = {
+        mode: "disabled",
+        status: "refraction-disabled",
+        description: "なし",
+        parametersStatus: "not-configured",
+        parameters: null
+      };
+      profile.diagnostics.models.refractionMode = "disabled";
+    }
+  ],
+  [
+    "UTCとJD UTCの不一致",
+    (profile) => {
+      profile.timeScales.jdUTC += 0.01;
+    }
+  ],
+  [
+    "JD UT1とDUT1式の不一致",
+    (profile) => {
+      profile.timeScales.jdUT1 += 0.01;
+    }
+  ],
+  [
+    "time zoneとlocal date-timeの不一致",
+    (profile) => {
+      profile.observation.localDateTime =
+        "2026-07-31T12:00:01";
+    }
+  ],
+  [
+    "未対応IANA time zone",
+    (profile) => {
+      profile.observation.timeZone = "Mars/Olympus_Mons";
+    }
+  ],
+  [
+    "time scalesとEOP適用DUT1値の不一致",
+    (profile) => {
+      profile.earthOrientation.appliedDut1Seconds += 0.1;
+    }
+  ],
+  [
+    "time scalesとEOP DUT1 sourceの不一致",
+    (profile) => {
+      profile.earthOrientation.dut1Source = "iers-observed";
+    }
+  ],
+  [
+    "大気差diagnosticsとmodelの不一致",
+    (profile) => {
+      profile.diagnostics.models.refractionMode = "disabled";
+    }
+  ],
+  [
+    "大気差modeと近似診断flagの不一致",
+    (profile) => {
+      profile.diagnostics.approximations
+        .refractionOutsideModelDomain = true;
+    }
+  ],
+  [
+    "固有運動の近似診断flag間の不一致",
+    (profile) => {
+      profile.diagnostics.approximations.properMotionMissing =
+        true;
+    }
+  ],
+  [
+    "視線速度statusと近似診断flagの不一致",
+    (profile) => {
+      profile.diagnostics.approximations
+        .radialVelocityAssumedZero = true;
+    }
   ]
 ];
 for (const [label, mutate] of negativeCases) {
@@ -413,5 +614,7 @@ for (const [label, mutate] of negativeCases) {
 
 console.log(
   "精密導入JSON Schema検証OK: " +
-    `${positiveCases.length}正例 / ${negativeCases.length}負例`
+    `${positiveCases.length}合成正例 + ` +
+    `${macProductionFixtureFiles.length} macOS実出力 / ` +
+    `${negativeCases.length}負例`
 );

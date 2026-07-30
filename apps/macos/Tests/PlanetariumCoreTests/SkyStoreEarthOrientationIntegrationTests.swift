@@ -264,6 +264,25 @@ final class SkyStoreEarthOrientationIntegrationTests:
             store.selectedStarTrajectory.map(\.date),
             expectedDates
         )
+        XCTAssertEqual(
+            store
+                .selectedStarTrajectoryEarthOrientationProvenance,
+            SelectedStarTrajectoryEarthOrientationProvenance(
+                auxiliaryFallbackSampleCount: 0,
+                auxiliarySampleCount: 12,
+                centerStatus: .ready
+            )
+        )
+        XCTAssertNil(
+            store
+                .selectedStarTrajectoryEarthOrientationProvenance?
+                .warning
+        )
+        XCTAssertFalse(
+            SelectedStarTrajectoryLegendView(
+                store: store
+            ).rangeText.contains("EOP 0近似")
+        )
     }
 
     @MainActor
@@ -323,6 +342,313 @@ final class SkyStoreEarthOrientationIntegrationTests:
         XCTAssertEqual(
             trajectoryCenter.projection,
             renderedCenter.projection
+        )
+        let provenance = try XCTUnwrap(
+            store
+                .selectedStarTrajectoryEarthOrientationProvenance
+        )
+        XCTAssertEqual(provenance.centerStatus, .error)
+        XCTAssertEqual(
+            provenance.auxiliarySampleCount,
+            12
+        )
+        XCTAssertEqual(
+            provenance.auxiliaryFallbackSampleCount,
+            0
+        )
+        XCTAssertEqual(
+            provenance.warning?.shortText,
+            "EOP 0近似: 現在点"
+        )
+        XCTAssertEqual(
+            provenance.warning?
+                .accessibilityDescription,
+            "現在点はEOP読込失敗のため0近似です。"
+        )
+        XCTAssertTrue(
+            store
+                .selectedStarTrajectoryAccessibilitySummary
+                .contains(
+                    "現在点はEOP読込失敗のため0近似です。"
+                )
+        )
+    }
+
+    @MainActor
+    func testTrajectoryCountsOneUnavailableAuxiliaryLookup()
+        throws
+    {
+        let center = try trajectoryCenterDate()
+        let unavailableDate =
+            center.addingTimeInterval(
+                Double(
+                    -SelectedStarTrajectorySampler
+                        .pastMinutes * 60
+                )
+            )
+        let provider = try RecordingEOPProvider(
+            shouldReturnNilAt: {
+                $0 == unavailableDate
+            }
+        )
+        let store = SkyStore(
+            earthOrientationServiceLoader: {
+                provider
+            },
+            now: center
+        )
+
+        store.showSelectedStarTrajectory = false
+        store.selectedStarHR = try XCTUnwrap(
+            store.catalog.stars.first?.hr
+        )
+        provider.reset()
+        store.showSelectedStarTrajectory = true
+
+        let provenance = try XCTUnwrap(
+            store
+                .selectedStarTrajectoryEarthOrientationProvenance
+        )
+        XCTAssertEqual(provenance.centerStatus, .ready)
+        XCTAssertEqual(
+            provenance.auxiliarySampleCount,
+            12
+        )
+        XCTAssertEqual(
+            provenance.auxiliaryFallbackSampleCount,
+            1
+        )
+        XCTAssertEqual(
+            provenance.warning?.shortText,
+            "EOP 0近似: 周辺1/12点"
+        )
+        XCTAssertEqual(
+            provenance.warning?
+                .accessibilityDescription,
+            "周辺12点中1点はEOPを0近似しています。"
+        )
+        XCTAssertTrue(
+            SelectedStarTrajectoryLegendView(
+                store: store
+            ).rangeText.contains(
+                "EOP 0近似: 周辺1/12点"
+            )
+        )
+        XCTAssertTrue(
+            store
+                .selectedStarTrajectoryAccessibilitySummary
+                .contains(
+                    "周辺12点中1点はEOPを0近似しています。"
+                )
+        )
+    }
+
+    @MainActor
+    func testTrajectoryCountsOneThrowingAuxiliaryLookup()
+        throws
+    {
+        let center = try trajectoryCenterDate()
+        let throwingDate =
+            center.addingTimeInterval(
+                Double(
+                    SelectedStarTrajectorySampler
+                        .futureMinutes * 60
+                )
+            )
+        let provider = try RecordingEOPProvider(
+            shouldThrowAt: {
+                $0 == throwingDate
+            }
+        )
+        let store = SkyStore(
+            earthOrientationServiceLoader: {
+                provider
+            },
+            now: center
+        )
+
+        store.showSelectedStarTrajectory = false
+        store.selectedStarHR = try XCTUnwrap(
+            store.catalog.stars.first?.hr
+        )
+        provider.reset()
+        store.showSelectedStarTrajectory = true
+
+        let provenance = try XCTUnwrap(
+            store
+                .selectedStarTrajectoryEarthOrientationProvenance
+        )
+        XCTAssertEqual(provenance.centerStatus, .ready)
+        XCTAssertEqual(
+            provenance.auxiliarySampleCount,
+            12
+        )
+        XCTAssertEqual(
+            provenance.auxiliaryFallbackSampleCount,
+            1
+        )
+        XCTAssertEqual(
+            provenance.warning?.shortText,
+            "EOP 0近似: 周辺1/12点"
+        )
+    }
+
+    @MainActor
+    func testTrajectoryReportsEverySampleUsingZeroFallback()
+        throws
+    {
+        let center = try trajectoryCenterDate()
+        let provider = try RecordingEOPProvider(
+            shouldReturnNilAt: { _ in true }
+        )
+        let store = SkyStore(
+            earthOrientationServiceLoader: {
+                provider
+            },
+            now: center
+        )
+
+        store.showSelectedStarTrajectory = false
+        store.selectedStarHR = try XCTUnwrap(
+            store.catalog.stars.first?.hr
+        )
+        provider.reset()
+        store.showSelectedStarTrajectory = true
+
+        let provenance = try XCTUnwrap(
+            store
+                .selectedStarTrajectoryEarthOrientationProvenance
+        )
+        XCTAssertEqual(
+            provenance.centerStatus,
+            .unavailable
+        )
+        XCTAssertEqual(
+            provenance.auxiliarySampleCount,
+            12
+        )
+        XCTAssertEqual(
+            provenance.auxiliaryFallbackSampleCount,
+            12
+        )
+        XCTAssertEqual(
+            provenance.warning?.shortText,
+            "EOP 0近似: 現在点・周辺12/12点"
+        )
+        let expectedDescription =
+            "現在点はEOP収録外のため0近似です。"
+            + "周辺12点中12点はEOPを0近似しています。"
+        XCTAssertEqual(
+            provenance.warning?
+                .accessibilityDescription,
+            expectedDescription
+        )
+        XCTAssertTrue(
+            SelectedStarTrajectoryLegendView(
+                store: store
+            ).rangeText.contains(
+                "EOP 0近似: 現在点・周辺12/12点"
+            )
+        )
+        XCTAssertTrue(
+            store
+                .selectedStarTrajectoryAccessibilitySummary
+                .contains(expectedDescription)
+        )
+    }
+
+    @MainActor
+    func testTrajectoryDoesNotRetryUnavailableCenterLookup()
+        throws
+    {
+        let center = try trajectoryCenterDate()
+        let provider = try RecordingEOPProvider(
+            shouldReturnNilAt: {
+                $0 == center
+            }
+        )
+        let store = SkyStore(
+            earthOrientationServiceLoader: {
+                provider
+            },
+            now: center
+        )
+
+        XCTAssertNil(
+            store.currentEarthOrientationEstimate
+        )
+        XCTAssertNil(
+            store.currentEarthOrientationLookupFailure
+        )
+        store.showSelectedStarTrajectory = false
+        store.selectedStarHR = try XCTUnwrap(
+            store.catalog.stars.first?.hr
+        )
+        provider.reset()
+        store.showSelectedStarTrajectory = true
+
+        XCTAssertFalse(
+            provider.requestedDates.contains(center)
+        )
+        let provenance = try XCTUnwrap(
+            store
+                .selectedStarTrajectoryEarthOrientationProvenance
+        )
+        XCTAssertEqual(
+            provenance.centerStatus,
+            .unavailable
+        )
+        XCTAssertEqual(
+            provenance.auxiliaryFallbackSampleCount,
+            0
+        )
+        XCTAssertEqual(
+            provenance.warning?.shortText,
+            "EOP 0近似: 現在点"
+        )
+        XCTAssertEqual(
+            provenance.warning?
+                .accessibilityDescription,
+            "現在点はEOP収録外のため0近似です。"
+        )
+    }
+
+    @MainActor
+    func testDisablingTrajectoryClearsItsProvenance()
+        throws
+    {
+        let center = try trajectoryCenterDate()
+        let provider = try RecordingEOPProvider()
+        let store = SkyStore(
+            earthOrientationServiceLoader: {
+                provider
+            },
+            now: center
+        )
+
+        store.showSelectedStarTrajectory = false
+        store.selectedStarHR = try XCTUnwrap(
+            store.catalog.stars.first?.hr
+        )
+        store.showSelectedStarTrajectory = true
+        XCTAssertNotNil(
+            store
+                .selectedStarTrajectoryEarthOrientationProvenance
+        )
+
+        store.showSelectedStarTrajectory = false
+
+        XCTAssertTrue(
+            store.selectedStarTrajectory.isEmpty
+        )
+        XCTAssertNil(
+            store
+                .selectedStarTrajectoryEarthOrientationProvenance
+        )
+        XCTAssertEqual(
+            store
+                .selectedStarTrajectoryAccessibilitySummary,
+            "選択星の軌跡は非表示です。"
         )
     }
 
@@ -521,6 +847,20 @@ final class SkyStoreEarthOrientationIntegrationTests:
             store.currentSolarLightDeflectionMode,
             .truncatedVSOP2000HeliocentricEarth
         )
+        store.showSelectedStarTrajectory = false
+        store.selectedStarHR = try XCTUnwrap(
+            store.catalog.stars.first?.hr
+        )
+        store.showSelectedStarTrajectory = true
+        XCTAssertEqual(
+            store
+                .selectedStarTrajectoryEarthOrientationProvenance,
+            SelectedStarTrajectoryEarthOrientationProvenance(
+                auxiliaryFallbackSampleCount: 12,
+                auxiliarySampleCount: 12,
+                centerStatus: .error
+            )
+        )
 
         store.retryEarthOrientationData()
 
@@ -540,6 +880,15 @@ final class SkyStoreEarthOrientationIntegrationTests:
         XCTAssertEqual(
             store.currentSolarLightDeflectionMode,
             .truncatedVSOP2000HeliocentricEarth
+        )
+        XCTAssertEqual(
+            store
+                .selectedStarTrajectoryEarthOrientationProvenance,
+            SelectedStarTrajectoryEarthOrientationProvenance(
+                auxiliaryFallbackSampleCount: 0,
+                auxiliarySampleCount: 12,
+                centerStatus: .ready
+            )
         )
     }
 
@@ -615,6 +964,62 @@ final class SkyStoreEarthOrientationIntegrationTests:
         XCTAssertEqual(
             store.sunState,
             try Sun.state(context: fallbackContext)
+        )
+        store.showSelectedStarTrajectory = false
+        store.selectedStarHR = try XCTUnwrap(
+            store.catalog.stars.first?.hr
+        )
+        store.showSelectedStarTrajectory = true
+        XCTAssertTrue(
+            store.selectedStarTrajectory.isEmpty
+        )
+        XCTAssertNil(
+            store
+                .selectedStarTrajectoryEarthOrientationProvenance
+        )
+    }
+
+    @MainActor
+    func testTrajectoryClassifiesCenterApplicationFailureAsError()
+        throws
+    {
+        let center = try trajectoryCenterDate()
+        let provider = try RecordingEOPProvider(
+            invalidEstimateAt: {
+                $0 == center
+            }
+        )
+        let store = SkyStore(
+            earthOrientationServiceLoader: {
+                provider
+            },
+            now: center
+        )
+
+        XCTAssertNotNil(
+            store.currentEarthOrientationApplicationFailure
+        )
+        store.showSelectedStarTrajectory = false
+        store.selectedStarHR = try XCTUnwrap(
+            store.catalog.stars.first?.hr
+        )
+        provider.reset()
+        store.showSelectedStarTrajectory = true
+
+        XCTAssertFalse(
+            store.selectedStarTrajectory.isEmpty
+        )
+        XCTAssertEqual(
+            store
+                .selectedStarTrajectoryEarthOrientationProvenance,
+            SelectedStarTrajectoryEarthOrientationProvenance(
+                auxiliaryFallbackSampleCount: 0,
+                auxiliarySampleCount: 12,
+                centerStatus: .error
+            )
+        )
+        XCTAssertFalse(
+            provider.requestedDates.contains(center)
         )
     }
 
@@ -731,6 +1136,14 @@ final class SkyStoreEarthOrientationIntegrationTests:
         )
     }
 
+    private func trajectoryCenterDate() throws -> Date {
+        try XCTUnwrap(
+            ISO8601DateFormatter().date(
+                from: "2026-07-29T12:00:00Z"
+            )
+        )
+    }
+
     @MainActor
     private func makeEmptyStore(now: Date) throws -> SkyStore {
         let provider = try RecordingEOPProvider()
@@ -759,6 +1172,9 @@ private final class RecordingEOPProvider:
     private let polarMotionArcseconds: Double
     private let dut1SecondsAt: (Date) -> Double
     private let failFirstLookupAt: Date?
+    private let invalidEstimateAt: (Date) -> Bool
+    private let shouldReturnNilAt: (Date) -> Bool
+    private let shouldThrowAt: (Date) -> Bool
     private var didFailFirstLookup = false
     private(set) var requestedDates: [Date] = []
 
@@ -766,7 +1182,13 @@ private final class RecordingEOPProvider:
         polarMotionArcseconds: Double = 0.2,
         dut1SecondsAt:
             @escaping (Date) -> Double = { _ in 0.01 },
-        failFirstLookupAt: Date? = nil
+        failFirstLookupAt: Date? = nil,
+        invalidEstimateAt:
+            @escaping (Date) -> Bool = { _ in false },
+        shouldReturnNilAt:
+            @escaping (Date) -> Bool = { _ in false },
+        shouldThrowAt:
+            @escaping (Date) -> Bool = { _ in false }
     ) throws {
         let bundled =
             try IERSEarthOrientationServiceV1.loadBundled()
@@ -776,6 +1198,9 @@ private final class RecordingEOPProvider:
             polarMotionArcseconds
         self.dut1SecondsAt = dut1SecondsAt
         self.failFirstLookupAt = failFirstLookupAt
+        self.invalidEstimateAt = invalidEstimateAt
+        self.shouldReturnNilAt = shouldReturnNilAt
+        self.shouldThrowAt = shouldThrowAt
     }
 
     func lookup(
@@ -791,14 +1216,27 @@ private final class RecordingEOPProvider:
                     "synthetic center lookup"
                 )
         }
+        if shouldThrowAt(date) {
+            throw IERSEarthOrientationError
+                .resourceUnavailable(
+                    "synthetic trajectory lookup"
+                )
+        }
+        if shouldReturnNilAt(date) {
+            return nil
+        }
         return estimate(at: date)
     }
 
     func estimate(
         at date: Date
     ) -> IERSEarthOrientationEstimateV1 {
+        let resolvedPolarMotionArcseconds =
+            invalidEstimateAt(date)
+            ? 11
+            : polarMotionArcseconds
         let radians =
-            polarMotionArcseconds
+            resolvedPolarMotionArcseconds
             * Double.pi / (180 * 3_600)
         return IERSEarthOrientationEstimateV1(
             dut1: IERSDUT1EstimateV1(

@@ -32,11 +32,15 @@ Apple touch iconは寸法、不透明RGB、manifest用途、source/dist一致を
 追加で実行する。
 
 精密導入JSONは`shared/schema/star-pointing-profile-v1.schema.json`を
-正本とし、AJV Draft 2020-12のstrict modeでWeb、macOS、EOP 0近似を模した
-3正例を受理する。未知キー、profile ID、座標範囲、利用不能状態、
-EOP 0近似、大気差状態・標準値、警告tokenを壊す11負例は拒否する。
-Schema単体で表しにくい座標間の数値一致と、両serializerの実出力は
-runtime統合テストで段階的に追加する。
+正本とし、AJV Draft 2020-12のstrict modeでcanonical field集合を必須にする。
+6件の合成正例とmacOS本番serializer由来の4 fixtureを、構造検査後に
+UTCとJD、JD UT1とDUT1、time zoneと現地時刻、EOPの適用値・source・
+metadata照合・診断、真空／観測水平座標と大気差状態の意味検査へ通す。
+未知キー、固定値、範囲、状態、数値関係、診断flagを壊す28負例は拒否する。
+Webは本番serializerをIERS＋標準／手動大気、EOP 0近似＋大気差OFFで直接
+Schema検証する。macOSは本番出力と4 fixtureのdeep equalityをSwiftで固定し、
+同じfixtureをNode側でもSchema＋意味検証するため、serializer、fixture、
+validatorのいずれかだけが変わる退行をCIで検出する。
 
 天文計算v2では、未改変SOFAの公式単体値と、独立Cドライバによる
 `fk52h → starpm → pmpx → aberration → precession/nutation`の合成値を
@@ -59,7 +63,8 @@ macOSは日時設定からEOP、時刻系、全恒星、太陽、13点軌跡、�
 一回の同期Store更新で切り替わることを統合テストで固定します。
 軌跡の中心点は独立に同時刻を再取得せず、公開済みframeのEOPまたは0近似を
 再利用し、補助取得の再試行結果が星本体と中心マーカーを分離しないことも
-両版で検査します。
+両版で検査します。中心と前後12点のEOP適用状態を別に記録し、収録外または
+読込失敗で0近似した点だけを凡例とCanvas説明へ限定表示します。
 
 極運動行列は未改変SOFA `sp00` / `pom00`の公式参照値、符号・軸ごとの
 変位、無効化、xp/yp=0 fallback、GAST→TIRS→ITRS→ENU→日周光行差→大気差

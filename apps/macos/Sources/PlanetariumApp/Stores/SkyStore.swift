@@ -71,6 +71,8 @@ final class SkyStore {
     private(set) var iersEarthOrientationLoadFailure: String?
     private(set) var selectedStarTrajectory:
         [SelectedStarTrajectorySample] = []
+    private(set) var selectedStarTrajectoryEarthOrientationProvenance:
+        SelectedStarTrajectoryEarthOrientationProvenance?
     var skyDisplayMode: SkyDisplayMode = .chart2D
 
     var observationDate: Date {
@@ -497,6 +499,13 @@ final class SkyStore {
             + "小さい点から大きい点へ、過去、現在、未来の順に進みます。"
         if selectedStarTrajectoryIsTruncated {
             summary += "対応期間の境界で軌跡を短くしています。"
+        }
+        if let warning =
+            selectedStarTrajectoryEarthOrientationProvenance?
+            .warning
+        {
+            summary +=
+                warning.accessibilityDescription
         }
         return summary
     }
@@ -1421,6 +1430,12 @@ final class SkyStore {
     }
 
     private func recomputeSelectedStarTrajectory() {
+        selectedStarTrajectoryEarthOrientationProvenance =
+            nil
+        var auxiliarySampleCount = 0
+        var auxiliaryFallbackSampleCount = 0
+        let centerStatus =
+            selectedStarTrajectoryCenterEarthOrientationStatus
         do {
             selectedStarTrajectory =
                 try SelectedStarTrajectorySampler.samples(
@@ -1442,30 +1457,88 @@ final class SkyStore {
                                     currentEarthOrientationEstimate
                             )
                         }
-                        return apparentPositionOptions(at: date)
+                        auxiliarySampleCount += 1
+                        let resolution =
+                            trajectoryApparentPositionOptions(
+                                at: date
+                            )
+                        if resolution.status != .ready {
+                            auxiliaryFallbackSampleCount += 1
+                        }
+                        return resolution.options
                     }
                 )
+            if !selectedStarTrajectory.isEmpty {
+                selectedStarTrajectoryEarthOrientationProvenance =
+                    SelectedStarTrajectoryEarthOrientationProvenance(
+                        auxiliaryFallbackSampleCount:
+                            auxiliaryFallbackSampleCount,
+                        auxiliarySampleCount:
+                            auxiliarySampleCount,
+                        centerStatus: centerStatus
+                    )
+            }
         } catch {
             selectedStarTrajectory = []
+            selectedStarTrajectoryEarthOrientationProvenance =
+                nil
             AppLog.ui.error(
                 "selected-star trajectory failed: \(error.localizedDescription, privacy: .public)"
             )
         }
     }
 
-    private func apparentPositionOptions(
+    private var selectedStarTrajectoryCenterEarthOrientationStatus:
+        SelectedStarTrajectoryEarthOrientationStatus
+    {
+        if currentEarthOrientationEstimate != nil {
+            return .ready
+        }
+        if iersEarthOrientationLoadFailure != nil
+            || currentEarthOrientationLookupFailure != nil
+            || currentEarthOrientationApplicationFailure
+                != nil
+        {
+            return .error
+        }
+        return .unavailable
+    }
+
+    private func trajectoryApparentPositionOptions(
         at date: Date
-    ) -> ApparentPositionOptionsV2 {
+    ) -> (
+        options: ApparentPositionOptionsV2,
+        status:
+            SelectedStarTrajectoryEarthOrientationStatus
+    ) {
         do {
-            return apparentPositionOptions(
-                for: try iersEarthOrientationService?
-                    .lookup(at: date)
+            guard let iersEarthOrientationService else {
+                return (
+                    apparentPositionOptions(for: nil),
+                    iersEarthOrientationLoadFailure == nil
+                        ? .unavailable
+                        : .error
+                )
+            }
+            let estimate =
+                try iersEarthOrientationService
+                .lookup(at: date)
+            return (
+                apparentPositionOptions(
+                    for: estimate
+                ),
+                estimate == nil
+                    ? .unavailable
+                    : .ready
             )
         } catch {
             AppLog.ui.error(
                 "trajectory IERS EOP lookup failed: \(error.localizedDescription, privacy: .public)"
             )
-            return apparentPositionOptions(for: nil)
+            return (
+                apparentPositionOptions(for: nil),
+                .error
+            )
         }
     }
 

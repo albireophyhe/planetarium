@@ -26,6 +26,11 @@ vi.mock("./SkyCanvas", () => ({
     trackDescriptionId?: string;
   }) => (
     <div>
+      <canvas
+        aria-describedby={trackDescriptionId}
+        aria-label="テスト用2D星図"
+        data-testid="mock-2d-sky-surface"
+      />
       <p>
         2D星図・選択HR {selectedHr}・軌跡
         {selectedStarTrack?.points.length ?? 0}点・説明
@@ -76,6 +81,11 @@ vi.mock("./SkySphere3D", () => ({
     twilight: TwilightPhase;
   }) => (
     <div>
+      <canvas
+        aria-describedby={trackDescriptionId}
+        aria-label="テスト用3D星図"
+        data-testid="mock-3d-sky-surface"
+      />
       <p>
         3D星図・選択HR {selectedHr}・星{stars.length}件・星座
         {constellations.length}件・線{constellationLines ? "オン" : "オフ"}
@@ -124,6 +134,11 @@ const TEST_CONSTELLATIONS: readonly Constellation[] = [
 ];
 
 const TEST_TRACK: SelectedStarTrack = {
+  earthOrientationProvenance: {
+    auxiliaryFallbackSampleCount: 0,
+    auxiliarySampleCount: 12,
+    centerStatus: "ready",
+  },
   points: Array.from({ length: 13 }, (_, index) => ({
     altitudeDeg: 20 + index,
     azimuthDeg: 80 + index,
@@ -141,7 +156,9 @@ const TEST_TRACK: SelectedStarTrack = {
   windowMinutes: 180,
 };
 
-function renderViewport() {
+function renderViewport(
+  selectedStarTrack: SelectedStarTrack = TEST_TRACK,
+) {
   const onDrawError = vi.fn();
   const onSelect = vi.fn();
   render(
@@ -157,7 +174,7 @@ function renderViewport() {
       onDrawError={onDrawError}
       onSelect={onSelect}
       selectedHr={7001}
-      selectedStarTrack={TEST_TRACK}
+      selectedStarTrack={selectedStarTrack}
       solarPosition={{
         altitudeDeg: -12.5,
         azimuthDeg: 270,
@@ -216,11 +233,49 @@ describe("SkyViewport", () => {
       "−3時間 → 現在 → ＋3時間・13点",
     );
     expect(description).toHaveTextContent("30分間隔の13点");
+    expect(description).not.toHaveTextContent("EOP 0近似");
     expect(
       screen.getByText(
         "2D星図・選択HR 7001・軌跡13点・説明あり・太陽高度-12.5度",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("describes the affected EOP samples on both 2D and 3D sky surfaces", async () => {
+    const user = userEvent.setup();
+    renderViewport({
+      ...TEST_TRACK,
+      earthOrientationProvenance: {
+        auxiliaryFallbackSampleCount: 1,
+        auxiliarySampleCount: 12,
+        centerStatus: "error",
+      },
+    });
+
+    const description = screen.getByLabelText(
+      "選択星の追跡状態",
+    );
+    expect(description).toHaveTextContent(
+      "EOP 0近似: 現在点・周辺1/12点",
+    );
+    expect(description).toHaveTextContent(
+      "現在点はEOP読込失敗のため0近似です。",
+    );
+    expect(description).toHaveTextContent(
+      "周辺12点中1点はEOPを0近似しています。",
+    );
+    expect(
+      screen.getByTestId("mock-2d-sky-surface"),
+    ).toHaveAccessibleDescription(
+      /現在点はEOP読込失敗のため0近似です。周辺12点中1点はEOPを0近似しています。/,
+    );
+
+    await user.click(screen.getByRole("radio", { name: "3D" }));
+    expect(
+      await screen.findByTestId("mock-3d-sky-surface"),
+    ).toHaveAccessibleDescription(
+      /現在点はEOP読込失敗のため0近似です。周辺12点中1点はEOPを0近似しています。/,
+    );
   });
 
   it("immediately returns to 2D and reports why 3D is unavailable", async () => {

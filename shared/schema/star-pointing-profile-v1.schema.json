@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://planetarium.local/schema/star-pointing-profile-v1.schema.json",
   "title": "Planetarium precision pointing profile v1",
-  "description": "Strict interchange contract for planetarium.precision-pointing.full-v1. It describes the currently emitted Web and macOS shapes; fields that only one implementation emits today are optional until the serializers are aligned.",
+  "description": "Strict interchange contract for the canonical planetarium.precision-pointing.full-v1 profile emitted by both Web and macOS.",
   "type": "object",
   "required": [
     "schemaVersion",
@@ -87,10 +87,13 @@
       "required": [
         "status",
         "spaceMotionMode",
+        "properMotionStatus",
         "properMotionRaCosDecArcsecondsPerYear",
         "properMotionDecArcsecondsPerYear",
         "parallaxArcseconds",
-        "radialVelocityKilometersPerSecond"
+        "parallaxStatus",
+        "radialVelocityKilometersPerSecond",
+        "radialVelocityStatus"
       ],
       "additionalProperties": false,
       "properties": {
@@ -815,19 +818,24 @@
       "required": [
         "status",
         "sourceIdentifier",
+        "sourceIdentifierStatus",
         "appliedDut1Seconds",
         "dut1Status",
         "dut1Source",
         "dut1Quality",
         "dut1ReportedErrorSeconds",
+        "dut1MetadataMatchesAppliedValue",
+        "estimateStatus",
         "polarMotionStatus",
         "polarMotionSource",
         "polarMotionQuality",
+        "polarMotionMetadataMatchesAppliedValue",
         "xpAppliedRadians",
         "ypAppliedRadians",
         "xpReportedErrorRadians",
         "ypReportedErrorRadians",
-        "usesPrediction"
+        "usesPrediction",
+        "consistencyIssues"
       ],
       "additionalProperties": false,
       "properties": {
@@ -1428,6 +1436,7 @@
         "nutationModel",
         "siderealTimeModel",
         "spaceMotionMode",
+        "radialVelocityAssumedZero",
         "annualParallaxMode",
         "annualAberrationMode",
         "solarLightDeflectionMode",
@@ -1506,11 +1515,15 @@
         "apparentCoordinatesUnavailable",
         "timeScalesUnavailable",
         "earthOrientationEstimateUnavailable",
+        "earthOrientationNotApplied",
         "dut1AssumedZero",
         "polarMotionAssumedZero",
+        "properMotionMissing",
+        "properMotionUnavailable",
         "radialVelocityAssumedZero",
         "approximateEarthEphemeris",
-        "refractionOutsideModelDomain"
+        "refractionOutsideModelDomain",
+        "refractionParametersUnavailable"
       ],
       "additionalProperties": false,
       "properties": {
@@ -1529,23 +1542,7 @@
         "approximateEarthEphemeris": { "type": "boolean" },
         "refractionOutsideModelDomain": { "type": "boolean" },
         "refractionParametersUnavailable": { "type": "boolean" }
-      },
-      "anyOf": [
-        {
-          "type": "object",
-          "required": ["properMotionMissing"],
-          "properties": {
-            "properMotionMissing": { "type": "boolean" }
-          }
-        },
-        {
-          "type": "object",
-          "required": ["properMotionUnavailable"],
-          "properties": {
-            "properMotionUnavailable": { "type": "boolean" }
-          }
-        }
-      ]
+      }
     }
   }
 }

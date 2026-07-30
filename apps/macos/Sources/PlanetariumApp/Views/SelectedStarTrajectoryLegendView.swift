@@ -100,19 +100,31 @@ struct SelectedStarTrajectoryLegendView: View {
         }
     }
 
-    private var rangeText: String {
-        guard store.selectedStar != nil else {
-            return "星を選ぶと前後3時間を表示します"
-        }
-        guard !store.selectedStarTrajectory.isEmpty else {
-            return "軌跡を準備できませんでした"
-        }
-        if store.selectedStarTrajectoryIsTruncated {
-            return "対応期間の境界で短縮 · "
+    var rangeText: String {
+        let baseText: String
+        if store.selectedStar == nil {
+            baseText =
+                "星を選ぶと前後3時間を表示します"
+        } else if store.selectedStarTrajectory.isEmpty {
+            baseText = "軌跡を準備できませんでした"
+        } else if store.selectedStarTrajectoryIsTruncated {
+            baseText =
+                "対応期間の境界で短縮 · "
+                + "\(store.selectedStarTrajectory.count)点"
+        } else {
+            baseText =
+                "−3時間 → 現在 → ＋3時間 · "
                 + "\(store.selectedStarTrajectory.count)点"
         }
-        return "−3時間 → 現在 → ＋3時間 · "
-            + "\(store.selectedStarTrajectory.count)点"
+        guard
+            let warning =
+                store
+                .selectedStarTrajectoryEarthOrientationProvenance?
+                .warning
+        else {
+            return baseText
+        }
+        return baseText + " · " + warning.shortText
     }
 
     private var increasedContrast: Bool {

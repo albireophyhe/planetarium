@@ -909,6 +909,13 @@ export function buildStarPointingJsonProfile({
     star.azimuthDefined,
   );
   const precisionModel = star.calculationModel === "v2";
+  const properMotionUnavailable =
+    precisionModel && star.spaceMotionMode === "none";
+  const radialVelocityAssumedZero =
+    precisionModel &&
+    star.parallaxArcsec !== null &&
+    star.parallaxArcsec > 0 &&
+    star.radialVelocityKmPerSecond === null;
   const earthOrientation = earthOrientationProfile(
     star,
     timeScales,
@@ -1197,6 +1204,7 @@ export function buildStarPointingJsonProfile({
           ? "IAU 2006 GMST + IAU 2000B leading equation of equinoxes"
           : null,
         spaceMotionMode: star.spaceMotionMode,
+        radialVelocityAssumedZero,
         annualParallaxMode: star.annualParallaxMode,
         annualAberrationMode: star.annualAberrationMode,
         solarLightDeflectionMode:
@@ -1221,12 +1229,9 @@ export function buildStarPointingJsonProfile({
           earthOrientation.polarMotionStatus ===
           "assumed-zero",
         properMotionMissing:
-          precisionModel && star.spaceMotionMode === "none",
-        radialVelocityAssumedZero:
-          precisionModel &&
-          star.parallaxArcsec !== null &&
-          star.parallaxArcsec > 0 &&
-          star.radialVelocityKmPerSecond === null,
+          properMotionUnavailable,
+        properMotionUnavailable,
+        radialVelocityAssumedZero,
         approximateEarthEphemeris:
           star.annualParallaxMode ===
             "truncated-vsop2000-heliocentric-earth" ||

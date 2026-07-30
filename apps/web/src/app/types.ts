@@ -76,7 +76,20 @@ export type SelectedStarTrackPoint = {
   relativeMinutes: number;
 };
 
+export type SelectedStarTrackEarthOrientationStatus =
+  | "ready"
+  | "unavailable"
+  | "error";
+
+export type SelectedStarTrackEarthOrientationProvenance = {
+  auxiliaryFallbackSampleCount: number;
+  auxiliarySampleCount: number;
+  centerStatus: SelectedStarTrackEarthOrientationStatus;
+};
+
 export type SelectedStarTrack = {
+  earthOrientationProvenance:
+    SelectedStarTrackEarthOrientationProvenance;
   points: readonly SelectedStarTrackPoint[];
   sampleIntervalMinutes: 30;
   starHr: number;

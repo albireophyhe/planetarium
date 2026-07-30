@@ -10,6 +10,7 @@ import {
 } from "../domain";
 import type {
   SelectedStarTrack,
+  SelectedStarTrackEarthOrientationStatus,
   SelectedStarTrackPoint,
 } from "./types";
 
@@ -18,11 +19,16 @@ export const SELECTED_STAR_TRACK_WINDOW_MINUTES = 180;
 
 const MILLISECONDS_PER_MINUTE = 60_000;
 
+export type SelectedStarTrackSampleOptions = Readonly<{
+  earthOrientationStatus: SelectedStarTrackEarthOrientationStatus;
+  positionOptions: ApparentPositionOptionsV2;
+}>;
+
 export type SelectedStarTrackOptionsAtDate = (
   date: Date,
 ) =>
-  | ApparentPositionOptionsV2
-  | Promise<ApparentPositionOptionsV2>;
+  | SelectedStarTrackSampleOptions
+  | Promise<SelectedStarTrackSampleOptions>;
 
 /**
  * Calculates only the selected star, using the same precision-v2 option set
@@ -65,8 +71,8 @@ export async function calculateSelectedStarTrack(
   );
   const points: SelectedStarTrackPoint[] = samples.map(
     ({ relativeMinutes, sampleDate }, index) => {
-      const options = optionsBySample[index];
-      if (!options) {
+      const sampleOptions = optionsBySample[index];
+      if (!sampleOptions) {
         throw new Error(
           "Selected-star track options were not resolved",
         );
@@ -74,7 +80,7 @@ export async function calculateSelectedStarTrack(
       const context = createApparentPositionContextV2(
         sampleDate,
         location,
-        options,
+        sampleOptions.positionOptions,
       );
       const position =
         calculateLightweightApparentStarPositionWithContextV2(
@@ -96,9 +102,38 @@ export async function calculateSelectedStarTrack(
     },
   );
 
+  const centerSampleIndex = samples.findIndex(
+    ({ relativeMinutes }) => relativeMinutes === 0,
+  );
+  const centerStatus =
+    optionsBySample[centerSampleIndex]?.earthOrientationStatus;
+  if (!centerStatus) {
+    throw new Error(
+      "Selected-star track center provenance was not resolved",
+    );
+  }
+  let auxiliarySampleCount = 0;
+  let auxiliaryFallbackSampleCount = 0;
+  for (let index = 0; index < samples.length; index += 1) {
+    if (samples[index]?.relativeMinutes === 0) {
+      continue;
+    }
+    auxiliarySampleCount += 1;
+    if (
+      optionsBySample[index]?.earthOrientationStatus !== "ready"
+    ) {
+      auxiliaryFallbackSampleCount += 1;
+    }
+  }
+
   const firstPoint = points[0];
   const lastPoint = points.at(-1);
   return Object.freeze({
+    earthOrientationProvenance: Object.freeze({
+      auxiliaryFallbackSampleCount,
+      auxiliarySampleCount,
+      centerStatus,
+    }),
     points: Object.freeze(points),
     sampleIntervalMinutes:
       SELECTED_STAR_TRACK_SAMPLE_INTERVAL_MINUTES,

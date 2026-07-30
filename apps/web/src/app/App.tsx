@@ -774,11 +774,14 @@ export function App() {
             : "geometric",
         ].join("|")
       : null;
+  const selectedStarTrackCenterEarthOrientationStatus =
+    settledEarthOrientationFrame?.status ?? null;
   useEffect(() => {
     if (
       selectedStarTrackRequestKey === null ||
       selectedHr === null ||
-      !precisionCatalog
+      !precisionCatalog ||
+      !selectedStarTrackCenterEarthOrientationStatus
     ) {
       return;
     }
@@ -798,16 +801,44 @@ export function App() {
       selectedPrecisionStar,
       date,
       location,
-      async (sampleDate) =>
-        apparentPositionOptionsWithEarthOrientation(
-          base,
-          sampleDate.getTime() === date.getTime()
-            ? currentEarthOrientationEstimate
-            : await lookupIersEarthOrientationAt(sampleDate).catch(
-                () => null,
+      async (sampleDate) => {
+        if (sampleDate.getTime() === date.getTime()) {
+          return {
+            earthOrientationStatus:
+              selectedStarTrackCenterEarthOrientationStatus,
+            positionOptions:
+              apparentPositionOptionsWithEarthOrientation(
+                base,
+                currentEarthOrientationEstimate,
+                location.heightMeters,
               ),
-          location.heightMeters,
-        ),
+          };
+        }
+        try {
+          const estimate =
+            await lookupIersEarthOrientationAt(sampleDate);
+          return {
+            earthOrientationStatus:
+              estimate === null ? "unavailable" : "ready",
+            positionOptions:
+              apparentPositionOptionsWithEarthOrientation(
+                base,
+                estimate,
+                location.heightMeters,
+              ),
+          };
+        } catch {
+          return {
+            earthOrientationStatus: "error",
+            positionOptions:
+              apparentPositionOptionsWithEarthOrientation(
+                base,
+                null,
+                location.heightMeters,
+              ),
+          };
+        }
+      },
     )
       .then((track) => {
         if (!cancelled) {
@@ -834,6 +865,7 @@ export function App() {
     lookupIersEarthOrientationAt,
     precisionCatalog,
     selectedHr,
+    selectedStarTrackCenterEarthOrientationStatus,
     selectedStarTrackRequestKey,
   ]);
   const selectedStarTrack =

@@ -51,8 +51,7 @@ enum StarPointingJSONProfileV1 {
             "profileId": profileID,
             "target": target(
                 star,
-                spaceMotionMode:
-                    position.spaceMotionMode
+                position: position
             ),
             "observation": observation(context),
             "coordinates":
@@ -72,9 +71,11 @@ enum StarPointingJSONProfileV1 {
 
     private static func target(
         _ star: RenderedStar,
-        spaceMotionMode: SpaceMotionModeV2
+        position: ApparentStarPositionV2
     ) -> [String: Any] {
         let astrometry = star.catalog.astrometry
+        let spaceMotionMode =
+            position.spaceMotionMode
         return [
             "catalog": "BSC5P",
             "hd": jsonValue(star.catalog.hd),
@@ -97,6 +98,10 @@ enum StarPointingJSONProfileV1 {
                     ),
                 "spaceMotionMode":
                     spaceMotionMode.rawValue,
+                "properMotionStatus":
+                    properMotionStatus(
+                        spaceMotionMode
+                    ),
                 "properMotionRaCosDecArcsecondsPerYear":
                     finiteJSON(
                         astrometry?
@@ -111,10 +116,22 @@ enum StarPointingJSONProfileV1 {
                     finiteJSON(
                         astrometry?.parallaxArcseconds
                     ),
+                "parallaxStatus":
+                    parallaxStatus(
+                        position
+                            .annualParallaxMode
+                    ),
                 "radialVelocityKilometersPerSecond":
                     finiteJSON(
                         astrometry?
                             .radialVelocityKilometersPerSecond
+                    ),
+                "radialVelocityStatus":
+                    radialVelocityStatus(
+                        astrometry: astrometry,
+                        radialVelocityAssumedZero:
+                            position
+                            .radialVelocityAssumedZero
                     ),
             ],
         ]
@@ -242,6 +259,34 @@ enum StarPointingJSONProfileV1 {
         let polarMotion = precision.frame.polarMotion
         let estimate =
             precision.earthOrientationEstimate
+        let dut1IsIERS =
+            timeScales.dut1Source == .iersObserved
+            || timeScales.dut1Source == .iersPredicted
+        let polarMotionIsIERS =
+            polarMotion.mode == .iersObserved
+            || polarMotion.mode == .iersPredicted
+        let dut1MetadataMatches: Bool? =
+            if dut1IsIERS {
+                estimate.map {
+                    dut1MetadataMatchesAppliedValue(
+                        timeScales: timeScales,
+                        estimate: $0
+                    )
+                } ?? false
+            } else {
+                nil
+            }
+        let polarMotionMetadataMatches: Bool? =
+            if polarMotionIsIERS {
+                estimate.map {
+                    polarMotionMetadataMatchesAppliedValue(
+                        polarMotion: polarMotion,
+                        estimate: $0
+                    )
+                } ?? false
+            } else {
+                nil
+            }
         let dut1Status =
             switch timeScales.dut1Source {
             case .assumedZero:
@@ -249,10 +294,39 @@ enum StarPointingJSONProfileV1 {
             case .caller:
                 "caller"
             case .iersObserved, .iersPredicted:
-                "available"
+                dut1MetadataMatches == true
+                    ? "available"
+                    : "applied-without-matching-estimate-metadata"
             }
-        let polarStatus =
-            polarMotionStatus(polarMotion.mode)
+        let polarStatus: String =
+            if polarMotionIsIERS,
+               polarMotionMetadataMatches != true
+            {
+                "applied-without-matching-estimate-metadata"
+            } else {
+                polarMotionStatus(polarMotion.mode)
+            }
+        var consistencyIssues: [String] = []
+        if dut1IsIERS,
+           dut1MetadataMatches != true
+        {
+            consistencyIssues.append(
+                "Applied DUT1 does not have a matching IERS estimate snapshot."
+            )
+        }
+        if polarMotionIsIERS,
+           polarMotionMetadataMatches != true
+        {
+            consistencyIssues.append(
+                "Applied polar motion does not have a matching IERS estimate snapshot."
+            )
+        }
+        let sourceIdentifier =
+            dut1MetadataMatches == true
+                && polarMotionMetadataMatches == true
+            ? precision
+                .earthOrientationSourceIdentifier
+            : nil
 
         return [
             "status":
@@ -261,36 +335,55 @@ enum StarPointingJSONProfileV1 {
                     polarMotionMode: polarMotion.mode
                 ),
             "sourceIdentifier":
-                jsonValue(
-                    precision
-                        .earthOrientationSourceIdentifier
-                ),
+                jsonValue(sourceIdentifier),
+            "sourceIdentifierStatus":
+                sourceIdentifier == nil
+                ? "unavailable"
+                : "available",
             "appliedDut1Seconds":
                 timeScales.dut1Seconds,
             "dut1Status": dut1Status,
             "dut1Source":
                 timeScales.dut1Source.rawValue,
             "dut1Quality":
-                jsonValue(
+                dut1MetadataMatches == true
+                ? jsonValue(
                     iersQuality(
                         timeScales.dut1Source
                     )
-                ),
+                )
+                : NSNull(),
             "dut1ReportedErrorSeconds":
-                jsonValue(
+                dut1MetadataMatches == true
+                ? jsonValue(
                     timeScales
                         .dut1UncertaintySeconds
+                )
+                : NSNull(),
+            "dut1MetadataMatchesAppliedValue":
+                metadataMatchValue(
+                    dut1MetadataMatches
                 ),
+            "estimateStatus":
+                estimate == nil
+                ? "unavailable"
+                : "available",
             "polarMotionStatus": polarStatus,
             "polarMotionSource":
                 polarMotionSource(
                     polarMotion.mode
                 ),
             "polarMotionQuality":
-                jsonValue(
+                polarMotionMetadataMatches == true
+                ? jsonValue(
                     iersQuality(
                         polarMotion.mode
                     )
+                )
+                : NSNull(),
+            "polarMotionMetadataMatchesAppliedValue":
+                metadataMatchValue(
+                    polarMotionMetadataMatches
                 ),
             "xpAppliedRadians":
                 appliedPolarMotionValue(
@@ -315,8 +408,11 @@ enum StarPointingJSONProfileV1 {
             "usesPrediction":
                 usesPrediction(
                     estimate: estimate,
-                    mode: polarMotion.mode
+                    mode: polarMotion.mode,
+                    metadataMatches:
+                        polarMotionMetadataMatches
                 ),
+            "consistencyIssues": consistencyIssues,
         ]
     }
 
@@ -425,12 +521,15 @@ enum StarPointingJSONProfileV1 {
                     precision
                     .earthOrientationEstimate
                     == nil,
+                "earthOrientationNotApplied": false,
                 "dut1AssumedZero":
                     timeScales.dut1Source
                     == .assumedZero,
                 "polarMotionAssumedZero":
                     position.polarMotionMode
                     == .assumedZero,
+                "properMotionMissing":
+                    position.spaceMotionMode == .none,
                 "properMotionUnavailable":
                     position.spaceMotionMode == .none,
                 "radialVelocityAssumedZero":
@@ -445,6 +544,10 @@ enum StarPointingJSONProfileV1 {
                 "refractionOutsideModelDomain":
                     position.refractionMode
                     == .belowModelAltitude,
+                "refractionParametersUnavailable":
+                    position.refractionMode
+                        != .disabled
+                    && precision.atmosphere == nil,
             ],
             "warnings":
                 metadata.warnings.map(\.rawValue),
@@ -569,6 +672,130 @@ enum StarPointingJSONProfileV1 {
         }
     }
 
+    private static func properMotionStatus(
+        _ mode: SpaceMotionModeV2
+    ) -> String {
+        mode == .none
+            ? "not-applied-missing"
+            : "applied"
+    }
+
+    private static func parallaxStatus(
+        _ mode: AnnualParallaxModeV2
+    ) -> String {
+        switch mode {
+        case .disabled:
+            return "disabled"
+        case .unavailable:
+            return "not-applied-missing"
+        case .truncatedVSOP2000HeliocentricEarth,
+             .jplApproximateEarthMoonBarycenter,
+             .callerObserverPosition:
+            return "applied"
+        }
+    }
+
+    private static func radialVelocityStatus(
+        astrometry: StarAstrometry?,
+        radialVelocityAssumedZero: Bool
+    ) -> String {
+        if radialVelocityAssumedZero {
+            return "assumed-zero"
+        }
+        let parallax =
+            astrometry?.parallaxArcseconds
+        let radialVelocity =
+            astrometry?
+            .radialVelocityKilometersPerSecond
+        if let parallax,
+           parallax > 0,
+           radialVelocity != nil
+        {
+            return "applied"
+        }
+        if radialVelocity != nil {
+            return "not-applied-without-distance"
+        }
+        return "unavailable-not-required"
+    }
+
+    private static func dut1MetadataMatchesAppliedValue(
+        timeScales: ResolvedTimeScalesV2,
+        estimate: IERSEarthOrientationEstimateV1
+    ) -> Bool {
+        let expectedSource: DUT1SourceV2 =
+            estimate.dut1.source == .observed
+            ? .iersObserved
+            : .iersPredicted
+        return timeScales.dut1Source == expectedSource
+            && valuesMatch(
+                timeScales.dut1Seconds,
+                estimate.dut1.dut1Seconds
+            )
+            && nullableValuesMatch(
+                timeScales.dut1UncertaintySeconds,
+                estimate.dut1.uncertaintySeconds
+            )
+    }
+
+    private static func polarMotionMetadataMatchesAppliedValue(
+        polarMotion: PolarMotionContextV2,
+        estimate: IERSEarthOrientationEstimateV1
+    ) -> Bool {
+        let expectedMode: PolarMotionModeV2 =
+            estimate.polarMotion.source == .observed
+            ? .iersObserved
+            : .iersPredicted
+        return polarMotion.mode == expectedMode
+            && valuesMatch(
+                polarMotion.xpRadians,
+                estimate.polarMotion.xpRadians
+            )
+            && valuesMatch(
+                polarMotion.ypRadians,
+                estimate.polarMotion.ypRadians
+            )
+            && nullableValuesMatch(
+                polarMotion.xpReportedErrorRadians,
+                estimate.polarMotion
+                    .xpReportedErrorRadians
+            )
+            && nullableValuesMatch(
+                polarMotion.ypReportedErrorRadians,
+                estimate.polarMotion
+                    .ypReportedErrorRadians
+            )
+    }
+
+    private static func valuesMatch(
+        _ left: Double,
+        _ right: Double
+    ) -> Bool {
+        left.isFinite
+            && right.isFinite
+            && abs(left - right) <= 1e-15
+    }
+
+    private static func nullableValuesMatch(
+        _ left: Double?,
+        _ right: Double?
+    ) -> Bool {
+        switch (left, right) {
+        case (nil, nil):
+            true
+        case let (.some(left), .some(right)):
+            valuesMatch(left, right)
+        case (.some, nil), (nil, .some):
+            false
+        }
+    }
+
+    private static func metadataMatchValue(
+        _ matches: Bool?
+    ) -> Any {
+        matches ?? NSNull()
+    }
+
     private static func refractionDescription(
         _ mode: RefractionModeV2,
         inputSource:
@@ -675,15 +902,21 @@ enum StarPointingJSONProfileV1 {
 
     private static func usesPrediction(
         estimate: IERSEarthOrientationEstimateV1?,
-        mode: PolarMotionModeV2
+        mode: PolarMotionModeV2,
+        metadataMatches: Bool?
     ) -> Any {
         guard mode == .iersObserved
             || mode == .iersPredicted
         else {
             return NSNull()
         }
-        return estimate?.polarMotion.usesPrediction
-            ?? (mode == .iersPredicted)
+        guard
+            metadataMatches == true,
+            let estimate
+        else {
+            return mode == .iersPredicted
+        }
+        return estimate.polarMotion.usesPrediction
     }
 
     private static func usesApproximateEarthEphemeris(

@@ -14,6 +14,15 @@ import {
   it,
   vi,
 } from "vitest";
+import {
+  calculateApparentSunPositionWithContextV2,
+  calculateLightweightApparentStarPositionWithContextV2,
+  createApparentPositionContextV2,
+  horizontalToProjection,
+  loadPrecisionStarCatalogV2,
+  radiansToDegrees,
+} from "../domain";
+import { cities } from "../domain/catalogMetadata";
 import { App } from "./App";
 
 const trackCalculationSpy = vi.hoisted(() => vi.fn());
@@ -204,6 +213,7 @@ vi.mock("../features/sky/SkyViewport", () => ({
     onSelect,
     selectedStarTrack,
     solarPosition,
+    stars,
   }: {
     onDrawError: (
       source: "2d" | "3d",
@@ -212,8 +222,22 @@ vi.mock("../features/sky/SkyViewport", () => ({
     onSelect: (hr: number) => void;
     selectedStarTrack: import("./types").SelectedStarTrack | null;
     solarPosition: import("./types").SkySolarPosition;
+    stars: readonly import("./types").SkyStar[];
   }) => (
     <div>
+      <output data-testid="representative-star-position-prop">
+        {(() => {
+          const star = stars.find(({ hr }) => hr === 7001);
+          return star
+            ? [
+                star.altitudeDeg,
+                star.azimuthDeg,
+                star.projectionX,
+                star.projectionY,
+              ].join("|")
+            : "";
+        })()}
+      </output>
       <output data-testid="solar-position-prop">
         {[
           solarPosition.altitudeDeg,
@@ -229,6 +253,22 @@ vi.mock("../features/sky/SkyViewport", () => ({
         {selectedStarTrack?.points.find(
           (point) => point.relativeMinutes === 0,
         )?.observedAtIso ?? ""}
+      </output>
+      <output data-testid="selected-track-eop-fallback-count">
+        {selectedStarTrack?.earthOrientationProvenance
+          .auxiliaryFallbackSampleCount ?? ""}
+      </output>
+      <output data-testid="selected-track-eop-fallback-present">
+        {(selectedStarTrack?.earthOrientationProvenance
+          .auxiliaryFallbackSampleCount ?? 0) > 0
+          ? "yes"
+          : selectedStarTrack
+            ? "no"
+            : ""}
+      </output>
+      <output data-testid="selected-track-eop-center-status">
+        {selectedStarTrack?.earthOrientationProvenance
+          .centerStatus ?? ""}
       </output>
       <button onClick={() => onSelect(7001)} type="button">
         星図でベガを選択
@@ -392,6 +432,21 @@ describe("App selection announcements", () => {
       ),
     );
     await screen.findByText(/精密計算 v2/);
+    const representativeStarPosition = screen.getByTestId(
+      "representative-star-position-prop",
+    );
+    const solarPosition = screen.getByTestId(
+      "solar-position-prop",
+    );
+    const oldStarPosition =
+      representativeStarPosition.textContent ?? "";
+    const oldSolarPosition = solarPosition.textContent ?? "";
+    const oldStarValues = oldStarPosition.split("|").map(Number);
+    const oldSolarValues = oldSolarPosition.split("|").map(Number);
+    expect(oldStarValues).toHaveLength(4);
+    expect(oldStarValues.every(Number.isFinite)).toBe(true);
+    expect(oldSolarValues).toHaveLength(4);
+    expect(oldSolarValues.every(Number.isFinite)).toBe(true);
 
     const oldInstant = Date.parse("2026-07-29T23:59:59.000Z");
     dut1HookState.isCurrent = false;
@@ -416,6 +471,10 @@ describe("App selection announcements", () => {
       "data-calculation-model",
       "v2",
     );
+    expect(representativeStarPosition.textContent).toBe(
+      oldStarPosition,
+    );
+    expect(solarPosition.textContent).toBe(oldSolarPosition);
 
     await user.click(
       screen.getByRole("button", { name: "JSONをコピー" }),
@@ -444,14 +503,105 @@ describe("App selection announcements", () => {
     );
     dut1HookState.sourceIdentifier = "IERS test-new-source";
     dut1HookState.status = "ready";
+    const newPublishedDate = new Date(
+      "2026-07-30T00:00:00.000Z",
+    );
+    const newPublishedEstimate = dut1HookState.estimate;
+    const tokyo = cities.find(({ id }) => id === "tokyo");
+    const precisionCatalog = await loadPrecisionStarCatalogV2();
+    const representativeStar = precisionCatalog.starByHR.get(7001);
+    if (!newPublishedEstimate || !tokyo || !representativeStar) {
+      throw new Error(
+        "UTC midnight regression fixture is incomplete",
+      );
+    }
+    const expectedContext = createApparentPositionContextV2(
+      newPublishedDate,
+      tokyo,
+      {
+        diurnalAberration: { heightMeters: 0 },
+        earthOrientation: {
+          dut1Seconds: newPublishedEstimate.dut1.seconds,
+          dut1Source: "iers-predicted",
+          dut1UncertaintySeconds:
+            newPublishedEstimate.dut1.reportedErrorSeconds,
+          polarMotion: {
+            source: "iers-predicted",
+            xpRadians:
+              newPublishedEstimate.polarMotion.xpRadians,
+            xpReportedErrorRadians:
+              newPublishedEstimate.polarMotion
+                .xpReportedErrorRadians,
+            ypRadians:
+              newPublishedEstimate.polarMotion.ypRadians,
+            ypReportedErrorRadians:
+              newPublishedEstimate.polarMotion
+                .ypReportedErrorRadians,
+          },
+        },
+        refraction: false,
+      },
+    );
+    const expectedStar =
+      calculateLightweightApparentStarPositionWithContextV2(
+        representativeStar,
+        expectedContext,
+      );
+    const expectedSun =
+      calculateApparentSunPositionWithContextV2(
+        expectedContext,
+      ).geometricHorizontal;
+    const expectedSunProjection =
+      horizontalToProjection(expectedSun);
+    const expectedStarValues = [
+      radiansToDegrees(expectedStar.observedHorizontal.altitude),
+      radiansToDegrees(expectedStar.observedHorizontal.azimuth),
+      expectedStar.projection.x,
+      expectedStar.projection.y,
+    ];
+    const expectedSolarValues = [
+      radiansToDegrees(expectedSun.altitude),
+      radiansToDegrees(expectedSun.azimuth),
+      expectedSunProjection.x,
+      expectedSunProjection.y,
+    ];
     rerender(<App />);
 
-    await waitFor(() =>
+    await waitFor(() => {
       expect(readout).toHaveAttribute(
         "datetime",
         "2026-07-30T00:00:00.000Z",
-      ),
-    );
+      );
+      expect(
+        screen.getByText(/\+0\.052500秒（IERS予測値/),
+      ).toBeInTheDocument();
+      expect(representativeStarPosition.textContent).not.toBe(
+        oldStarPosition,
+      );
+      expect(solarPosition.textContent).not.toBe(
+        oldSolarPosition,
+      );
+    });
+    const newStarValues = (
+      representativeStarPosition.textContent ?? ""
+    )
+      .split("|")
+      .map(Number);
+    const newSolarValues = (solarPosition.textContent ?? "")
+      .split("|")
+      .map(Number);
+    expect(newStarValues).toHaveLength(4);
+    expect(newStarValues.every(Number.isFinite)).toBe(true);
+    expect(newStarValues).not.toEqual(oldStarValues);
+    newStarValues.forEach((value, index) => {
+      expect(value).toBeCloseTo(expectedStarValues[index]!, 12);
+    });
+    expect(newSolarValues).toHaveLength(4);
+    expect(newSolarValues.every(Number.isFinite)).toBe(true);
+    expect(newSolarValues).not.toEqual(oldSolarValues);
+    newSolarValues.forEach((value, index) => {
+      expect(value).toBeCloseTo(expectedSolarValues[index]!, 12);
+    });
     await user.click(
       screen.getByRole("button", { name: "JSONをコピー" }),
     );
@@ -1174,12 +1324,15 @@ describe("App selection announcements", () => {
       trackCalculationSpy.mock.calls.at(-1)?.[3];
     const latestOptions = await latestOptionsAtDate?.(new Date());
     expect(latestOptions).toMatchObject({
-      refraction: {
-        minimumGeometricAltitudeDegrees: 5,
-        pressureHpa: 998.4,
-        relativeHumidity: 0.5,
-        temperatureCelsius: 10,
-        wavelengthMicrometers: 0.55,
+      earthOrientationStatus: "ready",
+      positionOptions: {
+        refraction: {
+          minimumGeometricAltitudeDegrees: 5,
+          pressureHpa: 998.4,
+          relativeHumidity: 0.5,
+          temperatureCelsius: 10,
+          wavelengthMicrometers: 0.55,
+        },
       },
     });
 
@@ -1238,6 +1391,19 @@ describe("App selection announcements", () => {
         screen.getByTestId("selected-track-point-count"),
       ).toHaveTextContent("13"),
     );
+    expect(
+      screen.getByTestId(
+        "selected-track-eop-fallback-count",
+      ),
+    ).toHaveTextContent("0");
+    expect(
+      screen.getByTestId(
+        "selected-track-eop-fallback-present",
+      ),
+    ).toHaveTextContent("no");
+    expect(
+      screen.getByTestId("selected-track-eop-center-status"),
+    ).toHaveTextContent("ready");
     expect(dut1LookupAtSpy).toHaveBeenCalledTimes(12);
     expect(
       dut1LookupAtSpy.mock.calls.map(([sampleDate]) =>
@@ -1259,7 +1425,7 @@ describe("App selection announcements", () => {
     );
   });
 
-  it("keeps the selected-star track when one auxiliary DUT1 lookup fails", async () => {
+  it("keeps and marks the selected-star track when one auxiliary EOP lookup rejects", async () => {
     dut1LookupAtSpy
       .mockRejectedValueOnce(new Error("chunk unavailable"))
       .mockImplementation(async () => dut1HookState.estimate);
@@ -1278,15 +1444,65 @@ describe("App selection announcements", () => {
         screen.getByTestId("selected-track-point-count"),
       ).toHaveTextContent("13"),
     );
+    expect(
+      screen.getByTestId(
+        "selected-track-eop-fallback-count",
+      ),
+    ).toHaveTextContent("1");
+    expect(
+      screen.getByTestId(
+        "selected-track-eop-fallback-present",
+      ),
+    ).toHaveTextContent("yes");
+    expect(
+      screen.getByTestId("selected-track-eop-center-status"),
+    ).toHaveTextContent("ready");
     expect(dut1LookupAtSpy).toHaveBeenCalledTimes(12);
   });
 
-  it("invalidates a zero-EOP track on same-instant retry and fixes its center to the settled frame", async () => {
+  it("keeps and marks the selected-star track when one auxiliary EOP lookup returns null", async () => {
+    dut1LookupAtSpy
+      .mockResolvedValueOnce(null)
+      .mockImplementation(async () => dut1HookState.estimate);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findByText(
+      /精密計算 v2・年周視差（収録星）／太陽光偏向・年周・日周光行差・幾何高度/,
+    );
+    await user.click(
+      screen.getByRole("checkbox", { name: "選択星の軌跡" }),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("selected-track-point-count"),
+      ).toHaveTextContent("13"),
+    );
+    expect(
+      screen.getByTestId(
+        "selected-track-eop-fallback-count",
+      ),
+    ).toHaveTextContent("1");
+    expect(
+      screen.getByTestId(
+        "selected-track-eop-fallback-present",
+      ),
+    ).toHaveTextContent("yes");
+    expect(
+      screen.getByTestId("selected-track-eop-center-status"),
+    ).toHaveTextContent("ready");
+    expect(dut1LookupAtSpy).toHaveBeenCalledTimes(12);
+  });
+
+  it("tracks all auxiliary EOP failures, then hides and replaces the track on retry", async () => {
     const recoveredEstimate = dut1HookState.estimate;
     dut1HookState.estimate = null;
     dut1HookState.sourceIdentifier = null;
     dut1HookState.status = "error";
-    dut1LookupAtSpy.mockResolvedValue(null);
+    dut1LookupAtSpy.mockRejectedValue(
+      new Error("all auxiliary EOP lookups failed"),
+    );
     const user = userEvent.setup();
     const { rerender } = render(<App />);
 
@@ -1301,18 +1517,36 @@ describe("App selection announcements", () => {
         screen.getByTestId("selected-track-point-count"),
       ).toHaveTextContent("13"),
     );
+    expect(
+      screen.getByTestId(
+        "selected-track-eop-fallback-count",
+      ),
+    ).toHaveTextContent("12");
+    expect(
+      screen.getByTestId(
+        "selected-track-eop-fallback-present",
+      ),
+    ).toHaveTextContent("yes");
+    expect(
+      screen.getByTestId("selected-track-eop-center-status"),
+    ).toHaveTextContent("error");
     const centerIso = screen.getByTestId(
       "selected-track-center-time",
     ).textContent!;
     const firstOptionsAtDate =
       trackCalculationSpy.mock.calls.at(-1)?.[3];
+    expect(dut1LookupAtSpy).toHaveBeenCalledTimes(12);
     await expect(
       firstOptionsAtDate?.(new Date(centerIso)),
     ).resolves.toMatchObject({
-      earthOrientation: {
-        polarMotion: { source: "assumed-zero" },
+      earthOrientationStatus: "error",
+      positionOptions: {
+        earthOrientation: {
+          polarMotion: { source: "assumed-zero" },
+        },
       },
     });
+    expect(dut1LookupAtSpy).toHaveBeenCalledTimes(12);
 
     let resolveAuxiliary!: (
       value: typeof recoveredEstimate,
@@ -1332,6 +1566,14 @@ describe("App selection announcements", () => {
     expect(
       screen.getByTestId("selected-track-point-count"),
     ).toHaveTextContent("0");
+    expect(
+      screen.getByTestId(
+        "selected-track-eop-fallback-count",
+      ),
+    ).toHaveTextContent("");
+    expect(
+      screen.getByTestId("selected-track-eop-center-status"),
+    ).toHaveTextContent("");
     await waitFor(() =>
       expect(trackCalculationSpy).toHaveBeenCalledTimes(2),
     );
@@ -1340,14 +1582,17 @@ describe("App selection announcements", () => {
     await expect(
       retriedOptionsAtDate?.(new Date(centerIso)),
     ).resolves.toMatchObject({
-      earthOrientation: {
-        dut1Seconds: recoveredEstimate?.dut1.seconds,
-        polarMotion: {
-          source: "iers-predicted",
-          xpRadians:
-            recoveredEstimate?.polarMotion.xpRadians,
-          ypRadians:
-            recoveredEstimate?.polarMotion.ypRadians,
+      earthOrientationStatus: "ready",
+      positionOptions: {
+        earthOrientation: {
+          dut1Seconds: recoveredEstimate?.dut1.seconds,
+          polarMotion: {
+            source: "iers-predicted",
+            xpRadians:
+              recoveredEstimate?.polarMotion.xpRadians,
+            ypRadians:
+              recoveredEstimate?.polarMotion.ypRadians,
+          },
         },
       },
     });
@@ -1359,6 +1604,19 @@ describe("App selection announcements", () => {
         screen.getByTestId("selected-track-point-count"),
       ).toHaveTextContent("13"),
     );
+    expect(
+      screen.getByTestId(
+        "selected-track-eop-fallback-count",
+      ),
+    ).toHaveTextContent("0");
+    expect(
+      screen.getByTestId(
+        "selected-track-eop-fallback-present",
+      ),
+    ).toHaveTextContent("no");
+    expect(
+      screen.getByTestId("selected-track-eop-center-status"),
+    ).toHaveTextContent("ready");
   });
 
   it("hides a stale trajectory until its new observation-time samples resolve", async () => {
@@ -1394,6 +1652,14 @@ describe("App selection announcements", () => {
     expect(
       screen.getByTestId("selected-track-point-count"),
     ).toHaveTextContent("0");
+    expect(
+      screen.getByTestId(
+        "selected-track-eop-fallback-count",
+      ),
+    ).toHaveTextContent("");
+    expect(
+      screen.getByTestId("selected-track-eop-center-status"),
+    ).toHaveTextContent("");
     resolveNextLookup(dut1HookState.estimate);
     await waitFor(() =>
       expect(
@@ -1403,6 +1669,14 @@ describe("App selection announcements", () => {
     expect(
       screen.getByTestId("selected-track-center-time"),
     ).not.toHaveTextContent(originalCenter ?? "");
+    expect(
+      screen.getByTestId(
+        "selected-track-eop-fallback-count",
+      ),
+    ).toHaveTextContent("0");
+    expect(
+      screen.getByTestId("selected-track-eop-center-status"),
+    ).toHaveTextContent("ready");
   });
 });
 

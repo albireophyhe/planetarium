@@ -315,6 +315,123 @@ final class StarPointingReadoutTests: XCTestCase {
         )
     }
 
+    func testProductionMachineProfilesMatchSharedSchemaFixtures()
+        throws
+    {
+        let fixtures =
+            try productionMachineProfileFixtures()
+        for fixture in fixtures {
+            let actual = try XCTUnwrap(
+                JSONSerialization.jsonObject(
+                    with: try XCTUnwrap(
+                        fixture.payload.data(
+                            using: .utf8
+                        )
+                    )
+                ) as? NSDictionary
+            )
+            let expected = try XCTUnwrap(
+                JSONSerialization.jsonObject(
+                    with: try TestFixtureData.data(
+                        at: fixture.path
+                    )
+                ) as? NSDictionary
+            )
+
+            XCTAssertEqual(
+                actual,
+                expected,
+                """
+                The macOS production pointing serializer changed \
+                for \(fixture.path). Review the shared JSON Schema \
+                before intentionally regenerating the fixture.
+                """
+            )
+        }
+    }
+
+    func testPositiveParallaxWithoutProperMotionOrRadialVelocity()
+        throws
+    {
+        let frame = try pointingFrame(
+            earthOrientation:
+                EarthOrientationOptionsV2(
+                    polarMotion: .assumedZero
+                ),
+            refraction: .disabled
+        )
+        let star = precisionCatalogStar(
+            rightAscension:
+                overheadRightAscension(frame),
+            astrometry: StarAstrometry(
+                properMotionRightAscensionCosDeclinationArcsecondsPerYear:
+                    nil,
+                properMotionDeclinationArcsecondsPerYear:
+                    nil,
+                parallaxArcseconds: 0.2,
+                radialVelocityKilometersPerSecond:
+                    nil
+            )
+        )
+        let root = try machineProfile(
+            star: star,
+            frame: frame,
+            atmosphere: nil,
+            atmosphereInputSource: nil,
+            estimate: nil,
+            sourceIdentifier: nil
+        )
+        let target = try dictionary(
+            root,
+            key: "target"
+        )
+        let kinematics = try dictionary(
+            target,
+            key: "catalogKinematics"
+        )
+
+        XCTAssertEqual(
+            kinematics["spaceMotionMode"] as? String,
+            "none"
+        )
+        XCTAssertEqual(
+            kinematics["properMotionStatus"] as? String,
+            "not-applied-missing"
+        )
+        XCTAssertEqual(
+            kinematics["parallaxStatus"] as? String,
+            "applied"
+        )
+        XCTAssertEqual(
+            kinematics["radialVelocityStatus"] as? String,
+            "assumed-zero"
+        )
+
+        let diagnostics = try dictionary(
+            root,
+            key: "diagnostics"
+        )
+        let approximations = try dictionary(
+            diagnostics,
+            key: "approximations"
+        )
+        XCTAssertEqual(
+            approximations["properMotionMissing"]
+                as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            approximations["properMotionUnavailable"]
+                as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            approximations["radialVelocityAssumedZero"]
+                as? Bool,
+            true
+        )
+    }
+
     func testMachineReadableProfileUsesAppliedPerStarMetadata()
         throws
     {
@@ -369,6 +486,18 @@ final class StarPointingReadoutTests: XCTestCase {
         let kinematics = try dictionary(
             target,
             key: "catalogKinematics"
+        )
+        XCTAssertEqual(
+            kinematics["properMotionStatus"] as? String,
+            "applied"
+        )
+        XCTAssertEqual(
+            kinematics["parallaxStatus"] as? String,
+            "applied"
+        )
+        XCTAssertEqual(
+            kinematics["radialVelocityStatus"] as? String,
+            "assumed-zero"
         )
         XCTAssertEqual(
             kinematics[
@@ -529,18 +658,48 @@ final class StarPointingReadoutTests: XCTestCase {
             "sha256:test-eop"
         )
         XCTAssertEqual(
+            earthOrientation["sourceIdentifierStatus"]
+                as? String,
+            "available"
+        )
+        XCTAssertEqual(
             earthOrientation["appliedDut1Seconds"]
                 as? Double,
             0.123456
+        )
+        XCTAssertEqual(
+            earthOrientation["dut1Status"] as? String,
+            "available"
         )
         XCTAssertEqual(
             earthOrientation["dut1Source"] as? String,
             "iers-predicted"
         )
         XCTAssertEqual(
+            earthOrientation[
+                "dut1MetadataMatchesAppliedValue"
+            ] as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            earthOrientation["estimateStatus"] as? String,
+            "available"
+        )
+        XCTAssertEqual(
+            earthOrientation["polarMotionStatus"]
+                as? String,
+            "available"
+        )
+        XCTAssertEqual(
             earthOrientation["polarMotionSource"]
                 as? String,
             "predicted"
+        )
+        XCTAssertEqual(
+            earthOrientation[
+                "polarMotionMetadataMatchesAppliedValue"
+            ] as? Bool,
+            true
         )
         XCTAssertEqual(
             earthOrientation["xpAppliedRadians"]
@@ -550,6 +709,11 @@ final class StarPointingReadoutTests: XCTestCase {
         XCTAssertEqual(
             earthOrientation["usesPrediction"] as? Bool,
             true
+        )
+        XCTAssertEqual(
+            earthOrientation["consistencyIssues"]
+                as? [String],
+            []
         )
     }
 
@@ -608,6 +772,186 @@ final class StarPointingReadoutTests: XCTestCase {
                 earthOrientationEstimate: nil,
                 earthOrientationSourceIdentifier: nil
             ) == nil
+        )
+    }
+
+    func testIERSMetadataMismatchesFailClosedPerComponent()
+        throws
+    {
+        let appliedEstimate =
+            IERSEarthOrientationEstimateV1(
+                dut1: IERSDUT1EstimateV1(
+                    dut1Seconds: 0.123456,
+                    source: .predicted,
+                    uncertaintySeconds: 0.000321
+                ),
+                polarMotion: IERSPolarMotionEstimateV1(
+                    xpRadians: 1.25e-6,
+                    ypRadians: -2.5e-6,
+                    xpReportedErrorRadians: 3e-9,
+                    ypReportedErrorRadians: 4e-9,
+                    source: .predicted,
+                    usesPrediction: true
+                )
+            )
+        let frame = try pointingFrame(
+            earthOrientation:
+                appliedEstimate
+                .earthOrientationOptionsV2,
+            refraction: .disabled
+        )
+        let star = precisionCatalogStar(
+            rightAscension:
+                overheadRightAscension(frame),
+            astrometry: nil
+        )
+        let dut1Mismatch =
+            IERSEarthOrientationEstimateV1(
+                dut1: IERSDUT1EstimateV1(
+                    dut1Seconds: 0.123457,
+                    source: .observed,
+                    uncertaintySeconds: 0.000321
+                ),
+                polarMotion:
+                    appliedEstimate.polarMotion
+            )
+        let dut1Root = try machineProfile(
+            star: star,
+            frame: frame,
+            atmosphere: nil,
+            atmosphereInputSource: nil,
+            estimate: dut1Mismatch,
+            sourceIdentifier: "must-not-survive"
+        )
+        let dut1EarthOrientation = try dictionary(
+            dut1Root,
+            key: "earthOrientation"
+        )
+
+        XCTAssertEqual(
+            dut1EarthOrientation[
+                "dut1MetadataMatchesAppliedValue"
+            ] as? Bool,
+            false
+        )
+        XCTAssertEqual(
+            dut1EarthOrientation[
+                "polarMotionMetadataMatchesAppliedValue"
+            ] as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            dut1EarthOrientation["dut1Status"] as? String,
+            "applied-without-matching-estimate-metadata"
+        )
+        XCTAssertEqual(
+            dut1EarthOrientation["polarMotionStatus"]
+                as? String,
+            "available"
+        )
+        XCTAssertTrue(
+            dut1EarthOrientation["dut1Quality"]
+                is NSNull
+        )
+        XCTAssertEqual(
+            dut1EarthOrientation["polarMotionQuality"]
+                as? String,
+            "predicted"
+        )
+        XCTAssertTrue(
+            dut1EarthOrientation["sourceIdentifier"]
+                is NSNull
+        )
+        XCTAssertEqual(
+            dut1EarthOrientation["sourceIdentifierStatus"]
+                as? String,
+            "unavailable"
+        )
+        XCTAssertEqual(
+            dut1EarthOrientation["estimateStatus"]
+                as? String,
+            "available"
+        )
+        XCTAssertEqual(
+            dut1EarthOrientation["consistencyIssues"]
+                as? [String],
+            [
+                "Applied DUT1 does not have a matching IERS estimate snapshot."
+            ]
+        )
+
+        let polarMotionMismatch =
+            IERSEarthOrientationEstimateV1(
+                dut1: appliedEstimate.dut1,
+                polarMotion:
+                    IERSPolarMotionEstimateV1(
+                        xpRadians: 1.5e-6,
+                        ypRadians: -2.5e-6,
+                        xpReportedErrorRadians: 3e-9,
+                        ypReportedErrorRadians: 4e-9,
+                        source: .observed,
+                        usesPrediction: false
+                    )
+            )
+        let polarRoot = try machineProfile(
+            star: star,
+            frame: frame,
+            atmosphere: nil,
+            atmosphereInputSource: nil,
+            estimate: polarMotionMismatch,
+            sourceIdentifier: "must-not-survive"
+        )
+        let polarEarthOrientation = try dictionary(
+            polarRoot,
+            key: "earthOrientation"
+        )
+
+        XCTAssertEqual(
+            polarEarthOrientation[
+                "dut1MetadataMatchesAppliedValue"
+            ] as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            polarEarthOrientation[
+                "polarMotionMetadataMatchesAppliedValue"
+            ] as? Bool,
+            false
+        )
+        XCTAssertEqual(
+            polarEarthOrientation["dut1Status"] as? String,
+            "available"
+        )
+        XCTAssertEqual(
+            polarEarthOrientation[
+                "polarMotionStatus"
+            ] as? String,
+            "applied-without-matching-estimate-metadata"
+        )
+        XCTAssertEqual(
+            polarEarthOrientation["dut1Quality"]
+                as? String,
+            "predicted"
+        )
+        XCTAssertTrue(
+            polarEarthOrientation["polarMotionQuality"]
+                is NSNull
+        )
+        XCTAssertTrue(
+            polarEarthOrientation["sourceIdentifier"]
+                is NSNull
+        )
+        XCTAssertEqual(
+            polarEarthOrientation["usesPrediction"]
+                as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            polarEarthOrientation["consistencyIssues"]
+                as? [String],
+            [
+                "Applied polar motion does not have a matching IERS estimate snapshot."
+            ]
         )
     }
 
@@ -864,10 +1208,34 @@ final class StarPointingReadoutTests: XCTestCase {
             earthOrientation["sourceIdentifier"]
                 is NSNull
         )
+        XCTAssertEqual(
+            earthOrientation["sourceIdentifierStatus"]
+                as? String,
+            "unavailable"
+        )
         XCTAssertTrue(
             earthOrientation[
                 "dut1ReportedErrorSeconds"
             ] is NSNull
+        )
+        XCTAssertTrue(
+            earthOrientation[
+                "dut1MetadataMatchesAppliedValue"
+            ] is NSNull
+        )
+        XCTAssertEqual(
+            earthOrientation["estimateStatus"] as? String,
+            "available"
+        )
+        XCTAssertTrue(
+            earthOrientation[
+                "polarMotionMetadataMatchesAppliedValue"
+            ] is NSNull
+        )
+        XCTAssertEqual(
+            earthOrientation["consistencyIssues"]
+                as? [String],
+            []
         )
         XCTAssertTrue(
             earthOrientation[
@@ -893,6 +1261,26 @@ final class StarPointingReadoutTests: XCTestCase {
         )
         XCTAssertTrue(
             refraction["parameters"] is NSNull
+        )
+        let approximations = try dictionary(
+            diagnostics,
+            key: "approximations"
+        )
+        XCTAssertEqual(
+            approximations["earthOrientationNotApplied"]
+                as? Bool,
+            false
+        )
+        XCTAssertEqual(
+            approximations["properMotionMissing"]
+                as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            approximations[
+                "refractionParametersUnavailable"
+            ] as? Bool,
+            false
         )
 
         let warnings = try XCTUnwrap(
@@ -1276,6 +1664,172 @@ final class StarPointingReadoutTests: XCTestCase {
         )
     }
 
+    private func productionMachineProfileFixtures()
+        throws -> [(path: String, payload: String)]
+    {
+        let estimate = IERSEarthOrientationEstimateV1(
+            dut1: IERSDUT1EstimateV1(
+                dut1Seconds: 0.123456,
+                source: .predicted,
+                uncertaintySeconds: 0.000321
+            ),
+            polarMotion: IERSPolarMotionEstimateV1(
+                xpRadians: 1.25e-6,
+                ypRadians: -2.5e-6,
+                xpReportedErrorRadians: 3e-9,
+                ypReportedErrorRadians: 4e-9,
+                source: .predicted,
+                usesPrediction: true
+            )
+        )
+        let fullAstrometry = StarAstrometry(
+            properMotionRightAscensionCosDeclinationArcsecondsPerYear:
+                0.25,
+            properMotionDeclinationArcsecondsPerYear:
+                -0.125,
+            parallaxArcseconds: 0.2,
+            radialVelocityKilometersPerSecond: 12
+        )
+        let manualAtmosphere = AtmosphereV2(
+            pressureHPA: 998.4,
+            temperatureCelsius: 7.5,
+            relativeHumidity: 0.62,
+            wavelengthMicrometers: 0.7,
+            minimumGeometricAltitudeDegrees: 8
+        )
+        let belowDomainAtmosphere = AtmosphereV2(
+            pressureHPA: 1_005,
+            temperatureCelsius: 4,
+            relativeHumidity: 0.75,
+            wavelengthMicrometers: 0.55,
+            minimumGeometricAltitudeDegrees: 30
+        )
+        let standardFrame = try pointingFrame(
+            earthOrientation:
+                estimate.earthOrientationOptionsV2,
+            refraction:
+                .atmosphere(.standardVisual)
+        )
+        let disabledFrame = try pointingFrame(
+            earthOrientation:
+                EarthOrientationOptionsV2(
+                    polarMotion: .assumedZero
+                ),
+            refraction: .disabled
+        )
+        let manualFrame = try pointingFrame(
+            earthOrientation:
+                estimate.earthOrientationOptionsV2,
+            refraction:
+                .atmosphere(manualAtmosphere)
+        )
+        let belowDomainFrame = try pointingFrame(
+            earthOrientation:
+                estimate.earthOrientationOptionsV2,
+            refraction:
+                .atmosphere(belowDomainAtmosphere)
+        )
+
+        return [
+            (
+                path:
+                    "shared/fixtures/"
+                    + "star-pointing-profile-v1-macos-iers-standard.json",
+                payload:
+                    try machineProfilePayload(
+                        star: precisionCatalogStar(
+                            rightAscension:
+                                Angles.normalizedRadians(
+                                    overheadRightAscension(
+                                        standardFrame
+                                    )
+                                        - 0.3
+                                ),
+                            astrometry: fullAstrometry
+                        ),
+                        frame: standardFrame,
+                        atmosphere: .standardVisual,
+                        atmosphereInputSource: .standard,
+                        estimate: estimate,
+                        sourceIdentifier:
+                            "IERS fixture; sha256=mac-production"
+                    )
+            ),
+            (
+                path:
+                    "shared/fixtures/"
+                    + "star-pointing-profile-v1-macos-assumed-zero-disabled.json",
+                payload:
+                    try machineProfilePayload(
+                        star: precisionCatalogStar(
+                            rightAscension:
+                                Angles.normalizedRadians(
+                                    overheadRightAscension(
+                                        disabledFrame
+                                    )
+                                        - 0.35
+                                ),
+                            astrometry: fullAstrometry
+                        ),
+                        frame: disabledFrame,
+                        atmosphere: nil,
+                        atmosphereInputSource: nil,
+                        estimate: nil,
+                        sourceIdentifier: nil
+                    )
+            ),
+            (
+                path:
+                    "shared/fixtures/"
+                    + "star-pointing-profile-v1-macos-manual.json",
+                payload:
+                    try machineProfilePayload(
+                        star: precisionCatalogStar(
+                            rightAscension:
+                                Angles.normalizedRadians(
+                                    overheadRightAscension(
+                                        manualFrame
+                                    )
+                                        - 0.45
+                                ),
+                            astrometry: fullAstrometry
+                        ),
+                        frame: manualFrame,
+                        atmosphere: manualAtmosphere,
+                        atmosphereInputSource: .manual,
+                        estimate: estimate,
+                        sourceIdentifier:
+                            "IERS fixture; sha256=mac-production"
+                    )
+            ),
+            (
+                path:
+                    "shared/fixtures/"
+                    + "star-pointing-profile-v1-macos-below-domain-missing-kinematics.json",
+                payload:
+                    try machineProfilePayload(
+                        star: precisionCatalogStar(
+                            rightAscension:
+                                Angles.normalizedRadians(
+                                    overheadRightAscension(
+                                        belowDomainFrame
+                                    )
+                                        - .pi / 2
+                                ),
+                            astrometry: nil
+                        ),
+                        frame: belowDomainFrame,
+                        atmosphere:
+                            belowDomainAtmosphere,
+                        atmosphereInputSource: .manual,
+                        estimate: estimate,
+                        sourceIdentifier:
+                            "IERS fixture; sha256=mac-production"
+                    )
+            ),
+        ]
+    }
+
     private func machineProfile(
         star: CatalogStar,
         frame: ApparentPositionContextV2,
@@ -1285,6 +1839,34 @@ final class StarPointingReadoutTests: XCTestCase {
         estimate: IERSEarthOrientationEstimateV1?,
         sourceIdentifier: String?
     ) throws -> [String: Any] {
+        let payload = try machineProfilePayload(
+            star: star,
+            frame: frame,
+            atmosphere: atmosphere,
+            atmosphereInputSource:
+                atmosphereInputSource,
+            estimate: estimate,
+            sourceIdentifier: sourceIdentifier
+        )
+        let data = try XCTUnwrap(
+            payload.data(using: .utf8)
+        )
+        return try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: data
+            ) as? [String: Any]
+        )
+    }
+
+    private func machineProfilePayload(
+        star: CatalogStar,
+        frame: ApparentPositionContextV2,
+        atmosphere: AtmosphereV2?,
+        atmosphereInputSource:
+            AtmosphericRefractionInputSource?,
+        estimate: IERSEarthOrientationEstimateV1?,
+        sourceIdentifier: String?
+    ) throws -> String {
         let position = try Astronomy
             .calculateApparentStarPositionWithContextV2(
                 star,
@@ -1343,14 +1925,7 @@ final class StarPointingReadoutTests: XCTestCase {
                 profile: .precisionJSON
             )
         )
-        let data = try XCTUnwrap(
-            payload.data(using: .utf8)
-        )
-        return try XCTUnwrap(
-            JSONSerialization.jsonObject(
-                with: data
-            ) as? [String: Any]
-        )
+        return payload
     }
 
     private func dictionary(

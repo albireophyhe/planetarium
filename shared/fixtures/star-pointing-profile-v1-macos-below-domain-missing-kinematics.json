@@ -1,0 +1,224 @@
+{
+  "conventions" : {
+    "altitude" : {
+      "positiveDirection" : "up",
+      "rangeDegrees" : "[-90,90]",
+      "zeroPlane" : "mathematical-horizon"
+    },
+    "azimuth" : {
+      "positiveDirection" : "clockwise-toward-east",
+      "rangeDegrees" : "[0,360)",
+      "undefinedRepresentation" : null,
+      "undefinedWhen" : "zenith-or-nadir",
+      "zeroDirection" : "true-north"
+    },
+    "longitude" : {
+      "positiveDirection" : "east",
+      "rangeDegrees" : "[-180,180]"
+    },
+    "rightAscension" : {
+      "positiveDirection" : "east",
+      "rangeRadians" : "[0,2pi)"
+    }
+  },
+  "coordinates" : {
+    "catalogJ2000" : {
+      "declinationRadians" : 0.6108652381980153,
+      "epoch" : "J2000.0",
+      "equinox" : "J2000.0",
+      "frame" : "FK5",
+      "origin" : "catalog-direction",
+      "rightAscensionRadians" : 3.108923591036012,
+      "status" : "calculated",
+      "units" : "radian"
+    },
+    "geocentricApparent" : {
+      "declinationRadians" : 0.60832942002473744,
+      "equinox" : "observation-date",
+      "frame" : "true-equator-and-equinox-of-date",
+      "origin" : "geocenter",
+      "rightAscensionRadians" : 3.1149192752871517,
+      "status" : "calculated",
+      "units" : "radian"
+    },
+    "observedTopocentric" : {
+      "altitudeDegrees" : 19.379710271927372,
+      "azimuthConvention" : "north-zero-east-positive",
+      "azimuthDegrees" : 299.55561234737416,
+      "azimuthStatus" : "defined",
+      "frame" : "local-ENU",
+      "origin" : "WGS84-observer",
+      "refractionMode" : "below-model-altitude",
+      "status" : "refraction-not-applied-outside-model-domain",
+      "units" : "degree"
+    },
+    "vacuumTopocentric" : {
+      "altitudeDegrees" : 19.379710271927372,
+      "atmosphere" : "vacuum",
+      "azimuthConvention" : "north-zero-east-positive",
+      "azimuthDegrees" : 299.55561234737416,
+      "azimuthStatus" : "defined",
+      "frame" : "local-ENU",
+      "origin" : "WGS84-observer",
+      "status" : "calculated",
+      "units" : "degree"
+    }
+  },
+  "diagnostics" : {
+    "approximations" : {
+      "apparentCoordinatesUnavailable" : false,
+      "approximateEarthEphemeris" : true,
+      "dut1AssumedZero" : false,
+      "earthOrientationEstimateUnavailable" : false,
+      "earthOrientationNotApplied" : false,
+      "polarMotionAssumedZero" : false,
+      "properMotionMissing" : true,
+      "properMotionUnavailable" : true,
+      "radialVelocityAssumedZero" : false,
+      "refractionOutsideModelDomain" : true,
+      "refractionParametersUnavailable" : false,
+      "simplifiedPositionModel" : false,
+      "timeScalesUnavailable" : false
+    },
+    "modelId" : "planetarium-precision-v2",
+    "models" : {
+      "annualAberrationMode" : "truncated-vsop2000-heliocentric-earth",
+      "annualParallaxMode" : "unavailable",
+      "calculationModel" : "v2",
+      "catalogFrame" : "J2000.0 FK5",
+      "diurnalAberrationMode" : "wgs84-observer",
+      "frameConnectionModel" : "SOFA FK5-to-Hipparcos J2000 rotation and spin",
+      "nutationModel" : "IAU 2000B 77-term",
+      "polarMotionMode" : "iers-predicted",
+      "precessionModel" : "IAU 2006 Fukushima-Williams",
+      "radialVelocityAssumedZero" : false,
+      "refractionMode" : "below-model-altitude",
+      "siderealTimeModel" : "IAU 2006 GMST + IAU 2000B leading equation of equinoxes",
+      "solarLightDeflectionMode" : "truncated-vsop2000-heliocentric-earth",
+      "spaceMotionMode" : "none"
+    },
+    "omittedCorrections" : [
+      "annual-parallax",
+      "stellar-diurnal-parallax",
+      "planetary-light-deflection",
+      "subdaily-polar-motion-tides"
+    ],
+    "precisionStatement" : "Digits preserve calculation inputs and outputs; they do not guarantee measurement accuracy.",
+    "refraction" : {
+      "description" : "幾何高度（手動入力の大気差の適用域外）",
+      "mode" : "below-model-altitude",
+      "parameters" : {
+        "inputSource" : "manual",
+        "minimumGeometricAltitudeDegrees" : 30,
+        "pressureHpa" : 1005,
+        "relativeHumidity" : 0.75,
+        "temperatureCelsius" : 4,
+        "wavelengthMicrometers" : 0.55000000000000004
+      },
+      "parametersStatus" : "configured",
+      "status" : "refraction-not-applied-outside-model-domain"
+    },
+    "status" : "precision-model-v2",
+    "timeScaleWarnings" : [
+
+    ],
+    "warnings" : [
+      "catalog-fk5-precision-limited",
+      "solar-light-deflection-approximate-ephemeris",
+      "aberration-approximate-ephemeris",
+      "proper-motion-missing",
+      "annual-parallax-unavailable",
+      "refraction-below-model-altitude"
+    ]
+  },
+  "earthOrientation" : {
+    "appliedDut1Seconds" : 0.123456,
+    "consistencyIssues" : [
+
+    ],
+    "dut1MetadataMatchesAppliedValue" : true,
+    "dut1Quality" : "predicted",
+    "dut1ReportedErrorSeconds" : 0.000321,
+    "dut1Source" : "iers-predicted",
+    "dut1Status" : "available",
+    "estimateStatus" : "available",
+    "polarMotionMetadataMatchesAppliedValue" : true,
+    "polarMotionQuality" : "predicted",
+    "polarMotionSource" : "predicted",
+    "polarMotionStatus" : "available",
+    "sourceIdentifier" : "IERS fixture; sha256=mac-production",
+    "sourceIdentifierStatus" : "available",
+    "status" : "iers",
+    "usesPrediction" : true,
+    "xpAppliedRadians" : 1.2500000000000001e-06,
+    "xpReportedErrorRadians" : 3e-09,
+    "ypAppliedRadians" : -2.5000000000000002e-06,
+    "ypReportedErrorRadians" : 4.0000000000000002e-09
+  },
+  "observation" : {
+    "localDateTime" : "2026-07-31T21:00:00",
+    "location" : {
+      "heightMeters" : 42,
+      "horizontalAccuracyMeters" : 3,
+      "horizontalAccuracyStatus" : "available",
+      "latitudeDegrees" : 35,
+      "longitudeDegrees" : 139,
+      "name" : "試験地点",
+      "referenceFrame" : "WGS84",
+      "source" : "manual",
+      "status" : "available"
+    },
+    "timeZone" : "Asia/Tokyo",
+    "utc" : "2026-07-31T12:00:00.000Z"
+  },
+  "profileId" : "planetarium.precision-pointing.full-v1",
+  "schemaVersion" : 1,
+  "target" : {
+    "aliases" : [
+      "Alias"
+    ],
+    "catalog" : "BSC5P",
+    "catalogKinematics" : {
+      "parallaxArcseconds" : null,
+      "parallaxStatus" : "not-applied-missing",
+      "properMotionDecArcsecondsPerYear" : null,
+      "properMotionRaCosDecArcsecondsPerYear" : null,
+      "properMotionStatus" : "not-applied-missing",
+      "radialVelocityKilometersPerSecond" : null,
+      "radialVelocityStatus" : "unavailable-not-required",
+      "spaceMotionMode" : "none",
+      "status" : "catalog-position-only"
+    },
+    "catalogName" : "Test Star",
+    "constellation" : "Test",
+    "hd" : 4242,
+    "hr" : 42,
+    "nameEnglish" : "Test Star",
+    "nameJapanese" : "試験星",
+    "visualMagnitude" : 1.234567
+  },
+  "timeScales" : {
+    "dut1Seconds" : 0.123456,
+    "dut1Source" : "iers-predicted",
+    "dut1UncertaintySeconds" : 0.000321,
+    "jdTT" : 2461253.0008007409,
+    "jdUT1" : 2461253.0000014291,
+    "jdUTC" : 2461253,
+    "status" : "available",
+    "taiMinusUTCSeconds" : 37,
+    "taiMinusUTCSource" : "iers-history"
+  },
+  "units" : {
+    "altitude" : "degree",
+    "azimuth" : "degree",
+    "declination" : "radian",
+    "dut1" : "second",
+    "julianDate" : "day",
+    "parallax" : "arcsecond",
+    "polarMotion" : "radian",
+    "properMotion" : "arcsecond/year",
+    "radialVelocity" : "kilometer/second",
+    "rightAscension" : "radian",
+    "siteHeight" : "meter"
+  }
+}

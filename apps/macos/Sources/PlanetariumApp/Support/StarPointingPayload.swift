@@ -50,61 +50,14 @@ struct StarPointingPrecisionContext: Hashable, Sendable {
         self.atmosphereInputSource =
             atmosphereInputSource
 
-        if Self.estimateMatchesAppliedFrame(
-            earthOrientationEstimate,
-            frame: frame
-        ) {
-            self.earthOrientationEstimate =
-                earthOrientationEstimate
-            self.earthOrientationSourceIdentifier =
-                earthOrientationSourceIdentifier
-        } else {
-            // Source metadata is supplementary. If it does not describe
-            // the applied frame exactly, omit it rather than exporting a
-            // contradictory provenance/value pair.
-            self.earthOrientationEstimate = nil
-            self.earthOrientationSourceIdentifier = nil
-        }
-    }
-
-    private static func estimateMatchesAppliedFrame(
-        _ estimate: IERSEarthOrientationEstimateV1?,
-        frame: ApparentPositionContextV2
-    ) -> Bool {
-        guard let estimate else {
-            return false
-        }
-        let expectedDUT1Source: DUT1SourceV2 =
-            estimate.dut1.source == .observed
-            ? .iersObserved
-            : .iersPredicted
-        let expectedPolarMotionMode: PolarMotionModeV2 =
-            estimate.polarMotion.source == .observed
-            ? .iersObserved
-            : .iersPredicted
-
-        return
-            frame.timeScales.dut1Seconds
-                == estimate.dut1.dut1Seconds
-            && frame.timeScales.dut1Source
-                == expectedDUT1Source
-            && frame.timeScales
-                .dut1UncertaintySeconds
-                == estimate.dut1.uncertaintySeconds
-            && frame.polarMotion.mode
-                == expectedPolarMotionMode
-            && frame.polarMotion.xpRadians
-                == estimate.polarMotion.xpRadians
-            && frame.polarMotion.ypRadians
-                == estimate.polarMotion.ypRadians
-            && frame.polarMotion
-                .xpReportedErrorRadians
-                == estimate.polarMotion
-                .xpReportedErrorRadians
-            && frame.polarMotion
-                .ypReportedErrorRadians
-                == estimate.polarMotion
-                .ypReportedErrorRadians
+        // Retain supplementary metadata so the machine-readable profile
+        // can compare DUT1 and polar motion independently. The serializer
+        // exports provenance only for components that match the applied
+        // frame.
+        self.earthOrientationEstimate =
+            earthOrientationEstimate
+        self.earthOrientationSourceIdentifier =
+            earthOrientationSourceIdentifier
     }
 
     private static func atmosphereMatchesAppliedFrame(

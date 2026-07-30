@@ -1,5 +1,8 @@
+import Ajv2020 from "ajv/dist/2020.js";
+import addFormats from "ajv-formats";
 import { describe, expect, it } from "vitest";
 import pointingProfileContract from "../../../../../shared/fixtures/star-pointing-profile-v1-contract.json";
+import pointingProfileSchema from "../../../../../shared/schema/star-pointing-profile-v1.schema.json";
 import type { ObserverLocation, StarViewModel } from "../../app/types";
 import type { ResolvedTimeScales } from "../../domain";
 import {
@@ -102,6 +105,15 @@ const POLAR_MOTION_SNAPSHOT = {
   ypReportedErrorRadians: 2e-9,
 };
 
+const pointingProfileAjv = new Ajv2020({
+  allErrors: true,
+  strict: true,
+});
+addFormats(pointingProfileAjv);
+const validatePointingProfile = pointingProfileAjv.compile(
+  pointingProfileSchema,
+);
+
 function precisionInput(
   overrides: Partial<StarPointingPayloadInput> = {},
 ): StarPointingPayloadInput {
@@ -120,7 +132,65 @@ function precisionInput(
   };
 }
 
+function expectSchemaValid(input: StarPointingPayloadInput) {
+  const profile = JSON.parse(
+    serializeStarPointingJsonProfile(input),
+  ) as unknown;
+  const valid = validatePointingProfile(profile);
+  expect(
+    valid,
+    JSON.stringify(validatePointingProfile.errors, null, 2),
+  ).toBe(true);
+}
+
 describe("buildStarPointingPayload", () => {
+  it.each([
+    {
+      input: precisionInput(),
+      label: "IERS ready / standard refraction",
+    },
+    {
+      input: precisionInput({
+        refractionInputSource: "manual",
+      }),
+      label: "IERS ready / manual refraction",
+    },
+    {
+      input: precisionInput({
+        earthOrientationEstimate: null,
+        earthOrientationSourceIdentifier: null,
+        polarMotionSnapshot: {
+          mode: "assumed-zero",
+          xpRadians: 0,
+          xpReportedErrorRadians: null,
+          ypRadians: 0,
+          ypReportedErrorRadians: null,
+        },
+        refractionAtmosphere: null,
+        refractionInputSource: null,
+        star: {
+          ...STAR,
+          altitudeDeg: STAR.geometricAltitudeDeg,
+          azimuthDeg: STAR.geometricAzimuthDeg,
+          polarMotionMode: "assumed-zero",
+          refractionMode: "disabled",
+        },
+        timeScales: {
+          ...TIME_SCALES,
+          dut1Seconds: 0,
+          dut1Source: "assumed-zero",
+          dut1UncertaintySeconds: null,
+        },
+      }),
+      label: "assumed-zero EOP / disabled refraction",
+    },
+  ])(
+    "keeps the production JSON serializer inside the shared schema: $label",
+    ({ input }) => {
+      expectSchemaValid(input);
+    },
+  );
+
   it("exports reproducible pointing inputs and distinct horizontal coordinates", () => {
     const payload = buildStarPointingPayload({
       earthOrientationEstimate: {
@@ -276,6 +346,13 @@ describe("buildStarPointingPayload", () => {
         models: {
           annualAberrationMode:
             "truncated-vsop2000-heliocentric-earth",
+          radialVelocityAssumedZero: false,
+          spaceMotionMode: "three-dimensional",
+        },
+        approximations: {
+          properMotionMissing: false,
+          properMotionUnavailable: false,
+          radialVelocityAssumedZero: false,
         },
       },
     });
@@ -290,6 +367,30 @@ describe("buildStarPointingPayload", () => {
     expect(
       JSON.parse(serializeStarPointingJsonProfile(input)),
     ).toEqual(profile);
+  });
+
+  it("publishes radial-velocity assumed-zero parity in models and approximations", () => {
+    const profile = buildStarPointingJsonProfile(precisionInput({
+      star: {
+        ...STAR,
+        radialVelocityKmPerSecond: null,
+        spaceMotionMode: "angular-proper-motion",
+      },
+    }));
+
+    expect(profile.target.catalogKinematics).toMatchObject({
+      radialVelocityStatus: "assumed-zero",
+      spaceMotionMode: "angular-proper-motion",
+    });
+    expect(profile.diagnostics.models).toMatchObject({
+      radialVelocityAssumedZero: true,
+      spaceMotionMode: "angular-proper-motion",
+    });
+    expect(profile.diagnostics.approximations).toMatchObject({
+      properMotionMissing: false,
+      properMotionUnavailable: false,
+      radialVelocityAssumedZero: true,
+    });
   });
 
   it("preserves an explicit manual source even when its values equal the standard preset", () => {
@@ -594,6 +695,15 @@ describe("buildStarPointingPayload", () => {
         "refraction-disabled",
       ]),
     );
+    expect(profile.diagnostics.models).toMatchObject({
+      radialVelocityAssumedZero: false,
+      spaceMotionMode: "none",
+    });
+    expect(profile.diagnostics.approximations).toMatchObject({
+      properMotionMissing: true,
+      properMotionUnavailable: true,
+      radialVelocityAssumedZero: false,
+    });
   });
 
   it("emits zero only when Earth orientation explicitly used the assumed-zero approximation", () => {

@@ -33,6 +33,43 @@ const VIEW_OPTIONS = [
 const THREE_DIMENSIONAL_LOAD_ERROR =
   "3D星図の読み込みに失敗しました。2D星図へ戻して表示を継続します。";
 
+function trackEarthOrientationWarning(
+  track: SelectedStarTrack | null,
+) {
+  if (!track) {
+    return null;
+  }
+  const provenance = track.earthOrientationProvenance;
+  const centerUsesFallback = provenance.centerStatus !== "ready";
+  const auxiliaryUsesFallback =
+    provenance.auxiliaryFallbackSampleCount > 0;
+  if (!centerUsesFallback && !auxiliaryUsesFallback) {
+    return null;
+  }
+
+  const shortParts = [
+    centerUsesFallback ? "現在点" : null,
+    auxiliaryUsesFallback
+      ? `周辺${provenance.auxiliaryFallbackSampleCount}/${provenance.auxiliarySampleCount}点`
+      : null,
+  ].filter((part): part is string => part !== null);
+  const descriptions = [
+    provenance.centerStatus === "error"
+      ? "現在点はEOP読込失敗のため0近似です。"
+      : provenance.centerStatus === "unavailable"
+        ? "現在点はEOP収録外のため0近似です。"
+        : null,
+    auxiliaryUsesFallback
+      ? `周辺${provenance.auxiliarySampleCount}点中${provenance.auxiliaryFallbackSampleCount}点はEOPを0近似しています。`
+      : null,
+  ].filter((part): part is string => part !== null);
+
+  return {
+    description: descriptions.join(""),
+    short: `EOP 0近似: ${shortParts.join("・")}`,
+  };
+}
+
 type SkyViewMode = (typeof VIEW_OPTIONS)[number]["value"];
 
 export type SkyDrawSource = "2d" | "3d";
@@ -101,6 +138,8 @@ export function SkyViewport({
   const trackDescriptionId = useId();
   const firstTrackPoint = selectedStarTrack?.points[0];
   const lastTrackPoint = selectedStarTrack?.points.at(-1);
+  const earthOrientationWarning =
+    trackEarthOrientationWarning(selectedStarTrack);
   const trackDescription =
     firstTrackPoint && lastTrackPoint
       ? `選択星の軌跡。${formatTrackRelativeTime(
@@ -112,7 +151,7 @@ export function SkyViewport({
           selectedStarTrack.truncatedFuture
             ? "対応期間の境界で軌跡を短くしています。"
             : ""
-        }`
+        }${earthOrientationWarning?.description ?? ""}`
       : "選択星の軌跡は、星を選択し精密星表の準備が完了すると表示されます。";
   const trackRangeText =
     firstTrackPoint && lastTrackPoint
@@ -120,7 +159,11 @@ export function SkyViewport({
           firstTrackPoint.relativeMinutes,
         )} → 現在 → ${formatTrackRelativeTime(
           lastTrackPoint.relativeMinutes,
-        )}・${selectedStarTrack.points.length}点`
+        )}・${selectedStarTrack.points.length}点${
+          earthOrientationWarning
+            ? `・${earthOrientationWarning.short}`
+            : ""
+        }`
       : "精密計算を準備中";
 
   const handleTwoDimensionalError = useCallback(

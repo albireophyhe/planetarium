@@ -30,6 +30,11 @@ function track(
   points: readonly SelectedStarTrackPoint[],
 ): SelectedStarTrack {
   return {
+    earthOrientationProvenance: {
+      auxiliaryFallbackSampleCount: 0,
+      auxiliarySampleCount: Math.max(0, points.length - 1),
+      centerStatus: "ready",
+    },
     points,
     sampleIntervalMinutes: 30,
     starHr: 1,

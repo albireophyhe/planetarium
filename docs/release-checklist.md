@@ -118,9 +118,15 @@ ASDF_NODEJS_VERSION=24.18.0 npm run web:bench:precision:soak
   利用不能値は`null`と状態を組み合わせ、実際に適用したEOPの0近似だけを
   `0`と`assumed-zero`で表し、表示桁を精度保証として説明しない
 - [ ] 精密導入JSONの共通Draft 2020-12 SchemaがAJV strictでcompileでき、
-  Web、macOS、EOP 0近似の3正例を受理し、未知キー・固定値・範囲・状態矛盾を
-  壊す11負例を拒否する。CLIがファイル／stdinの不正JSONと不適合を非0で返す
-- [ ] 選択星の軌跡は既定OFFで、ON時だけ前後3時間・最大13点を2D/3Dと時刻再生へ同期する
+  canonical field集合を両serializerが出す。6合成正例、macOS本番出力4 fixture、
+  Web本番serializerのIERS／0近似・大気差代表状態を受理し、未知キー・固定値・
+  範囲・時刻／EOP／座標／大気差／診断の意味関係を壊す28負例を拒否する。
+  Mac fixtureはSwift本番出力とのdeep equalityも通り、CLIがファイル／stdinの
+  不正JSONと不適合を非0で返す
+- [ ] 選択星の軌跡は既定OFFで、ON時だけ前後3時間・最大13点を2D/3Dと
+  時刻再生へ同期する。中心は公開済みEOPを再利用し、周辺取得を含めて
+  0近似した点だけを凡例とCanvasの説明へ示し、OFF／再計算失敗時は古い
+  provenanceを残さない
 - [ ] 太陽中心の幾何高度、薄明、地平線下、向き、精度制約が画面から理解できる
 - [ ] 太陽方向マーカーはWeb/macOSの2D・3Dで同じ太陽状態に同期し、地平線上下・背面・ナイトモード・高コントラストを区別し、恒星選択を奪わない
 - [ ] macOS 3Dはdrag・pinch、方向・拡大縮小・resetボタン、`⌃⌘矢印`、`⌘＋ / ⌘−`、`⌘0`、狭幅配置、倍率のVoiceOver値が同じ向きと倍率を更新する
