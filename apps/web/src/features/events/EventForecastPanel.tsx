@@ -24,6 +24,10 @@ import {
   type LoadedEclipseCandidate,
 } from "../../domain/events/eventCandidates";
 import {
+  eventEphemerisSearchBounds,
+  intersectEventSearchBounds,
+} from "../../domain/events/ephemerisCoverage";
+import {
   fetchEventAsset,
 } from "../../domain/events/eventAssetTransport";
 import {
@@ -34,12 +38,22 @@ import {
   eventForecastYearCoverageGap,
   type EventForecastCoverageGap,
 } from "../../domain/events/eventForecastYearCoverage";
-import { calculateLocalLunarEclipse } from "../../domain/events/lunarEclipse";
-import { calculateLocalLunarOccultation } from "../../domain/events/lunarOccultation";
-import { calculateLocalSolarEclipse } from "../../domain/events/solarEclipse";
+import {
+  calculateLocalLunarEclipse,
+  sampleLocalLunarEclipseAt,
+} from "../../domain/events/lunarEclipse";
+import {
+  calculateLocalLunarOccultation,
+  sampleLocalLunarOccultationAt,
+} from "../../domain/events/lunarOccultation";
+import {
+  calculateLocalSolarEclipse,
+  sampleLocalSolarEclipseAt,
+} from "../../domain/events/solarEclipse";
+import { tdbJulianDateToUtcDate } from "../../domain/events/eventTime";
 import type {
-  EventContact,
   EventEarthOrientationProvenance,
+  EventPhysicalSample,
   EventKind,
   EventSummary,
   LocalCircumstances,
@@ -49,6 +63,13 @@ import {
   EventExplorer,
   type EventExplorerStatus,
 } from "./EventExplorer";
+import {
+  eventSceneContactRange,
+  eventSceneProjectionInstants,
+  eventSceneProjectionSampleCount,
+  type EventSceneSamplingSession,
+  type EventSceneSamplingState,
+} from "./EventSceneSamplingSession";
 import { preferredEventId } from "./eventSelection";
 import "./EventExplorer.css";
 
@@ -64,6 +85,7 @@ const MINIMUM_FORECAST_DATE_MILLISECONDS =
 const MAXIMUM_FORECAST_DATE_MILLISECONDS =
   Date.UTC(MAXIMUM_FORECAST_YEAR + 1, 0, 1) - 1;
 const FORECAST_RESULT_CACHE_CAPACITY = 3;
+const EVENT_SCENE_SAMPLE_CACHE_CAPACITY = 64;
 
 const candidateLoader = new EventCandidateLoader(fetchEventAsset);
 const ephemerisLoader = new De442sEphemerisLoader({
@@ -101,6 +123,7 @@ function eventKindFilterLabel(filter: EventKindFilter): string {
 export type EventForecastPanelProps = {
   observationDate: Date;
   location: ObserverLocation;
+  isActive?: boolean;
   precisionCatalog: PrecisionStarCatalogV2 | null;
   precisionCatalogStatus: "loading" | "ready" | "error";
   canRestoreObservationTime: boolean;
@@ -118,6 +141,14 @@ type ForecastState = {
   readonly status: EventExplorerStatus;
   readonly events: readonly EventSummary[];
   readonly circumstancesById: ReadonlyMap<string, LocalCircumstances>;
+  /**
+   * Plain candidate records are safe to retain in the small forecast LRU.
+   * Runtime samplers are deliberately kept in selected-session state only.
+   */
+  readonly candidateById: ReadonlyMap<
+    string,
+    LoadedEclipseCandidate
+  >;
   readonly belowHorizonCount: number;
   readonly calculationFailureCount: number;
   readonly excludedAtLocationCount: number;
@@ -132,9 +163,33 @@ type ForecastCacheEntry = {
   readonly precisionCatalog: PrecisionStarCatalogV2 | null;
 };
 
+type SceneSamplingRequestState = {
+  readonly requestKey: string | null;
+  readonly value: EventSceneSamplingState;
+};
+
+function resolveDisplayedSceneSampling(
+  isActive: boolean,
+  isAvailable: boolean,
+  requestKeyMatches: boolean,
+  requestValue: EventSceneSamplingState,
+): EventSceneSamplingState {
+  if (!isActive || !isAvailable) {
+    return { session: null, status: "unavailable" };
+  }
+  if (
+    !requestKeyMatches ||
+    requestValue.status === "unavailable"
+  ) {
+    return { session: null, status: "loading" };
+  }
+  return requestValue;
+}
+
 const INITIAL_FORECAST_STATE: ForecastState = {
   belowHorizonCount: 0,
   calculationFailureCount: 0,
+  candidateById: new Map(),
   circumstancesById: new Map(),
   events: [],
   excludedAtLocationCount: 0,
@@ -354,16 +409,12 @@ function yieldToEventLoop(signal: AbortSignal): Promise<void> {
   });
 }
 
-function calculateCandidate(
+function eventCalculationOptions(
   candidate: LoadedEclipseCandidate,
-  ephemeris: Awaited<
-    ReturnType<De442sEphemerisLoader["loadRange"]>
-  >,
   location: ObserverLocation,
-  precisionCatalog: PrecisionStarCatalogV2 | null,
   earthOrientationSnapshot: IersEarthOrientationSnapshotV1,
   signal: AbortSignal,
-): LocalCircumstances | null {
+) {
   const estimate = earthOrientationSnapshot.lookup(
     candidate.summary.canonicalEpochUtc,
   );
@@ -380,7 +431,7 @@ function calculateCandidate(
       earthOrientationSnapshot,
       candidate.summary.canonicalEpochUtc,
     );
-  const options = {
+  return {
     deltaTModel:
       earthRotationFallback?.deltaTModel ??
       "IERS-EOP-and-bundled-leap-second-history",
@@ -456,22 +507,41 @@ function calculateCandidate(
         : earthRotationFallback.deltaTUncertaintySeconds +
           (candidate.seed.kind === "lunar-eclipse" ? 10 : 0),
   } as const;
+}
 
+function calculateCandidate(
+  candidate: LoadedEclipseCandidate,
+  ephemeris: Awaited<
+    ReturnType<De442sEphemerisLoader["loadRange"]>
+  >,
+  location: ObserverLocation,
+  precisionCatalog: PrecisionStarCatalogV2 | null,
+  earthOrientationSnapshot: IersEarthOrientationSnapshotV1,
+  signal: AbortSignal,
+): LocalCircumstances | null {
+  const options = eventCalculationOptions(
+    candidate,
+    location,
+    earthOrientationSnapshot,
+    signal,
+  );
   switch (candidate.seed.kind) {
-    case "solar-eclipse":
+    case "solar-eclipse": {
       return calculateLocalSolarEclipse(
         ephemeris,
         candidate.summary,
         location,
         options,
       );
-    case "lunar-eclipse":
+    }
+    case "lunar-eclipse": {
       return calculateLocalLunarEclipse(
         ephemeris,
         candidate.summary,
         location,
         options,
       );
+    }
     case "lunar-occultation": {
       if (!precisionCatalog) {
         return null;
@@ -513,6 +583,7 @@ async function calculateYearForecast(
     return {
       belowHorizonCount: 0,
       calculationFailureCount: 0,
+      candidateById: new Map(),
       circumstancesById: new Map(),
       events: [],
       excludedAtLocationCount: 0,
@@ -533,6 +604,7 @@ async function calculateYearForecast(
     return {
       belowHorizonCount: 0,
       calculationFailureCount: 0,
+      candidateById: new Map(),
       circumstancesById: new Map(),
       events: [],
       excludedAtLocationCount: 0,
@@ -578,6 +650,10 @@ async function calculateYearForecast(
   throwIfAborted(signal);
 
   const localCircumstances: LocalCircumstances[] = [];
+  const candidateById = new Map<
+    string,
+    LoadedEclipseCandidate
+  >();
   let calculationFailureCount = 0;
   let excludedAtLocationCount = 0;
   for (
@@ -617,6 +693,7 @@ async function calculateYearForecast(
       ) === year
     ) {
       localCircumstances.push(circumstances);
+      candidateById.set(circumstances.event.id, candidate);
     }
     await yieldToEventLoop(signal);
   }
@@ -637,6 +714,7 @@ async function calculateYearForecast(
       ({ visibility }) => visibility === "below-horizon",
     ).length,
     calculationFailureCount,
+    candidateById,
     circumstancesById,
     events: Object.freeze(
       localCircumstances.map(({ event, maximum }) =>
@@ -666,6 +744,247 @@ async function calculateYearForecast(
         }
       : {}),
   };
+}
+
+function validateSceneSample(
+  candidate: LoadedEclipseCandidate,
+  requestedMilliseconds: number,
+  sample: EventPhysicalSample,
+): EventPhysicalSample {
+  if (
+    sample.instantUtc.getTime() !== requestedMilliseconds ||
+    !sample.bodies.moon
+  ) {
+    throw new RangeError(
+      "Event-scene sampler returned an inconsistent physical sample",
+    );
+  }
+  switch (candidate.seed.kind) {
+    case "solar-eclipse":
+      if (!sample.bodies.sun) {
+        throw new RangeError(
+          "Solar scene sample does not contain the Sun",
+        );
+      }
+      break;
+    case "lunar-eclipse":
+      if (!sample.lunarShadow) {
+        throw new RangeError(
+          "Lunar scene sample does not contain the Earth shadow",
+        );
+      }
+      break;
+    case "lunar-occultation":
+      if (!sample.bodies.target) {
+        throw new RangeError(
+          "Occultation scene sample does not contain the target",
+        );
+      }
+      break;
+  }
+  return sample;
+}
+
+async function prepareEventSceneSamplingSession(
+  candidate: LoadedEclipseCandidate,
+  circumstances: LocalCircumstances,
+  location: ObserverLocation,
+  precisionCatalog: PrecisionStarCatalogV2 | null,
+  loadEarthOrientationSnapshot: EventForecastPanelProps["loadEarthOrientationSnapshot"],
+  signal: AbortSignal,
+): Promise<EventSceneSamplingSession> {
+  if (
+    candidate.seed.id !== circumstances.event.id ||
+    candidate.seed.kind !== circumstances.event.kind
+  ) {
+    throw new TypeError(
+      "Event-scene candidate and circumstances must match",
+    );
+  }
+  const contactRange = eventSceneContactRange(circumstances);
+  if (!contactRange) {
+    throw new RangeError(
+      "Event-scene simulation requires two distinct solved contacts",
+    );
+  }
+  const candidateBounds = Object.freeze({
+    endUtcMilliseconds: tdbJulianDateToUtcDate(
+      candidate.seed.searchEndJulianDateTdb,
+    ).getTime(),
+    startUtcMilliseconds: tdbJulianDateToUtcDate(
+      candidate.seed.searchStartJulianDateTdb,
+    ).getTime(),
+  });
+  const ephemerisPromise = ephemerisLoader.loadRange(
+    candidate.seed.searchStartJulianDateTdb,
+    candidate.seed.searchEndJulianDateTdb,
+    { clipToCoverage: true, signal },
+  );
+  const earthOrientationPromise = loadEarthOrientationSnapshot(
+    new Date(
+      contactRange.startMilliseconds -
+        EOP_SNAPSHOT_PADDING_MILLISECONDS,
+    ),
+    new Date(
+      contactRange.endMilliseconds +
+        EOP_SNAPSHOT_PADDING_MILLISECONDS,
+    ),
+  );
+  const [ephemeris, earthOrientationSnapshot] =
+    await Promise.all([
+      ephemerisPromise,
+      earthOrientationPromise,
+    ]);
+  throwIfAborted(signal);
+
+  const loadedBounds = intersectEventSearchBounds(
+    eventEphemerisSearchBounds(ephemeris),
+    candidateBounds,
+  );
+  const timelineBounds = intersectEventSearchBounds(
+    loadedBounds,
+    {
+      endUtcMilliseconds: contactRange.endMilliseconds,
+      startUtcMilliseconds: contactRange.startMilliseconds,
+    },
+  );
+  const rangeUtc = Object.freeze({
+    endMilliseconds: timelineBounds.endUtcMilliseconds,
+    startMilliseconds: timelineBounds.startUtcMilliseconds,
+  });
+  const options = eventCalculationOptions(
+    candidate,
+    location,
+    earthOrientationSnapshot,
+    signal,
+  );
+  let calculateSample: (instantUtc: Date) => EventPhysicalSample;
+  switch (candidate.seed.kind) {
+    case "solar-eclipse":
+      calculateSample = (instantUtc) =>
+        sampleLocalSolarEclipseAt(
+          ephemeris,
+          instantUtc,
+          location,
+          options,
+        );
+      break;
+    case "lunar-eclipse":
+      calculateSample = (instantUtc) =>
+        sampleLocalLunarEclipseAt(
+          ephemeris,
+          instantUtc,
+          location,
+          options,
+        );
+      break;
+    case "lunar-occultation": {
+      if (
+        !precisionCatalog ||
+        circumstances.event.targetStarHR !==
+          candidate.seed.target.hr
+      ) {
+        throw new TypeError(
+          "Occultation scene requires the matching precision target",
+        );
+      }
+      const target = precisionCatalog.starByHR.get(
+        candidate.seed.target.hr,
+      );
+      if (!target) {
+        throw new Error(
+          `精密星表にHR ${candidate.seed.target.hr}がありません。`,
+        );
+      }
+      calculateSample = (instantUtc) =>
+        sampleLocalLunarOccultationAt(
+          ephemeris,
+          instantUtc,
+          target,
+          location,
+          options,
+        );
+      break;
+    }
+  }
+  const sampleCache = new Map<number, EventPhysicalSample>();
+  const sampleAt = (instantUtc: Date): EventPhysicalSample => {
+    throwIfAborted(signal);
+    const requestedMilliseconds = instantUtc.getTime();
+    if (
+      !Number.isFinite(requestedMilliseconds) ||
+      requestedMilliseconds < rangeUtc.startMilliseconds ||
+      requestedMilliseconds > rangeUtc.endMilliseconds
+    ) {
+      throw new RangeError(
+        "Event-scene instant is outside the prepared timeline",
+      );
+    }
+    const cached = sampleCache.get(requestedMilliseconds);
+    if (cached) {
+      sampleCache.delete(requestedMilliseconds);
+      sampleCache.set(requestedMilliseconds, cached);
+      return cached;
+    }
+    const sample = validateSceneSample(
+      candidate,
+      requestedMilliseconds,
+      calculateSample(new Date(requestedMilliseconds)),
+    );
+    sampleCache.set(requestedMilliseconds, sample);
+    while (
+      sampleCache.size > EVENT_SCENE_SAMPLE_CACHE_CAPACITY
+    ) {
+      const oldest = sampleCache.keys().next().value;
+      if (oldest === undefined) {
+        break;
+      }
+      sampleCache.delete(oldest);
+    }
+    return sample;
+  };
+  const projectionInstants = eventSceneProjectionInstants(
+    rangeUtc,
+    eventSceneProjectionSampleCount(
+      candidate.seed.kind,
+      rangeUtc,
+    ),
+    [
+      ...circumstances.contacts.map(
+        ({ instantUtc }) => instantUtc,
+      ),
+      circumstances.maximum.instantUtc,
+    ],
+  );
+  const projectionSamples: EventPhysicalSample[] = [];
+  for (
+    let index = 0;
+    index < projectionInstants.length;
+    index += 1
+  ) {
+    const instant = projectionInstants[index];
+    if (instant) {
+      projectionSamples.push(sampleAt(instant));
+    }
+    if (index > 0 && index % 8 === 0) {
+      await yieldToEventLoop(signal);
+    }
+  }
+  throwIfAborted(signal);
+  return Object.freeze({
+    eventId: circumstances.event.id,
+    kind: circumstances.event.kind,
+    projectionSamples: Object.freeze(projectionSamples),
+    rangeUtc,
+    resource: Object.freeze({
+      ephemerisId: ephemeris.id,
+      ephemerisSourceSha256: ephemeris.sourceSha256,
+      eopRetrievedAt: earthOrientationSnapshot.retrievedAt,
+      eopSourceSha256: earthOrientationSnapshot.sourceSha256,
+    }),
+    sampleAt,
+    targetStarHR: circumstances.event.targetStarHR,
+  });
 }
 
 function ForecastYearControls({
@@ -728,6 +1047,7 @@ function ForecastYearControls({
 
 export function EventForecastPanel({
   canRestoreObservationTime,
+  isActive = true,
   loadEarthOrientationSnapshot,
   location,
   observationDate,
@@ -745,6 +1065,8 @@ export function EventForecastPanel({
     observationDate.getTime();
   const [year, setYear] = useState(() => observationYear);
   const [retryAttempt, setRetryAttempt] = useState(0);
+  const [sceneRetryAttempt, setSceneRetryAttempt] =
+    useState(0);
   const [showBelowHorizon, setShowBelowHorizon] = useState(false);
   const [eventKindFilter, setEventKindFilter] =
     useState<EventKindFilter>("all");
@@ -754,6 +1076,11 @@ export function EventForecastPanel({
   const eventKindFilterId = useId();
   const [forecast, setForecast] =
     useState<ForecastState>(INITIAL_FORECAST_STATE);
+  const [sceneSamplingRequest, setSceneSamplingRequest] =
+    useState<SceneSamplingRequestState>({
+      requestKey: null,
+      value: { session: null, status: "unavailable" },
+    });
   const forecastCacheRef = useRef(
     new Map<string, ForecastCacheEntry>(),
   );
@@ -884,6 +1211,7 @@ export function EventForecastPanel({
         setForecast({
           belowHorizonCount: 0,
           calculationFailureCount: 0,
+          candidateById: new Map(),
           circumstancesById: new Map(),
           errorMessage:
             "予報データを検証または計算できませんでした。再試行してください。",
@@ -949,6 +1277,108 @@ export function EventForecastPanel({
         displayedSelectedEventId,
       ) ?? null)
     : null;
+  const selectedCandidate = displayedSelectedEventId
+    ? (displayedForecast.candidateById.get(
+        displayedSelectedEventId,
+      ) ?? null)
+    : null;
+  const sceneSamplingRequestKey =
+    `${forecastRequestKey}|scene:${displayedSelectedEventId ?? "none"}` +
+    `|retry:${sceneRetryAttempt}`;
+  const sceneSamplingIsAvailable =
+    selectedCircumstances !== null &&
+    selectedCandidate !== null &&
+    eventSceneContactRange(selectedCircumstances) !== null;
+
+  useEffect(() => {
+    if (
+      !isActive ||
+      !sceneSamplingIsAvailable ||
+      !selectedCandidate ||
+      !selectedCircumstances
+    ) {
+      // Release the previously selected provider/EOP closure immediately.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSceneSamplingRequest((current) =>
+        current.requestKey === sceneSamplingRequestKey &&
+        current.value.status === "unavailable"
+          ? current
+          : {
+              requestKey: sceneSamplingRequestKey,
+              value: {
+                session: null,
+                status: "unavailable",
+              },
+            },
+      );
+      return;
+    }
+    const controller = new AbortController();
+    // A session retains decoded ephemeris data, so do not retain the old
+    // selected event while the next one prepares.
+    setSceneSamplingRequest((current) =>
+      current.requestKey === sceneSamplingRequestKey &&
+      current.value.status === "loading"
+        ? current
+        : {
+            requestKey: sceneSamplingRequestKey,
+            value: { session: null, status: "loading" },
+          },
+    );
+    void prepareEventSceneSamplingSession(
+      selectedCandidate,
+      selectedCircumstances,
+      location,
+      activePrecisionCatalog,
+      loadEarthOrientationSnapshot,
+      controller.signal,
+    )
+      .then((session) => {
+        if (!controller.signal.aborted) {
+          setSceneSamplingRequest({
+            requestKey: sceneSamplingRequestKey,
+            value: { session, status: "ready" },
+          });
+        }
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        if (import.meta.env.DEV) {
+          console.error(
+            "Event scene sampling session failed",
+            error,
+          );
+        }
+        setSceneSamplingRequest({
+          requestKey: sceneSamplingRequestKey,
+          value: {
+            errorMessage:
+              "連続シミュレーションを準備できませんでした。計算済み時刻の静止図は利用できます。",
+            session: null,
+            status: "error",
+          },
+        });
+      });
+    return () => controller.abort();
+  }, [
+    activePrecisionCatalog,
+    isActive,
+    loadEarthOrientationSnapshot,
+    location,
+    sceneSamplingIsAvailable,
+    sceneSamplingRequestKey,
+    selectedCandidate,
+    selectedCircumstances,
+  ]);
+
+  const sceneSampling = resolveDisplayedSceneSampling(
+    isActive,
+    sceneSamplingIsAvailable,
+    sceneSamplingRequest.requestKey === sceneSamplingRequestKey,
+    sceneSamplingRequest.value,
+  );
   const localClassificationsByEventId = new Map(
     Array.from(
       displayedForecast.circumstancesById,
@@ -989,9 +1419,13 @@ export function EventForecastPanel({
     setRetryAttempt((current) => current + 1);
   }, [onRetryPrecisionCatalog, precisionCatalogStatus]);
 
+  const retrySceneSampling = useCallback(() => {
+    setSceneRetryAttempt((current) => current + 1);
+  }, []);
+
   const showContact = useCallback(
-    (contact: EventContact) => {
-      onShowEventTime(contact.instantUtc);
+    (sample: { readonly instantUtc: Date }) => {
+      onShowEventTime(sample.instantUtc);
     },
     [onShowEventTime],
   );
@@ -1215,14 +1649,17 @@ export function EventForecastPanel({
         localClassificationsByEventId={
           localClassificationsByEventId
         }
+        isActive={isActive}
         observationDate={observationDate}
         onGoToContact={showContact}
         onGoToMaximum={showContact}
         onRestoreObservationTime={onRestoreObservationTime}
         onRetry={retry}
+        onRetrySceneSampling={retrySceneSampling}
         onSelectEvent={setSelectedEventId}
         selectedCircumstances={selectedCircumstances}
         selectedEventId={displayedSelectedEventId}
+        sceneSampling={sceneSampling}
         status={explorerStatus}
         timeZone={location.timeZone}
       />

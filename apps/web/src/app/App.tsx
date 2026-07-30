@@ -110,6 +110,34 @@ const GEOMETRIC_POSITION_OPTIONS: ApparentPositionOptionsV2 =
     refraction: false,
   });
 
+const MOBILE_SIDE_PANEL_MEDIA_QUERY = "(max-width: 860px)";
+
+function useMobileSidePanelLayout(): boolean {
+  const [matches, setMatches] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia(MOBILE_SIDE_PANEL_MEDIA_QUERY).matches,
+  );
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    ) {
+      return;
+    }
+    const mediaQuery = window.matchMedia(
+      MOBILE_SIDE_PANEL_MEDIA_QUERY,
+    );
+    const handleChange = (event: MediaQueryListEvent) =>
+      setMatches(event.matches);
+    mediaQuery.addEventListener("change", handleChange);
+    return () =>
+      mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+  return matches;
+}
+
 const STANDARD_REFRACTION_OPTIONS: ApparentPositionOptionsV2 =
   Object.freeze({
     refraction: Object.freeze({
@@ -241,6 +269,8 @@ function apparentPositionOptionsWithEarthOrientation(
 }
 
 export function App() {
+  const usesMobileSidePanelLayout =
+    useMobileSidePanelLayout();
   const [initialClock] = useState(() => {
     const requestedDate = new Date();
     const date = clampObservationDate(requestedDate);
@@ -1182,6 +1212,11 @@ export function App() {
                   >
                     <LazyEventForecastPanel
                       canRestoreObservationTime={eventReturnDate !== null}
+                      isActive={
+                        sideFeature === "events" &&
+                        (!usesMobileSidePanelLayout ||
+                          mobileTab === "stars")
+                      }
                       loadEarthOrientationSnapshot={
                         loadIersEarthOrientationSnapshot
                       }

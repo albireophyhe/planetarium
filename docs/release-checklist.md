@@ -15,7 +15,7 @@
 - [ ] SOFA由来コードのnoticeと、独立実装・外部データの出典を確認
 - [ ] DE442s manifestと41 chunk、イベント候補manifestとchunk、IERS EOP、
   各strict schema、元データhash、coverage、byte長、再配布条件が一致する
-- [ ] NASA日食・月食、イベント地球自転、位置角、年端coverageの共有fixtureを
+- [ ] NASA日食・月食、イベント地球自転、位置角、年端coverage、任意UTC物理sampleの共有fixtureを
   WebとSwiftが同じschemaVersionと意味で読む
 - [ ] 恒星位置の誤差予算、イベント境界、平均月縁、連続UTCシナリオ、
   年端coverageを変更内容と一致させ、表示桁を保証精度として説明しない
@@ -117,6 +117,11 @@ ASDF_NODEJS_VERSION=24.18.0 npm run web:bench:precision:soak
   別年では先頭がWebとmacOSで選択される
 - [ ] 日食・月食・恒星掩蔽の局地分類、現地／UTC、最大／最接近、接触の
   高度・方位・位置角、星図時刻への移動と復帰が一致する
+- [ ] 相対配置は全接触・最大／最接近・物理sample gridで角視野を固定し、
+  manual scrubと明示再生の各フレームを指定UTCから再計算する。非表示化と
+  reduced-motionで再生が止まり、最大しか確定しない現象は静止図だけになる
+- [ ] 年次予報LRUがruntime samplerを保持せず、選択sessionの取消、
+  stale結果破棄、範囲外拒否、上限付きsample cacheがWebとmacOSで成功する
 - [ ] 物理境界では発生未確定と中心食分類未確定を区別し、断定できない接触を
   表示せず、地平線状態を別に示す
 - [ ] 1900／2100年の収録範囲注意が必要な地点だけに欠落時間を示し、

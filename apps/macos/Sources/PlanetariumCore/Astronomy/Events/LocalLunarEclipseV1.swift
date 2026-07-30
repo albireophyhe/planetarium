@@ -1,6 +1,6 @@
 import Foundation
 
-private struct LunarShadowSampleV1: Sendable {
+struct LunarShadowSampleV1: Sendable {
     let secondsSinceReferenceDate: Double
     let sun: EclipseApparentBodyStateV1
     let moon: EclipseApparentBodyStateV1
@@ -105,31 +105,13 @@ public enum LocalLunarEclipseV1 {
             if let cached = samples[instant] {
                 return cached
             }
-            try EclipseCalculationSupportV1
-                .checkCancellation(
-                    options.shouldCancel
-                )
-            let date = Date(
-                timeIntervalSinceReferenceDate:
-                    instant
-            )
-            let pair =
-                try await EclipseCalculationSupportV1
-                    .apparentGeocentricPair(
-                        provider: provider,
-                        at: date,
-                        earthOrientation:
-                            try options
-                            .resolvedEarthOrientation(
-                                at: date
-                            ),
-                        shouldCancel:
-                            options.shouldCancel
-                    )
-            let sample = shadowSample(
-                instant: instant,
-                sun: pair.sun,
-                moon: pair.moon
+            let sample = try await rawSample(
+                provider: provider,
+                at: Date(
+                    timeIntervalSinceReferenceDate:
+                        instant
+                ),
+                options: options
             )
             samples[instant] = sample
             return sample
@@ -319,6 +301,127 @@ public enum LocalLunarEclipseV1 {
         )
     }
 
+    /**
+     Evaluates a physical Danjon-shadow scene at an arbitrary UTC instant.
+
+     The returned value is not labelled as a contact or maximum. Shadow
+     geometry follows the same geocentric DE442s path as the contact solver,
+     while Sun/Moon horizon coordinates use the same topocentric observer
+     pipeline as the published local contacts.
+     */
+    public static func sampleScene(
+        provider: DE442SEphemerisProviderV1,
+        candidate: EclipseCandidateV1,
+        at instantUTC: Date,
+        location: ObservingLocation,
+        options: LocalEclipseOptionsV1 =
+            LocalEclipseOptionsV1()
+    ) async throws -> EventSceneSampleV1 {
+        guard candidate.kind == .lunarEclipse else {
+            throw LocalEclipseErrorV1
+                .wrongCandidateKind
+        }
+        let validLocation =
+            try EclipseCalculationSupportV1
+            .validate(
+                location: location,
+                options: options
+            )
+        try EclipseCalculationSupportV1
+            .validateSceneInstant(
+                provider: provider,
+                instantUTC: instantUTC,
+                shouldCancel:
+                    options.shouldCancel
+            )
+        let raw = try await rawSample(
+            provider: provider,
+            at: instantUTC,
+            options: options
+        )
+        let topocentric =
+            try await EclipseCalculationSupportV1
+            .apparentTopocentricPair(
+                provider: provider,
+                at: instantUTC,
+                location: validLocation,
+                options: options
+            )
+        let sun = try EventSceneSampleSupportV1
+            .bodyPosition(topocentric.sun)
+        let moon = try EventSceneSampleSupportV1
+            .bodyPosition(topocentric.moon)
+        let shadow = shadowGeometry(raw)
+        guard
+            let layout =
+                EventSceneGeometryV1
+                .lunarEclipseLayout(
+                    moonAngularRadiusRadians:
+                        moon
+                        .angularRadiusRadians,
+                    shadow: shadow,
+                    magnitude: 0,
+                    usesPenumbralMagnitude:
+                        false
+                )
+        else {
+            throw EventSceneSampleErrorV1
+                .invalidGeometry
+        }
+        let direction =
+            try EventSceneSampleSupportV1
+            .require(layout.moonOffset)
+        return EventSceneSampleV1(
+            kind: .lunarEclipse,
+            instantUTC: instantUTC,
+            sun: sun,
+            moon: moon,
+            lunarShadow: shadow,
+            targetStar: nil,
+            aboveHorizon:
+                moon.horizontal.altitude
+                + moon.angularRadiusRadians
+                > 0,
+            relativeDirection: direction
+        )
+    }
+
+    static func rawSample(
+        provider: DE442SEphemerisProviderV1,
+        at instantUTC: Date,
+        options: LocalEclipseOptionsV1
+    ) async throws -> LunarShadowSampleV1 {
+        try EclipseCalculationSupportV1
+            .checkCancellation(
+                options.shouldCancel
+            )
+        let instant =
+            instantUTC
+            .timeIntervalSinceReferenceDate
+        guard instant.isFinite else {
+            throw EventSceneSampleErrorV1
+                .invalidInstant
+        }
+        let pair =
+            try await EclipseCalculationSupportV1
+            .apparentGeocentricPair(
+                provider: provider,
+                at: instantUTC,
+                earthOrientation:
+                    try options
+                    .resolvedEarthOrientation(
+                        at: instantUTC
+                    ),
+                shouldCancel:
+                    options.shouldCancel
+            )
+        return shadowSample(
+            instant: instant,
+            sun: pair.sun,
+            moon: pair.moon
+        )
+    }
+
     private enum ShadowV1: Sendable {
         case penumbral
         case umbral
@@ -364,6 +467,31 @@ public enum LocalLunarEclipseV1 {
                 * moonParallax
                 - sun.angularRadiusRadians
                 + sunParallax
+        )
+    }
+
+    private static func shadowGeometry(
+        _ sample: LunarShadowSampleV1
+    ) -> LunarShadowGeometryV1 {
+        LunarShadowGeometryV1(
+            centerSeparationRadians:
+                sample
+                .centerSeparationRadians,
+            centerPositionAngleRadians:
+                EclipseContactPositionAngleV1
+                .radians(
+                    referenceCenterDirection:
+                        sample.moon.cirsDirection,
+                    otherCenterDirection:
+                        sample.sun.cirsDirection
+                        * -1
+                ),
+            penumbralAngularRadiusRadians:
+                sample
+                .penumbralRadiusRadians,
+            umbralAngularRadiusRadians:
+                sample
+                .umbralRadiusRadians
         )
     }
 
@@ -619,14 +747,6 @@ public enum LocalLunarEclipseV1 {
         let contactPointIsAwayFromShadowCenter =
             phase == .lunarU2
             || phase == .lunarU3
-        let centerPositionAngleRadians =
-            EclipseContactPositionAngleV1
-            .radians(
-                referenceCenterDirection:
-                    sample.moon.cirsDirection,
-                otherCenterDirection:
-                    shadowCenterDirection
-            )
         return EclipseContactV1(
             phase: phase,
             instantUTC: Date(
@@ -641,16 +761,7 @@ public enum LocalLunarEclipseV1 {
                 distanceKilometers:
                     pair.moon.distanceKilometers
             ),
-            lunarShadow: LunarShadowGeometryV1(
-                centerSeparationRadians:
-                    sample.centerSeparationRadians,
-                centerPositionAngleRadians:
-                    centerPositionAngleRadians,
-                penumbralAngularRadiusRadians:
-                    sample.penumbralRadiusRadians,
-                umbralAngularRadiusRadians:
-                    sample.umbralRadiusRadians
-            ),
+            lunarShadow: shadowGeometry(sample),
             aboveHorizon:
                 moonHorizontal.altitude
                     + pair.moon.angularRadiusRadians

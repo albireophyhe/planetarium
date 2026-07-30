@@ -122,6 +122,12 @@ const contracts = [
   },
   {
     data:
+      "shared/fixtures/event-physical-samples.v1.json",
+    schema:
+      "shared/schema/event-physical-samples.schema.json"
+  },
+  {
+    data:
       "shared/fixtures/nasa-solar-eclipses-2021-2030.v1.json",
     schema:
       "shared/schema/nasa-solar-eclipses-2021-2030.schema.json"

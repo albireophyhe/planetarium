@@ -35,6 +35,9 @@ const eventMocks = vi.hoisted(() => ({
   candidateLoadRange: vi.fn(),
   ephemerisLoadRange: vi.fn(),
   fetchAsset: vi.fn(),
+  sampleLunar: vi.fn(),
+  sampleOccultation: vi.fn(),
+  sampleSolar: vi.fn(),
 }));
 
 vi.mock("../../domain/events/eventCandidates", () => ({
@@ -55,14 +58,17 @@ vi.mock("../../domain/events/eventAssetTransport", () => ({
 
 vi.mock("../../domain/events/solarEclipse", () => ({
   calculateLocalSolarEclipse: eventMocks.calculateSolar,
+  sampleLocalSolarEclipseAt: eventMocks.sampleSolar,
 }));
 
 vi.mock("../../domain/events/lunarEclipse", () => ({
   calculateLocalLunarEclipse: eventMocks.calculateLunar,
+  sampleLocalLunarEclipseAt: eventMocks.sampleLunar,
 }));
 
 vi.mock("../../domain/events/lunarOccultation", () => ({
   calculateLocalLunarOccultation: eventMocks.calculateOccultation,
+  sampleLocalLunarOccultationAt: eventMocks.sampleOccultation,
 }));
 
 import { EventForecastPanel } from "./EventForecastPanel";
@@ -292,6 +298,31 @@ function circumstances(
   };
 }
 
+function solarPhysicalSample(instantUtc: Date) {
+  const horizontal = {
+    altitude: 0.5,
+    azimuth: 1,
+    azimuthDefined: true,
+  };
+  return {
+    aboveHorizon: true,
+    bodies: {
+      moon: {
+        altitudeAzimuth: horizontal,
+        angularRadiusRadians: 0.0047,
+        distanceKilometers: 380_000,
+      },
+      sun: {
+        altitudeAzimuth: horizontal,
+        angularRadiusRadians: 0.0046,
+        distanceKilometers: 149_600_000,
+      },
+    },
+    instantUtc: new Date(instantUtc),
+    positionAngleRadians: null,
+  };
+}
+
 function panelProps(
   overrides: Partial<
     React.ComponentProps<typeof EventForecastPanel>
@@ -324,8 +355,17 @@ describe("EventForecastPanel", () => {
     eventMocks.ephemerisLoadRange.mockResolvedValue({
       id: "DE442s",
       sourceSha256: "0".repeat(64),
+      stateCoverage: {
+        endIsIncluded: true,
+        endJulianDateTdb: 2_500_000,
+        startJulianDateTdb: 2_400_000,
+      },
       state: vi.fn(),
     });
+    eventMocks.sampleSolar.mockImplementation(
+      (_ephemeris, instantUtc: Date) =>
+        solarPhysicalSample(instantUtc),
+    );
     eventMocks.calculateSolar.mockReturnValue(
       circumstances(SOLAR_SUMMARY, "fully-visible"),
     );
@@ -1531,6 +1571,137 @@ describe("EventForecastPanel", () => {
     expect(
       eventMocks.candidateLoadRange,
     ).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports an unexpected selected-scene AbortError and can prepare again", async () => {
+    const start = {
+      ...contact("2026-08-12T17:00:00.000Z"),
+      phase: "solar-c1" as const,
+    };
+    const maximum = {
+      ...contact("2026-08-12T18:00:00.000Z"),
+      phase: "maximum" as const,
+    };
+    const end = {
+      ...contact("2026-08-12T19:00:00.000Z"),
+      phase: "solar-c4" as const,
+    };
+    eventMocks.candidateLoadRange.mockResolvedValue([
+      candidate(SOLAR_SUMMARY, 2_461_200, 2_461_300),
+    ]);
+    eventMocks.calculateSolar.mockReturnValue({
+      ...circumstances(SOLAR_SUMMARY, "fully-visible"),
+      contacts: [start, maximum, end],
+      maximum,
+    });
+    const provider = {
+      id: "DE442s",
+      sourceSha256: "0".repeat(64),
+      state: vi.fn(),
+      stateCoverage: {
+        endIsIncluded: true as const,
+        endJulianDateTdb: 2_461_400,
+        startJulianDateTdb: 2_461_100,
+      },
+    };
+    eventMocks.ephemerisLoadRange
+      .mockResolvedValueOnce(provider)
+      .mockRejectedValueOnce(
+        new DOMException(
+          "Synthetic scene transport cancellation",
+          "AbortError",
+        ),
+      )
+      .mockResolvedValueOnce(provider);
+
+    render(<EventForecastPanel {...panelProps()} />);
+
+    expect(
+      await screen.findByText(
+        /連続シミュレーションを準備できませんでした/,
+      ),
+    ).toHaveAttribute("role", "alert");
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "再準備",
+      }),
+    );
+    expect(
+      await screen.findByLabelText(
+        "シミュレーション時刻",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      eventMocks.ephemerisLoadRange,
+    ).toHaveBeenCalledTimes(3);
+  });
+
+  it("renders loading rather than unavailable when an inactive panel is shown again", async () => {
+    const start = {
+      ...contact("2026-08-12T17:00:00.000Z"),
+      phase: "solar-c1" as const,
+    };
+    const maximum = {
+      ...contact("2026-08-12T18:00:00.000Z"),
+      phase: "maximum" as const,
+    };
+    const end = {
+      ...contact("2026-08-12T19:00:00.000Z"),
+      phase: "solar-c4" as const,
+    };
+    eventMocks.candidateLoadRange.mockResolvedValue([
+      candidate(SOLAR_SUMMARY, 2_461_200, 2_461_300),
+    ]);
+    eventMocks.calculateSolar.mockReturnValue({
+      ...circumstances(SOLAR_SUMMARY, "fully-visible"),
+      contacts: [start, maximum, end],
+      maximum,
+    });
+    const provider = {
+      id: "DE442s",
+      sourceSha256: "0".repeat(64),
+      state: vi.fn(),
+      stateCoverage: {
+        endIsIncluded: true as const,
+        endJulianDateTdb: 2_461_400,
+        startJulianDateTdb: 2_461_100,
+      },
+    };
+    eventMocks.ephemerisLoadRange
+      .mockResolvedValueOnce(provider)
+      .mockImplementationOnce(
+        () => new Promise(() => undefined),
+      );
+    const props = panelProps({ isActive: false });
+    const { rerender } = render(
+      <EventForecastPanel {...props} />,
+    );
+
+    await screen.findByRole("option", {
+      name: /部分日食、\d{4}\//,
+    });
+    expect(
+      screen.getByText(
+        /この現象では任意時刻の物理シミュレーションを利用できません/,
+      ),
+    ).toBeVisible();
+
+    rerender(
+      <EventForecastPanel {...props} isActive />,
+    );
+
+    expect(
+      screen.queryByText(
+        /この現象では任意時刻の物理シミュレーションを利用できません/,
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /暦・地球回転データから物理サンプルと固定画角を準備しています/,
+      ),
+    ).toHaveTextContent(
+      "暦・地球回転データから物理サンプルと固定画角を準備しています。",
+    );
   });
 
   it("keeps event-only selectors out of the initial stylesheet", () => {

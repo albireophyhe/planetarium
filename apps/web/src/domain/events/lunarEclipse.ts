@@ -26,6 +26,7 @@ import type {
   EventEarthOrientationReportedUncertainty,
   EventEphemerisSearchOptions,
   EventEphemerisProvider,
+  EventPhysicalSample,
   EventObserverContext,
   EventProvenance,
   EventSummary,
@@ -322,6 +323,118 @@ function moonBodyPosition(
   };
 }
 
+function globalLunarShadowSampleAt(
+  ephemeris: EventEphemerisProvider,
+  instantMilliseconds: number,
+  options: LocalLunarEclipseOptions,
+): LunarShadowSample {
+  if (!Number.isFinite(instantMilliseconds)) {
+    throw new RangeError("Lunar-eclipse sample time must be finite");
+  }
+  if (options.shouldCancel?.()) {
+    throw new DOMException(
+      "Event calculation was cancelled",
+      "AbortError",
+    );
+  }
+  const instant = new Date(instantMilliseconds);
+  const earthOrientation =
+    options.earthOrientationAt?.(instant) ??
+    options.earthOrientation;
+  const timeScales = resolveTimeScales(
+    instant,
+    earthOrientation,
+  );
+  return lunarShadowSample(
+    instantMilliseconds,
+    calculateGeocentricApparentBody(
+      ephemeris,
+      "sun",
+      timeScales.ttJulianDate,
+    ),
+    calculateGeocentricApparentBody(
+      ephemeris,
+      "moon",
+      timeScales.ttJulianDate,
+    ),
+  );
+}
+
+function localLunarPhysicalSample(
+  ephemeris: EventEphemerisProvider,
+  sample: LunarShadowSample,
+  location: ObservingLocation,
+  options: LocalLunarEclipseOptions,
+): EventPhysicalSample {
+  const instant = new Date(sample.instantMilliseconds);
+  const earthOrientation =
+    options.earthOrientationAt?.(instant) ??
+    options.earthOrientation;
+  const timeScales = resolveTimeScales(
+    instant,
+    earthOrientation,
+  );
+  const moon = calculateApparentBody(
+    ephemeris,
+    "moon",
+    timeScales.ttJulianDate,
+    timeScales.ut1JulianDate,
+    location,
+    {
+      heightMeters: options.heightMeters ?? 0,
+      ...(earthOrientation?.polarMotion
+        ? { polarMotion: earthOrientation.polarMotion }
+        : {}),
+    },
+  );
+  const shadowCenterDirection = opposite(
+    sample.sun.cirsDirection,
+  );
+  return {
+    instantUtc: instant,
+    bodies: { moon: moonBodyPosition(moon) },
+    lunarShadow: {
+      centerSeparationRadians:
+        sample.centerSeparationRadians,
+      centerPositionAngleRadians:
+        eclipseContactPositionAngleRadians(
+          sample.moon.cirsDirection,
+          shadowCenterDirection,
+        ),
+      penumbralAngularRadiusRadians:
+        sample.penumbralRadiusRadians,
+      umbralAngularRadiusRadians:
+        sample.umbralRadiusRadians,
+    },
+    aboveHorizon:
+      moon.horizontal.altitude + moon.angularRadiusRadians > 0,
+    positionAngleRadians: null,
+  };
+}
+
+/**
+ * Recomputes the local Moon and mean Earth-shadow geometry at one UTC
+ * instant. It makes no claim that the instant is a solved eclipse contact.
+ */
+export function sampleLocalLunarEclipseAt(
+  ephemeris: EventEphemerisProvider,
+  instantUtc: Date,
+  location: ObservingLocation,
+  options: LocalLunarEclipseOptions = {},
+): EventPhysicalSample {
+  const globalSample = globalLunarShadowSampleAt(
+    ephemeris,
+    instantUtc.getTime(),
+    options,
+  );
+  return localLunarPhysicalSample(
+    ephemeris,
+    globalSample,
+    location,
+    options,
+  );
+}
+
 export function calculateLocalLunarEclipse(
   ephemeris: EventEphemerisProvider,
   event: EventSummary,
@@ -333,29 +446,12 @@ export function calculateLocalLunarEclipse(
   }
   const globalSampleAt = (
     instantMilliseconds: number,
-  ): LunarShadowSample => {
-    const instant = new Date(instantMilliseconds);
-    const earthOrientation =
-      options.earthOrientationAt?.(instant) ??
-      options.earthOrientation;
-    const timeScales = resolveTimeScales(
-      instant,
-      earthOrientation,
-    );
-    return lunarShadowSample(
+  ): LunarShadowSample =>
+    globalLunarShadowSampleAt(
+      ephemeris,
       instantMilliseconds,
-      calculateGeocentricApparentBody(
-        ephemeris,
-        "sun",
-        timeScales.ttJulianDate,
-      ),
-      calculateGeocentricApparentBody(
-        ephemeris,
-        "moon",
-        timeScales.ttJulianDate,
-      ),
+      options,
     );
-  };
   const loadedSearchBounds =
     eventEphemerisSearchBounds(ephemeris);
   const searchBounds = options.searchBounds
@@ -377,52 +473,20 @@ export function calculateLocalLunarEclipse(
     phase: EventContact["phase"],
     sample: LunarShadowSample,
   ): EventContact => {
-    const instant = new Date(sample.instantMilliseconds);
-    const earthOrientation =
-      options.earthOrientationAt?.(instant) ??
-      options.earthOrientation;
-    const timeScales = resolveTimeScales(
-      instant,
-      earthOrientation,
-    );
-    const moon = calculateApparentBody(
+    const physicalSample = localLunarPhysicalSample(
       ephemeris,
-      "moon",
-      timeScales.ttJulianDate,
-      timeScales.ut1JulianDate,
+      sample,
       location,
-      {
-        heightMeters: options.heightMeters ?? 0,
-        ...(earthOrientation?.polarMotion
-          ? { polarMotion: earthOrientation.polarMotion }
-          : {}),
-      },
+      options,
     );
     const shadowCenterDirection = opposite(
       sample.sun.cirsDirection,
     );
     const contactPointIsAwayFromShadowCenter =
       phase === "lunar-u2" || phase === "lunar-u3";
-    const centerPositionAngleRadians =
-      eclipseContactPositionAngleRadians(
-        sample.moon.cirsDirection,
-        shadowCenterDirection,
-      );
     return {
+      ...physicalSample,
       phase,
-      instantUtc: new Date(sample.instantMilliseconds),
-      bodies: { moon: moonBodyPosition(moon) },
-      lunarShadow: {
-        centerSeparationRadians:
-          sample.centerSeparationRadians,
-        centerPositionAngleRadians,
-        penumbralAngularRadiusRadians:
-          sample.penumbralRadiusRadians,
-        umbralAngularRadiusRadians:
-          sample.umbralRadiusRadians,
-      },
-      aboveHorizon:
-        moon.horizontal.altitude + moon.angularRadiusRadians > 0,
       positionAngleRadians:
         phase === "maximum"
           ? null

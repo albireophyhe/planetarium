@@ -59,6 +59,7 @@ import type {
   EventEarthOrientationReportedUncertainty,
   EventEphemerisSearchOptions,
   EventEphemerisProvider,
+  EventPhysicalSample,
   EventObserverContext,
   EventProvenance,
   EventSummary,
@@ -623,6 +624,118 @@ function validateOptionalUncertainty(
   }
 }
 
+function lunarOccultationSampleAt(
+  ephemeris: EventEphemerisProvider,
+  instantMilliseconds: number,
+  targetStar: PrecisionStar,
+  location: ObservingLocation,
+  options: LocalLunarOccultationOptions,
+): LunarOccultationSample {
+  if (!Number.isFinite(instantMilliseconds)) {
+    throw new RangeError("Occultation sample time must be finite");
+  }
+  checkCancelled(options.shouldCancel);
+  const heightMeters = options.heightMeters ?? 0;
+  if (!Number.isFinite(heightMeters)) {
+    throw new RangeError("Observer height must be finite");
+  }
+  const instant = new Date(instantMilliseconds);
+  const earthOrientation =
+    options.earthOrientationAt?.(instant) ??
+    options.earthOrientation;
+  const timeScales = resolveTimeScales(
+    instant,
+    earthOrientation,
+  );
+  const astrometry = observerAstrometry(
+    ephemeris,
+    timeScales.ttJulianDate,
+    timeScales.ut1JulianDate,
+    location,
+    heightMeters,
+    earthOrientation,
+  );
+  const star = calculateApparentStarPositionV2(
+    targetStar,
+    instant,
+    location,
+    {
+      earthOrientation,
+      annualParallax: {
+        observerPositionAu: astrometry.barycentricPositionAu,
+      },
+      // Keep the Moon/star comparison on the same apparent-place path.
+      solarLightDeflection: false,
+      aberration: {
+        observerBarycentricVelocityC:
+          astrometry.barycentricVelocityC,
+        sunObserverDistanceAu: astrometry.sunObserverDistanceAu,
+      },
+      // Site rotation is already part of the custom barycentric velocity.
+      diurnalAberration: false,
+      refraction: false,
+    },
+  );
+  const moon = calculateApparentBody(
+    ephemeris,
+    "moon",
+    timeScales.ttJulianDate,
+    timeScales.ut1JulianDate,
+    location,
+    {
+      heightMeters,
+      ...(earthOrientation?.polarMotion
+        ? { polarMotion: earthOrientation.polarMotion }
+        : {}),
+    },
+  );
+  return {
+    instantMilliseconds,
+    moon,
+    target: {
+      starHR: targetStar.hr,
+      cirsDirection: equatorialToVector(
+        star.apparentEquatorial,
+      ),
+      horizontal: star.geometricHorizontal,
+      precisionWarnings: star.metadata.warnings,
+    },
+  };
+}
+
+/**
+ * Recomputes the local mean-limb Moon/star geometry at one UTC instant.
+ * It does not label the instant as a disappearance, closest approach, or
+ * reappearance.
+ */
+export function sampleLocalLunarOccultationAt(
+  ephemeris: EventEphemerisProvider,
+  instantUtc: Date,
+  targetStar: PrecisionStar,
+  location: ObservingLocation,
+  options: LocalLunarOccultationOptions = {},
+): EventPhysicalSample {
+  const sample = lunarOccultationSampleAt(
+    ephemeris,
+    instantUtc.getTime(),
+    targetStar,
+    location,
+    options,
+  );
+  return {
+    instantUtc: new Date(sample.instantMilliseconds),
+    bodies: {
+      moon: moonBodyPosition(sample.moon),
+      target: targetBodyPosition(sample.target),
+    },
+    aboveHorizon: sample.target.horizontal.altitude > 0,
+    positionAngleRadians: lunarLimbPositionAngleRadians(
+      sample.moon.cirsDirection,
+      sample.target.cirsDirection,
+    ),
+  };
+}
+
 /**
  * Calculates reference-grade local circumstances for a bright-star
  * occultation by the Moon.
@@ -679,73 +792,14 @@ export function calculateLocalLunarOccultation(
 
   const sampleAt = (
     instantMilliseconds: number,
-  ): LunarOccultationSample => {
-    checkCancelled(options.shouldCancel);
-    const instant = new Date(instantMilliseconds);
-    const earthOrientation =
-      options.earthOrientationAt?.(instant) ??
-      options.earthOrientation;
-    const timeScales = resolveTimeScales(
-      instant,
-      earthOrientation,
-    );
-    const astrometry = observerAstrometry(
+  ): LunarOccultationSample =>
+    lunarOccultationSampleAt(
       ephemeris,
-      timeScales.ttJulianDate,
-      timeScales.ut1JulianDate,
-      location,
-      heightMeters,
-      earthOrientation,
-    );
-    const star = calculateApparentStarPositionV2(
-      targetStar,
-      instant,
-      location,
-      {
-        earthOrientation,
-        annualParallax: {
-          observerPositionAu: astrometry.barycentricPositionAu,
-        },
-        // calculateApparentBody currently omits solar ray deflection. Keep
-        // the common Moon/star comparison consistent instead of applying
-        // the correction to only one side of the limb equation.
-        solarLightDeflection: false,
-        aberration: {
-          observerBarycentricVelocityC:
-            astrometry.barycentricVelocityC,
-          sunObserverDistanceAu: astrometry.sunObserverDistanceAu,
-        },
-        // Site rotation is already part of the custom barycentric velocity.
-        diurnalAberration: false,
-        refraction: false,
-      },
-    );
-    const moon = calculateApparentBody(
-      ephemeris,
-      "moon",
-      timeScales.ttJulianDate,
-      timeScales.ut1JulianDate,
-      location,
-      {
-        heightMeters,
-        ...(earthOrientation?.polarMotion
-          ? { polarMotion: earthOrientation.polarMotion }
-          : {}),
-      },
-    );
-    return {
       instantMilliseconds,
-      moon,
-      target: {
-        starHR: targetStar.hr,
-        cirsDirection: equatorialToVector(
-          star.apparentEquatorial,
-        ),
-        horizontal: star.geometricHorizontal,
-        precisionWarnings: star.metadata.warnings,
-      },
-    };
-  };
+      targetStar,
+      location,
+      options,
+    );
 
   const loadedSearchBounds =
     eventEphemerisSearchBounds(ephemeris);

@@ -76,25 +76,14 @@ public enum LocalSolarEclipseV1 {
             if let cached = samples[instant] {
                 return cached
             }
-            try EclipseCalculationSupportV1
-                .checkCancellation(
-                    options.shouldCancel
-                )
-            let pair =
-                try await EclipseCalculationSupportV1
-                    .apparentTopocentricPair(
-                        provider: provider,
-                        at: Date(
-                            timeIntervalSinceReferenceDate:
-                                instant
-                        ),
-                        location: validLocation,
-                        options: options
-                    )
-            let sample = SolarDiscSampleV1(
-                secondsSinceReferenceDate: instant,
-                sun: pair.sun,
-                moon: pair.moon
+            let sample = try await rawSample(
+                provider: provider,
+                at: Date(
+                    timeIntervalSinceReferenceDate:
+                        instant
+                ),
+                location: validLocation,
+                options: options
             )
             samples[instant] = sample
             return sample
@@ -170,6 +159,106 @@ public enum LocalSolarEclipseV1 {
             options: options,
             geometry: geometry,
             visibility: visibility
+        )
+    }
+
+    /**
+     Evaluates a physical Sun/Moon scene at an arbitrary UTC instant.
+
+     The returned value has no contact phase. The supplied candidate is used
+     only to reject a mismatched phenomenon kind; its canonical epoch does
+     not replace `instantUTC`.
+     */
+    public static func sampleScene(
+        provider: DE442SEphemerisProviderV1,
+        candidate: EclipseCandidateV1,
+        at instantUTC: Date,
+        location: ObservingLocation,
+        options: LocalEclipseOptionsV1 =
+            LocalEclipseOptionsV1()
+    ) async throws -> EventSceneSampleV1 {
+        guard candidate.kind == .solarEclipse else {
+            throw LocalEclipseErrorV1
+                .wrongCandidateKind
+        }
+        let validLocation =
+            try EclipseCalculationSupportV1
+            .validate(
+                location: location,
+                options: options
+            )
+        try EclipseCalculationSupportV1
+            .validateSceneInstant(
+                provider: provider,
+                instantUTC: instantUTC,
+                shouldCancel:
+                    options.shouldCancel
+            )
+        let raw = try await rawSample(
+            provider: provider,
+            at: instantUTC,
+            location: validLocation,
+            options: options
+        )
+        let sun = try EventSceneSampleSupportV1
+            .bodyPosition(raw.sun)
+        let moon = try EventSceneSampleSupportV1
+            .bodyPosition(raw.moon)
+        let direction =
+            try EventSceneSampleSupportV1
+            .require(
+                EventSceneGeometryV1
+                    .tangentOffset(
+                        reference:
+                            sun.horizontal,
+                        target:
+                            moon.horizontal
+                    )
+            )
+        return EventSceneSampleV1(
+            kind: .solarEclipse,
+            instantUTC: instantUTC,
+            sun: sun,
+            moon: moon,
+            lunarShadow: nil,
+            targetStar: nil,
+            aboveHorizon:
+                sun.horizontal.altitude
+                + sun.angularRadiusRadians
+                > 0,
+            relativeDirection: direction
+        )
+    }
+
+    static func rawSample(
+        provider: DE442SEphemerisProviderV1,
+        at instantUTC: Date,
+        location: ObservingLocation,
+        options: LocalEclipseOptionsV1
+    ) async throws -> SolarDiscSampleV1 {
+        try EclipseCalculationSupportV1
+            .checkCancellation(
+                options.shouldCancel
+            )
+        let instant =
+            instantUTC
+            .timeIntervalSinceReferenceDate
+        guard instant.isFinite else {
+            throw EventSceneSampleErrorV1
+                .invalidInstant
+        }
+        let pair =
+            try await EclipseCalculationSupportV1
+            .apparentTopocentricPair(
+                provider: provider,
+                at: instantUTC,
+                location: location,
+                options: options
+            )
+        return SolarDiscSampleV1(
+            secondsSinceReferenceDate: instant,
+            sun: pair.sun,
+            moon: pair.moon
         )
     }
 

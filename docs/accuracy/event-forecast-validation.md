@@ -186,10 +186,46 @@ IOTAが紹介するMississaugaのLionhead Golf Club Road付近
 [`eclipse-contact-position-angles.md`](eclipse-contact-position-angles.md)
 を参照する。
 
+## 任意UTCの相対配置
+
+連続シミュレーションは、接触時刻の画面座標を線形補間しない。WebとmacOSは
+日食、月食、恒星掩蔽について、指定したUTCごとに既存solverと同じ内部sample
+経路を呼び、DE442s、UTC／TT／TDB／UT1、IERS EOPまたは明示したfallback、
+WGS84観測者、精密星表を再評価する。任意sampleには接触phaseを持たせず、
+画面でもC1、最大、潜入などではなく「指定時刻」と表示する。
+
+手動scrubと概要再生の範囲は、最初と最後の確定接触の閉区間である。
+境界不確実性により最大／最接近しか確定できない現象は、根拠のない開始・終了を
+作らず静止図だけを示す。各sessionはDE442sの光行時間reserve込み安全範囲と
+候補探索範囲を交差し、範囲外のUTC、非有限UTC、現象種別または掩蔽対象HRの
+不一致を計算前に拒否する。
+
+画角は区間端、全接触、最大／最接近に加え、日食120秒、月食180秒、
+恒星掩蔽60秒を目安とする物理sample gridから一度だけ決める。Webはその角度
+extentへ4%の余白を加え、macOSも固定transformの余白を使う。表示フレームは
+grid間の画面座標を補間せず、要求UTCを改めて物理計算する。このgridは描画範囲を
+安定させるためのもので、月面地形、Baily's beads、地球影の非円形構造、
+BSC5Pにない星表共分散を追加するものではない。
+
+年次予報の直近3結果LRUにはruntime samplerを保存しない。暦providerとEOP
+snapshotを保持するclosureは選択中イベント1件のsessionだけに置き、選択変更時に
+取消・破棄する。時刻sample cacheはWeb 64件、macOS 32件以下に制限するため、
+複数年の予報cacheがevict済みDE442s chunkを間接的に保持し続けることはない。
+
+`shared/fixtures/event-physical-samples.v1.json`は、DUT1=0秒、xp=yp=0、
+楕円体高11 m、大気差なしを明示し、日食・月食・恒星掩蔽それぞれの最大付近と
+接触区間内の計6時刻を固定する。WebとmacOSは太陽・月・対象星の高度・方位・
+角半径・距離と地球影を同じfixtureから検査する。両runtime間の許容差は角度
+2×10⁻¹² rad、距離10⁻⁵ kmであり、画面pixelはfixtureへ含めない。この一致は
+同じモデルの実装parityであり、月縁地形や星表誤差に対する外部精度保証ではない。
+
 ## 再現方法
 
 自動テストは
 `apps/web/src/domain/events/eventForecast.integration.test.ts`、
+任意UTCの両runtime parityは
+`apps/web/src/domain/events/eventPhysicalSamples.parity.test.ts`と
+`apps/macos/Tests/PlanetariumCoreTests/EventPhysicalSampleParityTests.swift`、
 年端coverage parityは
 `apps/web/src/domain/events/eventForecastYearCoverage.parity.test.ts`と
 `apps/macos/Tests/PlanetariumCoreTests/EventForecastYearCoverageParityTests.swift`、

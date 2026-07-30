@@ -1634,6 +1634,567 @@ final class EventForecastStoreTests:
         )
     }
 
+    func testSceneSessionPlanUsesSolvedBoundsAndTwentyFourSecondPlayback()
+        throws
+    {
+        let lower =
+            date("2026-08-12T17:00:00Z")
+        let upper =
+            lower.addingTimeInterval(2_400)
+        let item = makeInteractiveSolarForecast(
+            id: "scene-plan",
+            lower: lower,
+            upper: upper
+        )
+        let plan = try XCTUnwrap(
+            EventSceneSessionPlan(item: item)
+        )
+
+        XCTAssertEqual(plan.lowerBound, lower)
+        XCTAssertEqual(plan.upperBound, upper)
+        XCTAssertEqual(plan.frameStepSeconds, 120)
+        XCTAssertEqual(
+            plan.playbackFrameIntervalSeconds,
+            0.1,
+            accuracy: 1e-12
+        )
+        XCTAssertEqual(
+            plan.playbackFrameStepSeconds,
+            10,
+            accuracy: 1e-12
+        )
+        XCTAssertEqual(
+            plan.duration
+                / plan.playbackFrameStepSeconds
+                / EventSceneSessionPlan
+                .playbackFramesPerSecond,
+            EventSceneSessionPlan
+                .targetPlaybackDurationSeconds,
+            accuracy: 1e-12
+        )
+        XCTAssertTrue(
+            plan.projectionDates.contains(lower)
+        )
+        XCTAssertTrue(
+            plan.projectionDates.contains(upper)
+        )
+        XCTAssertLessThanOrEqual(
+            plan.projectionDates.count,
+            EventSceneSessionPlan
+                .maximumProjectionSampleCount
+        )
+    }
+
+    func testSingleMaximumScenePlanStaysStatic()
+        throws
+    {
+        let item = makeForecast(
+            id: "scene-static",
+            date:
+                date("2026-03-03T11:34:00Z"),
+            visibility: .fullyVisible
+        )
+        let plan = try XCTUnwrap(
+            EventSceneSessionPlan(item: item)
+        )
+
+        XCTAssertFalse(plan.isInteractive)
+        XCTAssertEqual(
+            plan.lowerBound,
+            plan.upperBound
+        )
+        XCTAssertEqual(
+            plan.projectionDates,
+            [plan.lowerBound]
+        )
+    }
+
+    @MainActor
+    func testSceneSessionClampsExactUTCAndReplaysTheWholeInterval()
+        async throws
+    {
+        let lower =
+            date("2026-08-12T17:00:00Z")
+        let upper =
+            lower.addingTimeInterval(600)
+        let item = makeInteractiveSolarForecast(
+            id: "scene-bounds",
+            lower: lower,
+            upper: upper
+        )
+        let store = makeSceneStore()
+
+        store.activateSceneSession(
+            for: item,
+            initialDate:
+                lower.addingTimeInterval(300),
+            initialLabel: "最大"
+        )
+        try await waitUntil {
+            store.sceneSession?.phase == .ready
+        }
+        XCTAssertEqual(
+            store.sceneSession?
+                .displayedSample?
+                .instantUTC,
+            lower.addingTimeInterval(300)
+        )
+
+        store.playScene()
+        XCTAssertEqual(
+            store.sceneSession?
+                .requestedDate,
+            lower,
+            "First Play starts at the first solved contact even though inspection defaults to maximum"
+        )
+        XCTAssertTrue(
+            store.sceneSession?.isPlaying
+                == true
+        )
+        store.pauseScenePlayback()
+
+        store.requestSceneSample(
+            at:
+                upper.addingTimeInterval(500),
+            label: "指定時刻"
+        )
+        try await waitUntil {
+            store.sceneSession?
+                .displayedSample?
+                .instantUTC == upper
+        }
+        XCTAssertEqual(
+            store.sceneSession?
+                .requestedDate,
+            upper
+        )
+        store.playScene()
+        XCTAssertEqual(
+            store.sceneSession?
+                .requestedDate,
+            lower,
+            "Play at the upper endpoint is an explicit replay"
+        )
+        store.pauseScenePlayback()
+    }
+
+    @MainActor
+    func testSceneSessionDiscardsStaleSamplesAndBoundsItsCache()
+        async throws
+    {
+        let lower =
+            date("2026-08-12T17:00:00Z")
+        let upper =
+            lower.addingTimeInterval(600)
+        let slow =
+            lower.addingTimeInterval(101)
+        let latest =
+            lower.addingTimeInterval(102)
+        let item = makeInteractiveSolarForecast(
+            id: "scene-stale",
+            lower: lower,
+            upper: upper
+        )
+        let store = EventForecastStore(
+            initialYear: 2026,
+            dependencies:
+                EventForecastDependencies(
+                    loadForecasts: {
+                        _, _ in []
+                    },
+                    sampleScene: {
+                        _, instant in
+                        if instant == slow {
+                            try? await Task.sleep(
+                                for:
+                                    .milliseconds(120)
+                            )
+                        } else if instant == latest {
+                            try? await Task.sleep(
+                                for:
+                                    .milliseconds(5)
+                            )
+                        }
+                        return Self.sceneSample(
+                            at: instant
+                        )
+                    }
+                )
+        )
+        store.activateSceneSession(
+            for: item,
+            initialDate:
+                lower.addingTimeInterval(300),
+            initialLabel: "最大"
+        )
+        try await waitUntil {
+            store.sceneSession?.phase == .ready
+        }
+
+        store.requestSceneSample(at: slow)
+        store.requestSceneSample(at: latest)
+        try await waitUntil {
+            store.sceneSession?
+                .displayedSample?
+                .instantUTC == latest
+        }
+        try await Task.sleep(
+            for: .milliseconds(150)
+        )
+        XCTAssertEqual(
+            store.sceneSession?
+                .displayedSample?
+                .instantUTC,
+            latest
+        )
+
+        for index in 0..<40 {
+            let instant =
+                lower.addingTimeInterval(
+                    Double(200 + index)
+                )
+            store.requestSceneSample(
+                at: instant
+            )
+            try await waitUntil {
+                store.sceneSession?
+                    .displayedSample?
+                    .instantUTC == instant
+            }
+        }
+        XCTAssertLessThanOrEqual(
+            store.sceneSampleCacheCount,
+            EventForecastStore
+                .sceneSampleCacheCapacity
+        )
+    }
+
+    @MainActor
+    func testSceneSessionKeepsLatestRequestMadeWhileProjectionIsPreparing()
+        async throws
+    {
+        let lower =
+            date("2026-08-12T17:00:00Z")
+        let upper =
+            lower.addingTimeInterval(600)
+        let item =
+            makeInteractiveSolarForecast(
+                id: "scene-pending-projection",
+                lower: lower,
+                upper: upper
+            )
+        let store = makeSceneStore()
+
+        store.activateSceneSession(
+            for: item,
+            initialDate:
+                lower.addingTimeInterval(300),
+            initialLabel: "最大"
+        )
+        store.requestSceneSample(
+            at: upper,
+            label: "第4接触"
+        )
+
+        XCTAssertEqual(
+            store.sceneSession?
+                .requestedDate,
+            upper
+        )
+        try await waitUntil {
+            store.sceneSession?.phase == .ready
+        }
+        XCTAssertEqual(
+            store.sceneSession?
+                .displayedSample?
+                .instantUTC,
+            upper
+        )
+        XCTAssertEqual(
+            store.sceneSession?
+                .displayedLabel,
+            "第4接触"
+        )
+    }
+
+    @MainActor
+    func testPauseInvalidatesAPlaybackSampleThatIgnoresCancellation()
+        async throws
+    {
+        let lower =
+            date("2026-08-12T17:00:00Z")
+        let upper =
+            lower.addingTimeInterval(600)
+        let item =
+            makeInteractiveSolarForecast(
+                id: "scene-pause-pending",
+                lower: lower,
+                upper: upper
+            )
+        let store = EventForecastStore(
+            initialYear: 2026,
+            dependencies:
+                EventForecastDependencies(
+                    loadForecasts: {
+                        _, _ in []
+                    },
+                    sampleScene: {
+                        _, instant in
+                        let offset =
+                            instant
+                            .timeIntervalSince(
+                                lower
+                            )
+                        if offset > 0,
+                           offset < 10
+                        {
+                            try? await Task.sleep(
+                                for:
+                                    .milliseconds(160)
+                            )
+                        }
+                        return Self.sceneSample(
+                            at: instant
+                        )
+                    }
+                )
+        )
+        store.activateSceneSession(
+            for: item,
+            initialDate:
+                lower.addingTimeInterval(300)
+        )
+        try await waitUntil {
+            store.sceneSession?.phase == .ready
+        }
+
+        store.playScene()
+        try await waitUntil {
+            store.sceneSession?.isPlaying
+                == true
+                && store.sceneSession?.phase
+                    == .sampling
+        }
+        let stoppedAt =
+            try XCTUnwrap(
+                store.sceneSession?
+                    .displayedSample?
+                    .instantUTC
+            )
+        store.pauseScenePlayback()
+        XCTAssertEqual(
+            store.sceneSession?
+                .requestedDate,
+            stoppedAt
+        )
+        XCTAssertEqual(
+            store.sceneSession?.phase,
+            .ready
+        )
+
+        try await Task.sleep(
+            for: .milliseconds(220)
+        )
+        XCTAssertFalse(
+            store.sceneSession?.isPlaying
+                == true
+        )
+        XCTAssertEqual(
+            store.sceneSession?
+                .displayedSample?
+                .instantUTC,
+            stoppedAt
+        )
+        XCTAssertEqual(
+            store.sceneSession?
+                .requestedDate,
+            stoppedAt
+        )
+    }
+
+    @MainActor
+    func testSceneScrubbingCoalescesToOneLatestPhysicalSample()
+        async throws
+    {
+        let lower =
+            date("2026-08-12T17:00:00Z")
+        let upper =
+            lower.addingTimeInterval(600)
+        let item =
+            makeInteractiveSolarForecast(
+                id: "scene-coalesced",
+                lower: lower,
+                upper: upper
+            )
+        let recorder =
+            SceneSampleCallRecorder()
+        let store = EventForecastStore(
+            initialYear: 2026,
+            dependencies:
+                EventForecastDependencies(
+                    loadForecasts: {
+                        _, _ in []
+                    },
+                    sampleScene: {
+                        _, instant in
+                        await recorder.record(
+                            instant
+                        )
+                        return Self.sceneSample(
+                            at: instant
+                        )
+                    }
+                )
+        )
+        store.activateSceneSession(
+            for: item,
+            initialDate:
+                lower.addingTimeInterval(300)
+        )
+        try await waitUntil {
+            store.sceneSession?.phase == .ready
+        }
+        let baseline =
+            await recorder.count
+        var latest = lower
+        for offset in 11...30 {
+            latest =
+                lower.addingTimeInterval(
+                    Double(offset)
+                )
+            store
+                .requestCoalescedSceneSample(
+                    at: latest
+                )
+        }
+
+        XCTAssertEqual(
+            store.sceneSession?
+                .requestedDate,
+            latest
+        )
+        try await waitUntil {
+            store.sceneSession?
+                .displayedSample?
+                .instantUTC
+                == latest
+        }
+        let finalCount =
+            await recorder.count
+        XCTAssertEqual(
+            finalCount - baseline,
+            1
+        )
+    }
+
+    @MainActor
+    func testSceneSessionFailureReduceMotionReplacementAndCancellation()
+        async throws
+    {
+        let lower =
+            date("2026-08-12T17:00:00Z")
+        let upper =
+            lower.addingTimeInterval(600)
+        let failing =
+            lower.addingTimeInterval(103)
+        let first = makeInteractiveSolarForecast(
+            id: "scene-replacement",
+            lower: lower,
+            upper: upper
+        )
+        let replacementLower =
+            lower.addingTimeInterval(3_600)
+        let replacement =
+            makeInteractiveSolarForecast(
+                id: "scene-replacement",
+                lower: replacementLower,
+                upper:
+                    replacementLower
+                    .addingTimeInterval(600)
+            )
+        let store = EventForecastStore(
+            initialYear: 2026,
+            dependencies:
+                EventForecastDependencies(
+                    loadForecasts: {
+                        _, _ in []
+                    },
+                    sampleScene: {
+                        _, instant in
+                        if instant == failing {
+                            throw SceneSampleTestError
+                                .expected
+                        }
+                        return Self.sceneSample(
+                            at: instant
+                        )
+                    }
+                )
+        )
+
+        store.activateSceneSession(
+            for: first,
+            initialDate:
+                lower.addingTimeInterval(300)
+        )
+        try await waitUntil {
+            store.sceneSession?.phase == .ready
+        }
+        store.setSceneReduceMotion(true)
+        XCTAssertFalse(store.canPlayScene)
+        store.playScene()
+        XCTAssertFalse(
+            store.sceneSession?.isPlaying
+                == true
+        )
+        store.setSceneReduceMotion(false)
+
+        store.requestSceneSample(at: failing)
+        try await waitUntil {
+            if case .failed =
+                store.sceneSession?.phase
+            {
+                return true
+            }
+            return false
+        }
+        XCTAssertNotNil(
+            store.sceneSession?
+                .displayedSample,
+            "A sample error preserves the last available detail and exposes scene-only recovery"
+        )
+
+        store.activateSceneSession(
+            for: replacement,
+            initialDate:
+                replacementLower
+                .addingTimeInterval(300)
+        )
+        XCTAssertNil(
+            store.sceneSession?
+                .displayedSample,
+            "A replacement with the same id clears stale session resources"
+        )
+        try await waitUntil {
+            store.sceneSession?.phase == .ready
+        }
+        XCTAssertEqual(
+            store.sceneSession?
+                .plan.lowerBound,
+            replacementLower
+        )
+
+        store.deactivateSceneSession()
+        try await Task.sleep(
+            for: .milliseconds(20)
+        )
+        XCTAssertNil(store.sceneSession)
+        XCTAssertEqual(
+            store.sceneSampleCacheCount,
+            0
+        )
+    }
+
     @MainActor
     private func waitUntil(
         attempts: Int = 100,
@@ -1829,8 +2390,197 @@ final class EventForecastStoreTests:
         )
     }
 
+    @MainActor
+    private func makeSceneStore()
+        -> EventForecastStore
+    {
+        EventForecastStore(
+            initialYear: 2026,
+            dependencies:
+                EventForecastDependencies(
+                    loadForecasts: {
+                        _, _ in []
+                    },
+                    sampleScene: {
+                        _, instant in
+                        Self.sceneSample(
+                            at: instant
+                        )
+                    }
+                )
+        )
+    }
+
+    private func makeInteractiveSolarForecast(
+        id: String,
+        lower: Date,
+        upper: Date
+    ) -> EventForecastItem {
+        let midpoint =
+            lower.addingTimeInterval(
+                upper.timeIntervalSince(lower)
+                    / 2
+            )
+        guard case let .eclipse(base) =
+            makeForecast(
+                id: id,
+                date: midpoint,
+                visibility: .fullyVisible,
+                kind: .solarEclipse
+            )
+        else {
+            preconditionFailure(
+                "Expected eclipse fixture"
+            )
+        }
+        let horizontal =
+            HorizontalCoordinates(
+                altitude: 0.5,
+                azimuth: 1,
+                azimuthIsDefined: true
+            )
+        let sun =
+            EclipseBodyPositionV1(
+                horizontal: horizontal,
+                angularRadiusRadians:
+                    0.00465,
+                distanceKilometers:
+                    149_600_000
+            )
+        let moon =
+            EclipseBodyPositionV1(
+                horizontal: horizontal,
+                angularRadiusRadians:
+                    0.00472,
+                distanceKilometers:
+                    384_400
+            )
+        func contact(
+            _ phase: EclipseContactPhaseV1,
+            _ instant: Date
+        ) -> EclipseContactV1 {
+            EclipseContactV1(
+                phase: phase,
+                instantUTC: instant,
+                sun: sun,
+                moon: moon,
+                aboveHorizon: true
+            )
+        }
+        let first = contact(.solarC1, lower)
+        let maximum =
+            contact(.maximum, midpoint)
+        let last = contact(.solarC4, upper)
+        return .eclipse(
+            LocalEclipseCircumstancesV1(
+                candidate: base.candidate,
+                title: base.title,
+                classification:
+                    base.classification,
+                observer: base.observer,
+                visibility: base.visibility,
+                contacts: [
+                    first,
+                    maximum,
+                    last,
+                ],
+                maximum: maximum,
+                magnitude: base.magnitude,
+                obscuration:
+                    base.obscuration,
+                uncertainty:
+                    base.uncertainty,
+                provenance: base.provenance,
+                warnings: base.warnings,
+                uncertainBoundary:
+                    base.uncertainBoundary
+            )
+        )
+    }
+
+    private static func sceneSample(
+        at instant: Date
+    ) -> EventSceneSampleV1 {
+        let horizontal =
+            HorizontalCoordinates(
+                altitude: 0.5,
+                azimuth: 1,
+                azimuthIsDefined: true
+            )
+        let sun =
+            EclipseBodyPositionV1(
+                horizontal: horizontal,
+                angularRadiusRadians:
+                    0.00465,
+                distanceKilometers:
+                    149_600_000
+            )
+        let moon =
+            EclipseBodyPositionV1(
+                horizontal: horizontal,
+                angularRadiusRadians:
+                    0.00472,
+                distanceKilometers:
+                    384_400
+            )
+        let eastward =
+            sin(
+                instant
+                    .timeIntervalSinceReferenceDate
+                    / 600
+            ) * 0.008
+        let upward =
+            cos(
+                instant
+                    .timeIntervalSinceReferenceDate
+                    / 600
+            ) * 0.002
+        let separation =
+            hypot(eastward, upward)
+        return EventSceneSampleV1(
+            kind: .solarEclipse,
+            instantUTC: instant,
+            sun: sun,
+            moon: moon,
+            lunarShadow: nil,
+            targetStar: nil,
+            aboveHorizon: true,
+            relativeDirection:
+                EventSceneTangentOffsetV1(
+                    eastwardRadians:
+                        eastward,
+                    upwardRadians: upward,
+                    separationRadians:
+                        separation,
+                    positionAngleRadians:
+                        atan2(
+                            eastward,
+                            upward
+                        ),
+                    orientationIsDefined:
+                        separation > 0
+                )
+        )
+    }
+
     private func date(_ value: String) -> Date {
         ISO8601DateFormatter().date(from: value)!
+    }
+}
+
+private enum SceneSampleTestError: Error {
+    case expected
+}
+
+private actor SceneSampleCallRecorder {
+    private var instants: [Date] = []
+
+    var count: Int {
+        instants.count
+    }
+
+    func record(_ instant: Date) {
+        instants.append(instant)
     }
 }
 

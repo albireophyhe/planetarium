@@ -44,11 +44,12 @@ function forecast(
   kind: EventKind,
   maximum: EventContact,
   localClassification: EventClassification,
+  contacts: readonly EventContact[] = [maximum],
 ): LocalCircumstances {
   return {
     boundaryUncertain: false,
     boundaryUncertaintyReason: null,
-    contacts: [maximum],
+    contacts,
     event: {
       canonicalEpochUtc: maximum.instantUtc,
       dataVersion: "test-v1",
@@ -177,6 +178,49 @@ describe("EventScene", () => {
         name: "テスト日食、部分食開始（C1）の相対配置",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps the common angular scale when the selected phase changes", () => {
+    const maximum = contact({
+      moon: body(0, 1.001, 0.005),
+      sun: body(0, 1, 0.004),
+    });
+    const selectedContact = contact(
+      {
+        moon: body(0, 1.025, 0.005),
+        sun: body(0, 1, 0.004),
+      },
+      {
+        instantUtc: new Date("2026-08-12T17:38:05.000Z"),
+        phase: "solar-c1",
+      },
+    );
+    const event = forecast(
+      "solar-eclipse",
+      maximum,
+      "partial",
+      [selectedContact],
+    );
+    const { container, rerender } = render(
+      <EventScene
+        circumstances={event}
+        sample={selectedContact}
+      />,
+    );
+    const selectedMoonRadius = container
+      .querySelector('[data-body="moon"]')
+      ?.getAttribute("r");
+
+    rerender(
+      <EventScene circumstances={event} sample={maximum} />,
+    );
+
+    expect(
+      container
+        .querySelector('[data-body="moon"]')
+        ?.getAttribute("r"),
+    ).toBe(selectedMoonRadius);
+    expect(screen.getByText(/共通画角に固定/)).toBeInTheDocument();
   });
 
   it("renders computed umbra and penumbra at a common angular scale", () => {

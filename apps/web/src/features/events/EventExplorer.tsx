@@ -7,6 +7,8 @@ import {
   EyeOffIcon,
   MapPinIcon,
   MoonIcon,
+  PauseIcon,
+  PlayIcon,
   RefreshCcwIcon,
   RotateCcwIcon,
   ShieldAlertIcon,
@@ -15,6 +17,7 @@ import {
 import {
   type KeyboardEvent,
   type ReactNode,
+  useCallback,
   useEffect,
   useId,
   useMemo,
@@ -29,11 +32,17 @@ import type {
   EventContactPhase,
   EventEarthOrientationQuality,
   EventKind,
+  EventPhysicalSample,
   EventSummary,
   EventVisibility,
   LocalCircumstances,
 } from "../../domain/events/types";
 import { EventScene } from "./EventScene";
+import {
+  clampEventSceneInstant,
+  type EventSceneSamplingSession,
+  type EventSceneSamplingState,
+} from "./EventSceneSamplingSession";
 
 export type EventExplorerStatus =
   | "loading"
@@ -43,6 +52,7 @@ export type EventExplorerStatus =
 
 export type EventExplorerProps = {
   status: EventExplorerStatus;
+  isActive?: boolean;
   events: readonly EventSummary[];
   localClassificationsByEventId: ReadonlyMap<
     string,
@@ -60,12 +70,26 @@ export type EventExplorerProps = {
   emptyTitle?: string;
   canRestoreObservationTime?: boolean;
   observationDate?: Date | null;
+  sceneSampling?: EventSceneSamplingState;
   onSelectEvent: (eventId: string) => void;
   onRetry: () => void;
   onGoToMaximum: (contact: EventContact) => void;
-  onGoToContact: (contact: EventContact) => void;
+  onGoToContact: (sample: { readonly instantUtc: Date }) => void;
   onRestoreObservationTime: () => void;
+  onRetrySceneSampling?: () => void;
 };
+
+const UNAVAILABLE_EVENT_SCENE_SAMPLING = Object.freeze({
+  session: null,
+  status: "unavailable",
+} as const satisfies EventSceneSamplingState);
+const EVENT_SCENE_PLAYBACK_INTERVAL_MILLISECONDS = 100;
+const EVENT_SCENE_PLAYBACK_DURATION_MILLISECONDS = 24_000;
+const DATE_TIME_FORMATTER_CACHE_CAPACITY = 16;
+const dateTimeFormatters = new Map<
+  string,
+  Intl.DateTimeFormat
+>();
 
 const DATE_TIME_PARTS = [
   "year",
@@ -97,6 +121,21 @@ type CalculatedEventPhase = {
   readonly sample: EventContact;
 };
 
+type EventScenePhysicalSelection = {
+  readonly sample: EventPhysicalSample;
+  readonly session: EventSceneSamplingSession;
+};
+
+type EventSceneSamplingError = {
+  readonly message: string;
+  readonly session: EventSceneSamplingSession;
+};
+
+type PendingEventSceneSample = {
+  readonly instantMilliseconds: number;
+  readonly session: EventSceneSamplingSession;
+};
+
 function eventPhaseId(contact: EventContact) {
   return `${contact.phase}:${contact.instantUtc.getTime()}`;
 }
@@ -121,16 +160,33 @@ function calculatedEventPhases(
 }
 
 function dateTimeParts(date: Date, timeZone: string) {
-  const formatter = new Intl.DateTimeFormat("ja-JP-u-ca-gregory", {
-    day: "2-digit",
-    hour: "2-digit",
-    hourCycle: "h23",
-    minute: "2-digit",
-    month: "2-digit",
-    second: "2-digit",
-    timeZone,
-    year: "numeric",
-  });
+  let formatter = dateTimeFormatters.get(timeZone);
+  if (formatter) {
+    dateTimeFormatters.delete(timeZone);
+    dateTimeFormatters.set(timeZone, formatter);
+  } else {
+    formatter = new Intl.DateTimeFormat("ja-JP-u-ca-gregory", {
+      day: "2-digit",
+      hour: "2-digit",
+      hourCycle: "h23",
+      minute: "2-digit",
+      month: "2-digit",
+      second: "2-digit",
+      timeZone,
+      year: "numeric",
+    });
+    dateTimeFormatters.set(timeZone, formatter);
+    if (
+      dateTimeFormatters.size >
+      DATE_TIME_FORMATTER_CACHE_CAPACITY
+    ) {
+      const oldestTimeZone =
+        dateTimeFormatters.keys().next().value;
+      if (oldestTimeZone !== undefined) {
+        dateTimeFormatters.delete(oldestTimeZone);
+      }
+    }
+  }
   const resolved = new Map(
     formatter
       .formatToParts(date)
@@ -163,6 +219,79 @@ function formatListDate(date: Date, timeZone: string) {
 
 function formatUtcDateTime(date: Date) {
   return `${formatDateTime(date, "UTC")} UTC`;
+}
+
+function usePrefersReducedMotion(): boolean {
+  const [prefersReducedMotion, setPrefersReducedMotion] =
+    useState(
+      () =>
+        typeof window !== "undefined" &&
+        typeof window.matchMedia === "function" &&
+        window.matchMedia(
+          "(prefers-reduced-motion: reduce)",
+        ).matches,
+    );
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    ) {
+      return;
+    }
+    const mediaQuery = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    );
+    const handleChange = (event: MediaQueryListEvent) => {
+      setPrefersReducedMotion(event.matches);
+    };
+    mediaQuery.addEventListener?.("change", handleChange);
+    return () =>
+      mediaQuery.removeEventListener?.("change", handleChange);
+  }, []);
+  return prefersReducedMotion;
+}
+
+function matchingSceneSamplingSession(
+  sceneSampling: EventSceneSamplingState,
+  circumstances: LocalCircumstances,
+): EventSceneSamplingSession | null {
+  if (sceneSampling.status !== "ready") {
+    return null;
+  }
+  const { session } = sceneSampling;
+  return session.eventId === circumstances.event.id &&
+    session.kind === circumstances.event.kind &&
+    session.targetStarHR ===
+      circumstances.event.targetStarHR &&
+    Number.isFinite(session.rangeUtc.startMilliseconds) &&
+    Number.isFinite(session.rangeUtc.endMilliseconds) &&
+    session.rangeUtc.endMilliseconds >
+      session.rangeUtc.startMilliseconds &&
+    session.projectionSamples.length >= 2
+    ? session
+    : null;
+}
+
+function samplePhysicalSceneAt(
+  session: EventSceneSamplingSession,
+  requestedMilliseconds: number,
+): EventPhysicalSample {
+  const instantMilliseconds = clampEventSceneInstant(
+    requestedMilliseconds,
+    session.rangeUtc,
+  );
+  const sample = session.sampleAt(new Date(instantMilliseconds));
+  if (
+    !(sample.instantUtc instanceof Date) ||
+    sample.instantUtc.getTime() !== instantMilliseconds ||
+    sample.bodies === null ||
+    typeof sample.bodies !== "object"
+  ) {
+    throw new RangeError(
+      "Event-scene sampler returned an inconsistent physical sample",
+    );
+  }
+  return sample;
 }
 
 function eventClassificationLabel(
@@ -709,20 +838,242 @@ function ContactTable({
   );
 }
 
+function EventSceneSimulationControls({
+  currentMilliseconds,
+  isPlaying,
+  isSamplingPending,
+  localTimeZone,
+  onScrub,
+  onRetry,
+  onTogglePlayback,
+  prefersReducedMotion,
+  runtimeErrorMessage,
+  sceneSampling,
+  session,
+}: {
+  currentMilliseconds: number | null;
+  isPlaying: boolean;
+  isSamplingPending: boolean;
+  localTimeZone: string;
+  onScrub: (instantMilliseconds: number) => void;
+  onRetry?: () => void;
+  onTogglePlayback: () => void;
+  prefersReducedMotion: boolean;
+  runtimeErrorMessage: string | null;
+  sceneSampling: EventSceneSamplingState;
+  session: EventSceneSamplingSession | null;
+}) {
+  const titleId = useId();
+  const rangeId = useId();
+  const title = (
+    <h3 id={titleId}>連続シミュレーション</h3>
+  );
+  if (sceneSampling.status === "unavailable") {
+    return (
+      <section
+        aria-labelledby={titleId}
+        className="event-scene-simulation event-scene-simulation--unavailable"
+      >
+        {title}
+        <p role="note">
+          この現象では任意時刻の物理シミュレーションを利用できません。
+          上の計算済み時刻の静止図は利用できます。
+        </p>
+      </section>
+    );
+  }
+  if (sceneSampling.status === "loading") {
+    return (
+      <section
+        aria-busy="true"
+        aria-labelledby={titleId}
+        className="event-scene-simulation event-scene-simulation--loading"
+      >
+        {title}
+        <p aria-live="polite" role="status">
+          暦・地球回転データから物理サンプルと固定画角を準備しています。
+          計算済み時刻の静止図はそのまま利用できます。
+        </p>
+      </section>
+    );
+  }
+  if (sceneSampling.status === "error") {
+    return (
+      <section
+        aria-labelledby={titleId}
+        className="event-scene-simulation event-scene-simulation--error"
+      >
+        {title}
+        <p role="alert">{sceneSampling.errorMessage}</p>
+        {onRetry ? (
+          <button
+            className="event-action event-action--secondary"
+            onClick={onRetry}
+            type="button"
+          >
+            <RefreshCcwIcon
+              aria-hidden="true"
+              size={16}
+              strokeWidth={1.8}
+            />
+            再準備
+          </button>
+        ) : null}
+      </section>
+    );
+  }
+  if (!session || currentMilliseconds === null) {
+    return (
+      <section
+        aria-labelledby={titleId}
+        className="event-scene-simulation event-scene-simulation--error"
+      >
+        {title}
+        <p role="alert">
+          シミュレーションデータが選択中の現象と一致しません。
+          計算済み時刻の静止図を利用してください。
+        </p>
+      </section>
+    );
+  }
+
+  const { endMilliseconds, startMilliseconds } =
+    session.rangeUtc;
+  const currentDate = new Date(currentMilliseconds);
+  const isAtEnd = currentMilliseconds >= endMilliseconds;
+  return (
+    <section
+      aria-labelledby={titleId}
+      className="event-scene-simulation event-scene-simulation--ready"
+    >
+      <div className="event-scene-simulation__heading">
+        {title}
+        <output
+          aria-live={isPlaying ? "off" : "polite"}
+          htmlFor={rangeId}
+        >
+          {formatDateTime(currentDate, localTimeZone)}
+          <small>{formatUtcDateTime(currentDate)}</small>
+          {isSamplingPending ? (
+            <em>物理計算を更新中</em>
+          ) : null}
+        </output>
+      </div>
+      <p className="event-scene-simulation__scope">
+        各UTCを暦・EOPから物理再計算します。
+        画面座標の補間はせず、全区間で固定した角度縮尺を使います。
+      </p>
+      <label htmlFor={rangeId}>シミュレーション時刻</label>
+      <input
+        aria-valuetext={formatDateTime(
+          currentDate,
+          localTimeZone,
+        )}
+        id={rangeId}
+        max={endMilliseconds}
+        min={startMilliseconds}
+        onChange={(event) =>
+          onScrub(Number(event.currentTarget.value))
+        }
+        step={1_000}
+        type="range"
+        value={currentMilliseconds}
+      />
+      <div
+        aria-hidden="true"
+        className="event-scene-simulation__range-labels"
+      >
+        <span>
+          {formatDateTime(
+            new Date(startMilliseconds),
+            localTimeZone,
+          )}
+        </span>
+        <span>
+          {formatDateTime(
+            new Date(endMilliseconds),
+            localTimeZone,
+          )}
+        </span>
+      </div>
+      <div className="event-scene-simulation__actions">
+        <button
+          aria-label={
+            isPlaying
+              ? "シミュレーションを一時停止"
+              : isAtEnd
+                ? "シミュレーションを最初から再生"
+                : "シミュレーションを再生"
+          }
+          className="event-action event-action--secondary"
+          disabled={
+            prefersReducedMotion ||
+            isSamplingPending
+          }
+          onClick={onTogglePlayback}
+          type="button"
+        >
+          {isPlaying ? (
+            <PauseIcon
+              aria-hidden="true"
+              size={17}
+              strokeWidth={1.8}
+            />
+          ) : (
+            <PlayIcon
+              aria-hidden="true"
+              size={17}
+              strokeWidth={1.8}
+            />
+          )}
+          {isPlaying
+            ? "一時停止"
+            : isAtEnd
+              ? "最初から再生"
+              : "再生"}
+        </button>
+        <span>
+          約10 fps・約24秒で全区間
+        </span>
+      </div>
+      {prefersReducedMotion ? (
+        <p className="event-scene-simulation__motion-note" role="note">
+          「視差効果を減らす」が有効なため自動再生は停止しています。
+          スライダーで各時刻を確認できます。
+        </p>
+      ) : null}
+      {runtimeErrorMessage ? (
+        <p
+          className="event-scene-simulation__runtime-error"
+          role="alert"
+        >
+          {runtimeErrorMessage}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 function EventDetails({
   canRestoreObservationTime,
   circumstances,
+  isActive,
   observationDate,
   onGoToContact,
   onGoToMaximum,
   onRestoreObservationTime,
+  onRetrySceneSampling,
+  sceneSampling,
 }: {
   canRestoreObservationTime: boolean;
   circumstances: LocalCircumstances;
+  isActive: boolean;
   observationDate: Date | null;
-  onGoToContact: (contact: EventContact) => void;
+  onGoToContact: (sample: { readonly instantUtc: Date }) => void;
   onGoToMaximum: (contact: EventContact) => void;
   onRestoreObservationTime: () => void;
+  onRetrySceneSampling?: () => void;
+  sceneSampling: EventSceneSamplingState;
 }) {
   const titleId = useId();
   const safetyTitleId = useId();
@@ -747,6 +1098,126 @@ function EventDetails({
   const [scenePhaseId, setScenePhaseId] = useState(
     matchingObservationPhaseId ?? maximumPhaseId,
   );
+  const samplingSession = matchingSceneSamplingSession(
+    sceneSampling,
+    circumstances,
+  );
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const [
+    physicalSceneSelection,
+    setPhysicalSceneSelection,
+  ] = useState<EventScenePhysicalSelection | null>(null);
+  const [samplingError, setSamplingError] =
+    useState<EventSceneSamplingError | null>(null);
+  const [requestedSceneInstant, setRequestedSceneInstant] =
+    useState<PendingEventSceneSample | null>(null);
+  const [samplingIsPending, setSamplingIsPending] =
+    useState(false);
+  const [playingSession, setPlayingSession] =
+    useState<EventSceneSamplingSession | null>(null);
+  const pendingSampleRef =
+    useRef<PendingEventSceneSample | null>(null);
+  const samplingTimerRef = useRef<number | null>(null);
+  const previousSamplingSessionRef =
+    useRef<EventSceneSamplingSession | null>(samplingSession);
+  const clearPendingSample = useCallback(() => {
+    pendingSampleRef.current = null;
+    if (samplingTimerRef.current !== null) {
+      window.clearTimeout(samplingTimerRef.current);
+      samplingTimerRef.current = null;
+    }
+    setRequestedSceneInstant(null);
+    setSamplingIsPending(false);
+  }, []);
+  const clearPhysicalSimulation = useCallback(() => {
+    clearPendingSample();
+    setPhysicalSceneSelection(null);
+    setSamplingError(null);
+    setPlayingSession(null);
+  }, [clearPendingSample]);
+  const commitPhysicalSample = useCallback(
+    (
+      session: EventSceneSamplingSession,
+      instantMilliseconds: number,
+    ): boolean => {
+      try {
+        const sample = samplePhysicalSceneAt(
+          session,
+          instantMilliseconds,
+        );
+        setPhysicalSceneSelection({ sample, session });
+        setSamplingError(null);
+        setRequestedSceneInstant(null);
+        setSamplingIsPending(false);
+        return true;
+      } catch {
+        setSamplingError({
+          message:
+            "指定時刻の物理配置を計算できませんでした。直前に確定した配置を表示しています。",
+          session,
+        });
+        setRequestedSceneInstant(null);
+        setSamplingIsPending(false);
+        setPlayingSession(null);
+        return false;
+      }
+    },
+    [],
+  );
+  const requestPhysicalSample = useCallback(
+    (instantMilliseconds: number) => {
+      if (!samplingSession) {
+        return;
+      }
+      const request = {
+        instantMilliseconds: clampEventSceneInstant(
+          instantMilliseconds,
+          samplingSession.rangeUtc,
+        ),
+        session: samplingSession,
+      };
+      pendingSampleRef.current = request;
+      setRequestedSceneInstant(request);
+      setSamplingIsPending(true);
+      setPlayingSession(null);
+      if (samplingTimerRef.current !== null) {
+        return;
+      }
+      samplingTimerRef.current = window.setTimeout(() => {
+        samplingTimerRef.current = null;
+        const latestRequest = pendingSampleRef.current;
+        pendingSampleRef.current = null;
+        if (latestRequest) {
+          commitPhysicalSample(
+            latestRequest.session,
+            latestRequest.instantMilliseconds,
+          );
+        }
+      }, EVENT_SCENE_PLAYBACK_INTERVAL_MILLISECONDS);
+    },
+    [commitPhysicalSample, samplingSession],
+  );
+  useEffect(
+    () => () => {
+      pendingSampleRef.current = null;
+      if (samplingTimerRef.current !== null) {
+        window.clearTimeout(samplingTimerRef.current);
+        samplingTimerRef.current = null;
+      }
+    },
+    [samplingSession],
+  );
+  useEffect(() => {
+    if (
+      previousSamplingSessionRef.current === samplingSession
+    ) {
+      return;
+    }
+    previousSamplingSessionRef.current = samplingSession;
+    // A session owns decoded ephemeris/EOP closures. Drop every reference to
+    // the previous session promptly when a retry replaces it.
+    clearPhysicalSimulation();
+  }, [clearPhysicalSimulation, samplingSession]);
   useEffect(() => {
     if (matchingObservationPhaseId === null) {
       return;
@@ -759,7 +1230,11 @@ function EventDetails({
         ? currentPhaseId
         : matchingObservationPhaseId,
     );
-  }, [matchingObservationPhaseId]);
+    clearPhysicalSimulation();
+  }, [
+    clearPhysicalSimulation,
+    matchingObservationPhaseId,
+  ]);
   const [actionAnnouncement, setActionAnnouncement] = useState<{
     id: number;
     text: string;
@@ -791,7 +1266,40 @@ function EventDetails({
     calculatedPhases.find(({ id }) => id === scenePhaseId) ??
     calculatedPhases.find(({ id }) => id === maximumPhaseId) ??
     calculatedPhases[0];
-  const sceneSample = scenePhase?.sample ?? circumstances.maximum;
+  const solvedSceneSample =
+    scenePhase?.sample ?? circumstances.maximum;
+  const physicalSceneSample =
+    physicalSceneSelection?.session === samplingSession
+      ? physicalSceneSelection.sample
+      : null;
+  const sceneSample =
+    physicalSceneSample ?? solvedSceneSample;
+  const activeRequestedSceneInstant =
+    requestedSceneInstant?.session === samplingSession
+      ? requestedSceneInstant
+      : null;
+  const activeSamplingIsPending =
+    samplingIsPending &&
+    activeRequestedSceneInstant !== null;
+  const samplingRuntimeError =
+    samplingError?.session === samplingSession
+      ? samplingError.message
+      : null;
+  const isPlaying =
+    isActive &&
+    playingSession === samplingSession &&
+    samplingSession !== null &&
+    !prefersReducedMotion;
+  const defaultSimulationMilliseconds = samplingSession
+    ? clampEventSceneInstant(
+        solvedSceneSample.instantUtc.getTime(),
+        samplingSession.rangeUtc,
+      )
+    : null;
+  const simulationMilliseconds =
+    activeRequestedSceneInstant?.instantMilliseconds ??
+    physicalSceneSample?.instantUtc.getTime() ??
+    defaultSimulationMilliseconds;
   const sceneMatchesObservationDate =
     observationDate?.getTime() === sceneSample.instantUtc.getTime();
   const maximumPosition = primaryBodyPosition(
@@ -805,12 +1313,135 @@ function EventDetails({
     }));
   };
   const showContactOnSky = (contact: EventContact) => {
+    clearPhysicalSimulation();
     setScenePhaseId(eventPhaseId(contact));
     onGoToContact(contact);
     announceAction(
       `観測日時を${formatDateTime(contact.instantUtc, localTimeZone)}に変更しました。元の日時に戻せます。`,
     );
   };
+  const showSceneSampleOnSky = () => {
+    setPlayingSession(null);
+    if (!physicalSceneSample) {
+      showContactOnSky(solvedSceneSample);
+      return;
+    }
+    onGoToContact(physicalSceneSample);
+    announceAction(
+      `観測日時を${formatDateTime(physicalSceneSample.instantUtc, localTimeZone)}に変更しました。元の日時に戻せます。`,
+    );
+  };
+  const togglePlayback = () => {
+    if (
+      !samplingSession ||
+      !isActive ||
+      prefersReducedMotion ||
+      simulationMilliseconds === null ||
+      activeSamplingIsPending
+    ) {
+      return;
+    }
+    if (isPlaying) {
+      setPlayingSession(null);
+      return;
+    }
+    let playbackStartMilliseconds =
+      physicalSceneSample?.instantUtc.getTime() ??
+      samplingSession.rangeUtc.startMilliseconds;
+    if (
+      playbackStartMilliseconds >=
+      samplingSession.rangeUtc.endMilliseconds
+    ) {
+      playbackStartMilliseconds =
+        samplingSession.rangeUtc.startMilliseconds;
+    }
+    if (
+      !commitPhysicalSample(
+        samplingSession,
+        playbackStartMilliseconds,
+      )
+    ) {
+      return;
+    }
+    setPlayingSession(samplingSession);
+  };
+  useEffect(() => {
+    if (
+      !isPlaying ||
+      !samplingSession ||
+      simulationMilliseconds === null
+    ) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      const durationMilliseconds =
+        samplingSession.rangeUtc.endMilliseconds -
+        samplingSession.rangeUtc.startMilliseconds;
+      const stepMilliseconds = Math.max(
+        1,
+        Math.ceil(
+          durationMilliseconds *
+            (EVENT_SCENE_PLAYBACK_INTERVAL_MILLISECONDS /
+              EVENT_SCENE_PLAYBACK_DURATION_MILLISECONDS),
+        ),
+      );
+      const nextMilliseconds = clampEventSceneInstant(
+        simulationMilliseconds + stepMilliseconds,
+        samplingSession.rangeUtc,
+      );
+      const succeeded = commitPhysicalSample(
+        samplingSession,
+        nextMilliseconds,
+      );
+      if (
+        !succeeded ||
+        nextMilliseconds >=
+          samplingSession.rangeUtc.endMilliseconds
+      ) {
+        setPlayingSession(null);
+      }
+    }, EVENT_SCENE_PLAYBACK_INTERVAL_MILLISECONDS);
+    return () => window.clearTimeout(timer);
+  }, [
+    commitPhysicalSample,
+    isPlaying,
+    samplingSession,
+    simulationMilliseconds,
+  ]);
+  useEffect(() => {
+    if (!isActive) {
+      // A mounted but hidden feature panel must stop computation immediately.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPlayingSession(null);
+    }
+  }, [isActive]);
+  useEffect(() => {
+    if (!isPlaying) {
+      return;
+    }
+    const pauseWhenHidden = () => {
+      if (document.hidden) {
+        setPlayingSession(null);
+      }
+    };
+    document.addEventListener(
+      "visibilitychange",
+      pauseWhenHidden,
+    );
+    return () =>
+      document.removeEventListener(
+        "visibilitychange",
+        pauseWhenHidden,
+      );
+  }, [isPlaying]);
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      // An external accessibility preference change must stop, not suspend,
+      // playback so disabling and re-enabling it never auto-resumes.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPlayingSession(null);
+    }
+  }, [prefersReducedMotion]);
   return (
     <section
       aria-labelledby={titleId}
@@ -934,9 +1565,10 @@ function EventDetails({
           </label>
           <select
             id={scenePhaseSelectId}
-            onChange={(changeEvent) =>
-              setScenePhaseId(changeEvent.target.value)
-            }
+            onChange={(changeEvent) => {
+              clearPhysicalSimulation();
+              setScenePhaseId(changeEvent.target.value);
+            }}
             value={scenePhase?.id ?? maximumPhaseId}
           >
             {calculatedPhases.map(({ id, sample }) => (
@@ -960,26 +1592,49 @@ function EventDetails({
           }`}
           role="status"
         >
-          {sceneMatchesObservationDate
-            ? "この静止図は星図と同じ時刻です。"
-            : "この図は計算済み時刻の静止図です。現在の星図時刻とは別です。"}
+          {physicalSceneSample
+            ? sceneMatchesObservationDate
+              ? "この物理計算図は星図と同じ指定時刻です。"
+              : "この図は物理再計算した指定時刻です。現在の星図時刻とは別です。"
+            : sceneMatchesObservationDate
+              ? "この静止図は星図と同じ時刻です。"
+              : "この図は計算済み時刻の静止図です。現在の星図時刻とは別です。"}
         </p>
         <button
           className="event-action event-action--secondary"
-          onClick={() => showContactOnSky(sceneSample)}
+          disabled={activeSamplingIsPending}
+          onClick={showSceneSampleOnSky}
           type="button"
         >
           <Clock3Icon aria-hidden="true" size={17} strokeWidth={1.8} />
           選択時刻を空に表示
         </button>
+        <EventSceneSimulationControls
+          currentMilliseconds={simulationMilliseconds}
+          isPlaying={isPlaying}
+          isSamplingPending={activeSamplingIsPending}
+          localTimeZone={localTimeZone}
+          onRetry={onRetrySceneSampling}
+          onScrub={requestPhysicalSample}
+          onTogglePlayback={togglePlayback}
+          prefersReducedMotion={prefersReducedMotion}
+          runtimeErrorMessage={samplingRuntimeError}
+          sceneSampling={sceneSampling}
+          session={samplingSession}
+        />
       </div>
 
-      <EventScene circumstances={circumstances} sample={sceneSample} />
+      <EventScene
+        circumstances={circumstances}
+        projectionSamples={samplingSession?.projectionSamples}
+        sample={sceneSample}
+      />
 
       <div className="event-details__primary-actions">
         <button
           className="event-action event-action--primary"
           onClick={() => {
+            clearPhysicalSimulation();
             setScenePhaseId(maximumPhaseId);
             onGoToMaximum(circumstances.maximum);
             announceAction(
@@ -996,6 +1651,7 @@ function EventDetails({
           <button
             className="event-action event-action--secondary"
             onClick={() => {
+              clearPhysicalSimulation();
               setScenePhaseId(maximumPhaseId);
               onRestoreObservationTime();
               announceAction("元の観測日時に戻しました。");
@@ -1253,13 +1909,16 @@ export function EventExplorer({
   emptyTitle,
   errorMessage = "天文現象の予報を読み込めませんでした。",
   events,
+  isActive = true,
   localClassificationsByEventId,
   onGoToContact,
   onGoToMaximum,
   onRestoreObservationTime,
+  onRetrySceneSampling,
   onRetry,
   onSelectEvent,
   observationDate = null,
+  sceneSampling = UNAVAILABLE_EVENT_SCENE_SAMPLING,
   selectedCircumstances,
   selectedEventId,
   status,
@@ -1363,11 +2022,14 @@ export function EventExplorer({
             <EventDetails
               canRestoreObservationTime={canRestoreObservationTime}
               circumstances={selectedCircumstances}
+              isActive={isActive}
               key={selectedCircumstances.event.id}
               observationDate={observationDate}
               onGoToContact={onGoToContact}
               onGoToMaximum={onGoToMaximum}
               onRestoreObservationTime={onRestoreObservationTime}
+              onRetrySceneSampling={onRetrySceneSampling}
+              sceneSampling={sceneSampling}
             />
           ) : selectedEventId ? (
             <div

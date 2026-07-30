@@ -1,6 +1,7 @@
 import { memo, useId, useMemo } from "react";
 import type { LocalCircumstances } from "../../domain/events/types";
 import {
+  createEventSceneProjection,
   createEventSceneModel,
   EVENT_SCENE_VIEWBOX,
   type CalculatedLunarEventSceneModel,
@@ -14,6 +15,12 @@ import "./EventScene.css";
 
 export type EventSceneProps = {
   readonly circumstances: LocalCircumstances;
+  /**
+   * Optional physical sample grid used only to choose a fixed angular extent.
+   * Coordinates are still calculated per sample; no screen-space interpolation
+   * is performed. Defaults to every solved contact plus maximum.
+   */
+  readonly projectionSamples?: readonly EventSceneSample[];
   /**
    * Optional geometry sample for a selected contact or an independently
    * calculated instant. When omitted, the forecast maximum/closest approach
@@ -430,6 +437,7 @@ function sceneLegend(model: EventSceneModel) {
 
 export const EventScene = memo(function EventScene({
   circumstances,
+  projectionSamples,
   sample,
 }: EventSceneProps) {
   const titleId = useId();
@@ -437,9 +445,22 @@ export const EventScene = memo(function EventScene({
   const svgTitleId = useId();
   const svgDescriptionId = useId();
   const paintId = useId().replaceAll(":", "");
+  const projection = useMemo(
+    () =>
+      createEventSceneProjection(
+        circumstances,
+        projectionSamples,
+      ),
+    [circumstances, projectionSamples],
+  );
   const model = useMemo(
-    () => createEventSceneModel(circumstances, sample),
-    [circumstances, sample],
+    () =>
+      createEventSceneModel(
+        circumstances,
+        sample,
+        projection,
+      ),
+    [circumstances, projection, sample],
   );
   const moonGradientId = `event-scene-moon-${paintId}`;
   const sunGradientId = `event-scene-sun-${paintId}`;

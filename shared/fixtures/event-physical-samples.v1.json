@@ -1,0 +1,221 @@
+{
+  "schemaVersion": 1,
+  "model": "event-physical-samples-v1",
+  "assumptions": {
+    "ephemerisId": "JPL-DE442s",
+    "earthOrientation": {
+      "dut1Seconds": 0,
+      "xpRadians": 0,
+      "ypRadians": 0
+    },
+    "observerHeightReference": "WGS84-ellipsoid",
+    "refraction": false,
+    "lunarLimbModel": "mean-spherical-limb"
+  },
+  "tolerances": {
+    "angleRadians": 2e-12,
+    "distanceKilometers": 1e-5
+  },
+  "cases": [
+    {
+      "id": "solar-london-reference-maximum",
+      "eventId": "se-20260812",
+      "kind": "solar-eclipse",
+      "targetStarHR": null,
+      "role": "reference-maximum",
+      "instantUtc": "2026-08-12T18:13:21.232Z",
+      "location": {
+        "latitude": 51.5074,
+        "longitude": -0.1278,
+        "heightMeters": 11,
+        "timeZone": "Europe/London"
+      },
+      "expected": {
+        "aboveHorizon": true,
+        "bodies": {
+          "sun": {
+            "altitudeRadians": 0.1802595884249346,
+            "azimuthRadians": 4.901343088823433,
+            "azimuthDefined": true,
+            "angularRadiusRadians": 0.004589531606571317,
+            "distanceKilometers": 151584628.23472965
+          },
+          "moon": {
+            "altitudeRadians": 0.17943254761264626,
+            "azimuthRadians": 4.901167087541713,
+            "azimuthDefined": true,
+            "angularRadiusRadians": 0.004748956688524036,
+            "distanceKilometers": 365850.1528754452
+          }
+        },
+        "lunarShadow": null
+      }
+    },
+    {
+      "id": "solar-london-interior",
+      "eventId": "se-20260812",
+      "kind": "solar-eclipse",
+      "targetStarHR": null,
+      "role": "interior",
+      "instantUtc": "2026-08-12T17:57:41.193Z",
+      "location": {
+        "latitude": 51.5074,
+        "longitude": -0.1278,
+        "heightMeters": 11,
+        "timeZone": "Europe/London"
+      },
+      "expected": {
+        "aboveHorizon": true,
+        "bodies": {
+          "sun": {
+            "altitudeRadians": 0.22229035614750878,
+            "azimuthRadians": 4.849268671075784,
+            "azimuthDefined": true,
+            "angularRadiusRadians": 0.0045895311595348575,
+            "distanceKilometers": 151584642.99950132
+          },
+          "moon": {
+            "altitudeRadians": 0.22091114214870822,
+            "azimuthRadians": 4.851754739187431,
+            "azimuthDefined": true,
+            "angularRadiusRadians": 0.004752778242502785,
+            "distanceKilometers": 365555.98691158433
+          }
+        },
+        "lunarShadow": null
+      }
+    },
+    {
+      "id": "lunar-london-reference-maximum",
+      "eventId": "le-20260303",
+      "kind": "lunar-eclipse",
+      "targetStarHR": null,
+      "role": "reference-maximum",
+      "instantUtc": "2026-03-03T11:33:42.903Z",
+      "location": {
+        "latitude": 51.5074,
+        "longitude": -0.1278,
+        "heightMeters": 11,
+        "timeZone": "Europe/London"
+      },
+      "expected": {
+        "aboveHorizon": false,
+        "bodies": {
+          "moon": {
+            "altitudeRadians": -0.5641452443300088,
+            "azimuthRadians": 6.089595054899107,
+            "azimuthDefined": true,
+            "angularRadiusRadians": 0.004501243104418708,
+            "distanceKilometers": 385983.5664670992
+          }
+        },
+        "lunarShadow": {
+          "centerSeparationRadians": 0.006276307662206391,
+          "centerPositionAngleRadians": 0.49187368179268853,
+          "penumbralAngularRadiusRadians": 0.021572197884312944,
+          "umbralAngularRadiusRadians": 0.012189744444820771
+        }
+      }
+    },
+    {
+      "id": "lunar-london-interior",
+      "eventId": "le-20260303",
+      "kind": "lunar-eclipse",
+      "targetStarHR": null,
+      "role": "interior",
+      "instantUtc": "2026-03-03T10:49:44.181Z",
+      "location": {
+        "latitude": 51.5074,
+        "longitude": -0.1278,
+        "heightMeters": 11,
+        "timeZone": "Europe/London"
+      },
+      "expected": {
+        "aboveHorizon": false,
+        "bodies": {
+          "moon": {
+            "altitudeRadians": -0.5271055117420447,
+            "azimuthRadians": 5.879417151964201,
+            "azimuthDefined": true,
+            "angularRadiusRadians": 0.004505009870208118,
+            "distanceKilometers": 385660.83690337004
+          }
+        },
+        "lunarShadow": {
+          "centerSeparationRadians": 0.009097897239549436,
+          "centerPositionAngleRadians": 1.3006360930431184,
+          "penumbralAngularRadiusRadians": 0.021577464105364194,
+          "umbralAngularRadiusRadians": 0.012194939292837381
+        }
+      }
+    },
+    {
+      "id": "occultation-new-york-reference-maximum",
+      "eventId": "lo-20170305-hr1457",
+      "kind": "lunar-occultation",
+      "targetStarHR": 1457,
+      "role": "reference-maximum",
+      "instantUtc": "2017-03-05T04:21:05.739Z",
+      "location": {
+        "latitude": 40.7128,
+        "longitude": -74.006,
+        "heightMeters": 11,
+        "timeZone": "America/New_York"
+      },
+      "expected": {
+        "aboveHorizon": true,
+        "bodies": {
+          "moon": {
+            "altitudeRadians": 0.2471201271543862,
+            "azimuthRadians": 4.8776795895585785,
+            "azimuthDefined": true,
+            "angularRadiusRadians": 0.004714066290986435,
+            "distanceKilometers": 368557.9131992855
+          },
+          "target": {
+            "altitudeRadians": 0.24965599948298137,
+            "azimuthRadians": 4.881362722617371,
+            "azimuthDefined": true,
+            "angularRadiusRadians": null,
+            "distanceKilometers": null
+          }
+        },
+        "lunarShadow": null
+      }
+    },
+    {
+      "id": "occultation-new-york-interior",
+      "eventId": "lo-20170305-hr1457",
+      "kind": "lunar-occultation",
+      "targetStarHR": 1457,
+      "role": "interior",
+      "instantUtc": "2017-03-05T04:18:16.898Z",
+      "location": {
+        "latitude": 40.7128,
+        "longitude": -74.006,
+        "heightMeters": 11,
+        "timeZone": "America/New_York"
+      },
+      "expected": {
+        "aboveHorizon": true,
+        "bodies": {
+          "moon": {
+            "altitudeRadians": 0.2559510594159023,
+            "azimuthRadians": 4.870311997110077,
+            "azimuthDefined": true,
+            "angularRadiusRadians": 0.00471478899218848,
+            "distanceKilometers": 368501.4196267958
+          },
+          "target": {
+            "altitudeRadians": 0.2588614162999056,
+            "azimuthRadians": 4.873730626377463,
+            "azimuthDefined": true,
+            "angularRadiusRadians": null,
+            "distanceKilometers": null
+          }
+        },
+        "lunarShadow": null
+      }
+    }
+  ]
+}

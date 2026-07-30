@@ -44,6 +44,7 @@ struct EventForecastInspectorView: View {
 
                 EventSceneView(
                     item: item,
+                    eventStore: eventStore,
                     observationDate:
                         skyStore.observationDate
                 ) { date, label in

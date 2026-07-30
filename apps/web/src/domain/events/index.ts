@@ -9,16 +9,19 @@ export {
 } from "./apparentBody";
 export {
   calculateLocalSolarEclipse,
+  sampleLocalSolarEclipseAt,
   solveSolarEclipseGeometry,
 } from "./solarEclipse";
 export {
   calculateLocalLunarEclipse,
   lunarShadowSample,
+  sampleLocalLunarEclipseAt,
   solveLunarEclipseGeometry,
 } from "./lunarEclipse";
 export {
   calculateLocalLunarOccultation,
   lunarLimbPositionAngleRadians,
+  sampleLocalLunarOccultationAt,
   solveLunarOccultationGeometry,
 } from "./lunarOccultation";
 export {
@@ -80,6 +83,7 @@ export type {
   EventEphemerisSearchOptions,
   EventEphemerisStateCoverage,
   EventEphemerisProvider,
+  EventPhysicalSample,
   EventKind,
   EventObserverContext,
   EventProvenance,

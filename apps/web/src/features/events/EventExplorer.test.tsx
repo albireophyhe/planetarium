@@ -1,9 +1,16 @@
-import { render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type {
   EventBodyPosition,
   EventContact,
+  EventPhysicalSample,
   EventSummary,
   LocalCircumstances,
 } from "../../domain/events/types";
@@ -11,6 +18,10 @@ import {
   EventExplorer,
   type EventExplorerProps,
 } from "./EventExplorer";
+import type {
+  EventSceneSamplingSession,
+  EventSceneSamplingState,
+} from "./EventSceneSamplingSession";
 
 const SOLAR_EVENT: EventSummary = {
   canonicalEpochUtc: new Date("2026-08-12T18:30:12.000Z"),
@@ -173,6 +184,65 @@ const SOLAR_CIRCUMSTANCES: LocalCircumstances = {
     "天候、地形、建物は考慮していません。",
   ],
 };
+
+function physicalSolarSample(
+  instantMilliseconds: number,
+): EventPhysicalSample {
+  const progress =
+    (instantMilliseconds - SOLAR_C1.instantUtc.getTime()) /
+    (SOLAR_C4.instantUtc.getTime() -
+      SOLAR_C1.instantUtc.getTime());
+  return {
+    aboveHorizon: true,
+    bodies: {
+      moon: {
+        ...bodyPosition(10, 276.4 - progress * 0.8),
+        distanceKilometers: 373_000,
+      },
+      sun: bodyPosition(10, 276),
+    },
+    instantUtc: new Date(instantMilliseconds),
+    positionAngleRadians: null,
+  };
+}
+
+function readySceneSampling(): {
+  readonly sampleAt: ReturnType<typeof vi.fn>;
+  readonly state: EventSceneSamplingState;
+} {
+  const startMilliseconds = SOLAR_C1.instantUtc.getTime();
+  const endMilliseconds = SOLAR_C4.instantUtc.getTime();
+  const sampleAt = vi.fn((instantUtc: Date) =>
+    physicalSolarSample(instantUtc.getTime()),
+  );
+  const session: EventSceneSamplingSession = {
+    eventId: SOLAR_EVENT.id,
+    kind: "solar-eclipse",
+    projectionSamples: [
+      physicalSolarSample(startMilliseconds),
+      physicalSolarSample(SOLAR_MAXIMUM.instantUtc.getTime()),
+      physicalSolarSample(endMilliseconds),
+    ],
+    rangeUtc: {
+      endMilliseconds,
+      startMilliseconds,
+    },
+    resource: {
+      eopRetrievedAt: "2026-07-29T04:05:06.000Z",
+      eopSourceSha256:
+        "f707ea5031a467f1a3b2f0645fac2f627095ed0cb41d34c515b495cb81a5a25d",
+      ephemerisId: "JPL DE440s",
+      ephemerisSourceSha256:
+        "c1b942ea6c6d79f2491f03446a95ca8eb3ea36765c0513d234ac6e70d5c2c704",
+    },
+    sampleAt,
+    targetStarHR: null,
+  };
+  return {
+    sampleAt,
+    state: { session, status: "ready" },
+  };
+}
 
 function explorerProps(
   overrides: Partial<EventExplorerProps> = {},
@@ -528,6 +598,446 @@ describe("EventExplorer", () => {
         name: "2026年8月12日 皆既日食、部分食開始（C1）の相対配置",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("coalesces scrub input to the latest exact UTC and clears it when a solved phase is selected", () => {
+    vi.useFakeTimers();
+    try {
+      const { sampleAt, state } = readySceneSampling();
+      const onGoToContact = vi.fn();
+      render(
+        <EventExplorer
+          {...explorerProps({
+            events: [SOLAR_EVENT],
+            onGoToContact,
+            sceneSampling: state,
+            selectedCircumstances: SOLAR_CIRCUMSTANCES,
+            selectedEventId: SOLAR_EVENT.id,
+            status: "ready",
+          })}
+        />,
+      );
+      const range = screen.getByLabelText(
+        "シミュレーション時刻",
+      );
+      const firstRequest =
+        SOLAR_MAXIMUM.instantUtc.getTime() + 61_000;
+      const latestRequest = firstRequest + 12_000;
+
+      fireEvent.change(range, {
+        target: { value: String(firstRequest) },
+      });
+      fireEvent.change(range, {
+        target: { value: String(latestRequest) },
+      });
+
+      expect(sampleAt).not.toHaveBeenCalled();
+      expect(
+        screen.getByText("物理計算を更新中"),
+      ).toBeInTheDocument();
+      const showOnSkyButton = screen.getByRole("button", {
+        name: "選択時刻を空に表示",
+      });
+      expect(showOnSkyButton).toBeDisabled();
+      fireEvent.click(showOnSkyButton);
+      expect(onGoToContact).not.toHaveBeenCalled();
+      expect(
+        screen.getByRole("img", {
+          name: "2026年8月12日 皆既日食、最大の相対配置",
+        }),
+      ).toBeInTheDocument();
+
+      act(() => vi.advanceTimersByTime(99));
+      expect(sampleAt).not.toHaveBeenCalled();
+      act(() => vi.advanceTimersByTime(1));
+
+      expect(sampleAt).toHaveBeenCalledTimes(1);
+      expect(
+        (sampleAt.mock.calls[0]?.[0] as Date).getTime(),
+      ).toBe(latestRequest);
+      expect(
+        screen.getByRole("img", {
+          name: "2026年8月12日 皆既日食、指定時刻の相対配置",
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "この図は物理再計算した指定時刻です。現在の星図時刻とは別です。",
+        ),
+      ).toBeInTheDocument();
+
+      fireEvent.click(
+        showOnSkyButton,
+      );
+      expect(
+        onGoToContact.mock.calls[0]?.[0].instantUtc.getTime(),
+      ).toBe(latestRequest);
+
+      sampleAt.mockImplementationOnce(() => {
+        throw new RangeError("synthetic sampler failure");
+      });
+      fireEvent.change(range, {
+        target: { value: String(latestRequest + 10_000) },
+      });
+      act(() => vi.advanceTimersByTime(100));
+      expect(
+        screen.getByText(/指定時刻の物理配置を計算できませんでした/),
+      ).toHaveAttribute("role", "alert");
+      expect(
+        screen.getByRole("img", {
+          name: "2026年8月12日 皆既日食、指定時刻の相対配置",
+        }),
+      ).toBeInTheDocument();
+
+      fireEvent.change(
+        screen.getByLabelText("相対配置の計算済み時刻"),
+        {
+          target: {
+            value: `solar-c1:${SOLAR_C1.instantUtc.getTime()}`,
+          },
+        },
+      );
+      expect(
+        screen.getByRole("img", {
+          name: "2026年8月12日 皆既日食、部分食開始（C1）の相対配置",
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("img", { name: /指定時刻/ }),
+      ).not.toBeInTheDocument();
+      expect(sampleAt).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("plays the physical overview at about 10 fps, clamps at the end, and stays paused when hidden", () => {
+    vi.useFakeTimers();
+    try {
+      const { sampleAt, state } = readySceneSampling();
+      render(
+        <EventExplorer
+          {...explorerProps({
+            events: [SOLAR_EVENT],
+            sceneSampling: state,
+            selectedCircumstances: SOLAR_CIRCUMSTANCES,
+            selectedEventId: SOLAR_EVENT.id,
+            status: "ready",
+          })}
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "シミュレーションを再生",
+        }),
+      );
+      expect(
+        (sampleAt.mock.calls[0]?.[0] as Date).getTime(),
+      ).toBe(SOLAR_C1.instantUtc.getTime());
+      expect(
+        screen.getByRole("button", {
+          name: "シミュレーションを一時停止",
+        }),
+      ).toBeInTheDocument();
+
+      act(() => vi.advanceTimersByTime(100));
+      expect(sampleAt).toHaveBeenCalledTimes(2);
+      const expectedPlaybackStep = Math.ceil(
+        (SOLAR_C4.instantUtc.getTime() -
+          SOLAR_C1.instantUtc.getTime()) /
+          240,
+      );
+      expect(
+        (sampleAt.mock.calls[1]?.[0] as Date).getTime(),
+      ).toBe(
+        SOLAR_C1.instantUtc.getTime() + expectedPlaybackStep,
+      );
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "シミュレーションを一時停止",
+        }),
+      );
+      const pausedCallCount = sampleAt.mock.calls.length;
+      act(() => vi.advanceTimersByTime(500));
+      expect(sampleAt).toHaveBeenCalledTimes(pausedCallCount);
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "シミュレーションを再生",
+        }),
+      );
+      Object.defineProperty(document, "hidden", {
+        configurable: true,
+        value: true,
+      });
+      fireEvent(document, new Event("visibilitychange"));
+      expect(
+        screen.getByRole("button", {
+          name: "シミュレーションを再生",
+        }),
+      ).toBeInTheDocument();
+      const hiddenCallCount = sampleAt.mock.calls.length;
+      act(() => vi.advanceTimersByTime(500));
+      expect(sampleAt).toHaveBeenCalledTimes(hiddenCallCount);
+      Reflect.deleteProperty(document, "hidden");
+
+      const endMilliseconds = SOLAR_C4.instantUtc.getTime();
+      fireEvent.change(
+        screen.getByLabelText("シミュレーション時刻"),
+        {
+          target: { value: String(endMilliseconds - 500) },
+        },
+      );
+      act(() => vi.advanceTimersByTime(100));
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "シミュレーションを再生",
+        }),
+      );
+      act(() => vi.advanceTimersByTime(100));
+
+      const lastSampleCall =
+        sampleAt.mock.calls.at(-1)?.[0] as Date;
+      expect(lastSampleCall.getTime()).toBe(endMilliseconds);
+      const replayButton = screen.getByRole("button", {
+        name: "シミュレーションを最初から再生",
+      });
+      expect(replayButton).toBeEnabled();
+      expect(screen.getByText("最初から再生")).toBeInTheDocument();
+
+      fireEvent.click(replayButton);
+      expect(
+        (sampleAt.mock.calls.at(-1)?.[0] as Date).getTime(),
+      ).toBe(SOLAR_C1.instantUtc.getTime());
+      expect(
+        screen.getByRole("button", {
+          name: "シミュレーションを一時停止",
+        }),
+      ).toBeInTheDocument();
+    } finally {
+      Reflect.deleteProperty(document, "hidden");
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops physical playback when its mounted feature panel becomes inactive", () => {
+    vi.useFakeTimers();
+    try {
+      const { sampleAt, state } = readySceneSampling();
+      const props = explorerProps({
+        events: [SOLAR_EVENT],
+        isActive: true,
+        sceneSampling: state,
+        selectedCircumstances: SOLAR_CIRCUMSTANCES,
+        selectedEventId: SOLAR_EVENT.id,
+        status: "ready",
+      });
+      const { rerender } = render(
+        <EventExplorer {...props} />,
+      );
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "シミュレーションを再生",
+        }),
+      );
+      expect(
+        screen.getByRole("button", {
+          name: "シミュレーションを一時停止",
+        }),
+      ).toBeInTheDocument();
+
+      rerender(
+        <EventExplorer
+          {...props}
+          isActive={false}
+        />,
+      );
+      expect(
+        screen.getByRole("button", {
+          name: "シミュレーションを再生",
+        }),
+      ).toBeInTheDocument();
+      const inactiveCallCount =
+        sampleAt.mock.calls.length;
+      act(() => vi.advanceTimersByTime(500));
+      expect(sampleAt).toHaveBeenCalledTimes(
+        inactiveCallCount,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("disables automatic playback when reduced motion is requested", () => {
+    const matchMedia = vi.fn(() => ({
+      addEventListener: vi.fn(),
+      matches: true,
+      media: "(prefers-reduced-motion: reduce)",
+      onchange: null,
+      removeEventListener: vi.fn(),
+    }));
+    vi.stubGlobal("matchMedia", matchMedia);
+    try {
+      const { state } = readySceneSampling();
+      render(
+        <EventExplorer
+          {...explorerProps({
+            events: [SOLAR_EVENT],
+            sceneSampling: state,
+            selectedCircumstances: SOLAR_CIRCUMSTANCES,
+            selectedEventId: SOLAR_EVENT.id,
+            status: "ready",
+          })}
+        />,
+      );
+
+      expect(
+        screen.getByRole("button", {
+          name: "シミュレーションを再生",
+        }),
+      ).toBeDisabled();
+      expect(
+        screen.getByText(/視差効果を減らす.*自動再生は停止/, {
+          exact: false,
+        }),
+      ).toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("drops arbitrary selection and playback when a same-event sampling session is replaced", () => {
+    vi.useFakeTimers();
+    try {
+      const firstSampling = readySceneSampling();
+      const baseProps = explorerProps({
+        events: [SOLAR_EVENT],
+        sceneSampling: firstSampling.state,
+        selectedCircumstances: SOLAR_CIRCUMSTANCES,
+        selectedEventId: SOLAR_EVENT.id,
+        status: "ready",
+      });
+      const { rerender } = render(
+        <EventExplorer {...baseProps} />,
+      );
+      fireEvent.change(
+        screen.getByLabelText("シミュレーション時刻"),
+        {
+          target: {
+            value: String(
+              SOLAR_MAXIMUM.instantUtc.getTime() + 30_000,
+            ),
+          },
+        },
+      );
+      act(() => vi.advanceTimersByTime(100));
+      expect(
+        screen.getByRole("img", {
+          name: "2026年8月12日 皆既日食、指定時刻の相対配置",
+        }),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "シミュレーションを再生",
+        }),
+      );
+
+      const replacementSampling = readySceneSampling();
+      rerender(
+        <EventExplorer
+          {...baseProps}
+          sceneSampling={replacementSampling.state}
+        />,
+      );
+
+      expect(
+        screen.getByRole("img", {
+          name: "2026年8月12日 皆既日食、最大の相対配置",
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", {
+          name: "シミュレーションを再生",
+        }),
+      ).toBeInTheDocument();
+      const oldCallCount = firstSampling.sampleAt.mock.calls.length;
+      act(() => vi.advanceTimersByTime(500));
+      expect(firstSampling.sampleAt).toHaveBeenCalledTimes(
+        oldCallCount,
+      );
+      expect(replacementSampling.sampleAt).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("states whether continuous physical sampling is unavailable, loading, or failed", () => {
+    const onRetrySceneSampling = vi.fn();
+    const baseProps = explorerProps({
+      events: [SOLAR_EVENT],
+      onRetrySceneSampling,
+      selectedCircumstances: SOLAR_CIRCUMSTANCES,
+      selectedEventId: SOLAR_EVENT.id,
+      status: "ready",
+    });
+    const { rerender } = render(<EventExplorer {...baseProps} />);
+    expect(
+      screen.getByText(/任意時刻の物理シミュレーションを利用できません/),
+    ).toBeInTheDocument();
+
+    rerender(
+      <EventExplorer
+        {...baseProps}
+        sceneSampling={{ session: null, status: "loading" }}
+      />,
+    );
+    expect(
+      screen.getByText(/物理サンプルと固定画角を準備しています/),
+    ).toHaveAttribute("role", "status");
+
+    const mismatchedSampling = readySceneSampling();
+    if (mismatchedSampling.state.status !== "ready") {
+      throw new Error("Expected ready scene sampling");
+    }
+    rerender(
+      <EventExplorer
+        {...baseProps}
+        sceneSampling={{
+          session: {
+            ...mismatchedSampling.state.session,
+            targetStarHR: 5984,
+          },
+          status: "ready",
+        }}
+      />,
+    );
+    expect(
+      screen.getByText(/選択中の現象と一致しません/),
+    ).toHaveAttribute("role", "alert");
+    expect(
+      screen.queryByLabelText("シミュレーション時刻"),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <EventExplorer
+        {...baseProps}
+        sceneSampling={{
+          errorMessage:
+            "連続シミュレーションを準備できませんでした。",
+          session: null,
+          status: "error",
+        }}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "連続シミュレーションを準備できませんでした。",
+      ),
+    ).toHaveAttribute("role", "alert");
+    fireEvent.click(
+      screen.getByRole("button", { name: "再準備" }),
+    );
+    expect(onRetrySceneSampling).toHaveBeenCalledTimes(1);
   });
 
   it("discloses an outside-coverage EOP fallback without inventing source metadata", async () => {

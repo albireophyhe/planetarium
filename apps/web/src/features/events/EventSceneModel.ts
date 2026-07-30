@@ -12,13 +12,14 @@ export const EVENT_SCENE_VIEWBOX = Object.freeze({
   width: 560,
 });
 
-const DRAWING_BOUNDS = Object.freeze({
+export const EVENT_SCENE_DRAWING_BOUNDS = Object.freeze({
   bottom: 230,
   left: 36,
   right: 524,
   top: 26,
 });
 const DEGENERATE_DIRECTION_RADIANS = 1e-12;
+const EVENT_SCENE_ANGULAR_PADDING_FRACTION = 0.04;
 
 type Point2 = {
   readonly x: number;
@@ -40,6 +41,11 @@ export type EventSceneSample = {
 };
 
 type EventSceneCommon = {
+  /**
+   * Fixed scale shared by every solver-produced phase for this event.
+   * Null means the scene is schematic or unavailable.
+   */
+  readonly angularScalePixelsPerRadian: number | null;
   readonly description: string;
   readonly instantUtc: Date;
   readonly metrics: readonly {
@@ -106,6 +112,16 @@ type AngularCircle = Point2 & {
   readonly radius: number;
 };
 
+export type EventSceneProjection = {
+  readonly angularBottom: number;
+  readonly angularCenterX: number;
+  readonly angularCenterY: number;
+  readonly angularLeft: number;
+  readonly angularRight: number;
+  readonly angularTop: number;
+  readonly pixelsPerRadian: number;
+};
+
 type DirectionVector = readonly [
   east: number,
   north: number,
@@ -114,6 +130,34 @@ type DirectionVector = readonly [
 
 function isFiniteNumber(value: number): boolean {
   return Number.isFinite(value);
+}
+
+function isValidAngularCircle(
+  circle: AngularCircle,
+): boolean {
+  return (
+    isFiniteNumber(circle.x) &&
+    isFiniteNumber(circle.y) &&
+    isFiniteNumber(circle.radius) &&
+    circle.radius > 0
+  );
+}
+
+function isValidProjection(
+  projection: EventSceneProjection,
+): boolean {
+  return (
+    isFiniteNumber(projection.angularBottom) &&
+    isFiniteNumber(projection.angularCenterX) &&
+    isFiniteNumber(projection.angularCenterY) &&
+    isFiniteNumber(projection.angularLeft) &&
+    isFiniteNumber(projection.angularRight) &&
+    isFiniteNumber(projection.angularTop) &&
+    isFiniteNumber(projection.pixelsPerRadian) &&
+    projection.angularRight > projection.angularLeft &&
+    projection.angularTop > projection.angularBottom &&
+    projection.pixelsPerRadian > 0
+  );
 }
 
 function validAngularRadius(
@@ -229,69 +273,164 @@ export function horizontalTangentOffset(
   };
 }
 
+function projectionForAngularCircles(
+  circles: readonly AngularCircle[],
+): EventSceneProjection | null {
+  if (
+    circles.length === 0 ||
+    circles.some((circle) => !isValidAngularCircle(circle))
+  ) {
+    return null;
+  }
+  let angularLeft = Number.POSITIVE_INFINITY;
+  let angularRight = Number.NEGATIVE_INFINITY;
+  let angularBottom = Number.POSITIVE_INFINITY;
+  let angularTop = Number.NEGATIVE_INFINITY;
+  for (const { radius, x, y } of circles) {
+    angularLeft = Math.min(angularLeft, x - radius);
+    angularRight = Math.max(angularRight, x + radius);
+    angularBottom = Math.min(angularBottom, y - radius);
+    angularTop = Math.max(angularTop, y + radius);
+  }
+  const angularWidth = angularRight - angularLeft;
+  const angularHeight = angularTop - angularBottom;
+  if (
+    !isFiniteNumber(angularWidth) ||
+    !isFiniteNumber(angularHeight) ||
+    angularWidth <= DEGENERATE_DIRECTION_RADIANS ||
+    angularHeight <= DEGENERATE_DIRECTION_RADIANS
+  ) {
+    return null;
+  }
+  const horizontalPadding =
+    angularWidth * EVENT_SCENE_ANGULAR_PADDING_FRACTION;
+  const verticalPadding =
+    angularHeight * EVENT_SCENE_ANGULAR_PADDING_FRACTION;
+  angularLeft -= horizontalPadding;
+  angularRight += horizontalPadding;
+  angularBottom -= verticalPadding;
+  angularTop += verticalPadding;
+  const paddedAngularWidth = angularRight - angularLeft;
+  const paddedAngularHeight = angularTop - angularBottom;
+  const availableWidth =
+    EVENT_SCENE_DRAWING_BOUNDS.right -
+    EVENT_SCENE_DRAWING_BOUNDS.left;
+  const availableHeight =
+    EVENT_SCENE_DRAWING_BOUNDS.bottom -
+    EVENT_SCENE_DRAWING_BOUNDS.top;
+  const pixelsPerRadian = Math.min(
+    availableWidth / paddedAngularWidth,
+    availableHeight / paddedAngularHeight,
+  );
+  const projection = {
+    angularBottom,
+    angularCenterX: (angularLeft + angularRight) / 2,
+    angularCenterY: (angularBottom + angularTop) / 2,
+    angularLeft,
+    angularRight,
+    angularTop,
+    pixelsPerRadian,
+  };
+  return isValidProjection(projection)
+    ? Object.freeze(projection)
+    : null;
+}
+
 function projectAngularCircles(
   circles: readonly AngularCircle[],
-): readonly EventSceneCircle[] {
-  const minimumX = Math.min(
-    ...circles.map(({ radius, x }) => x - radius),
+  sharedProjection?: EventSceneProjection | null,
+): readonly EventSceneCircle[] | null {
+  const projection = resolvedProjectionForCircles(
+    circles,
+    sharedProjection,
   );
-  const maximumX = Math.max(
-    ...circles.map(({ radius, x }) => x + radius),
-  );
-  const minimumY = Math.min(
-    ...circles.map(({ radius, y }) => y - radius),
-  );
-  const maximumY = Math.max(
-    ...circles.map(({ radius, y }) => y + radius),
-  );
-  const angularWidth = maximumX - minimumX;
-  const angularHeight = maximumY - minimumY;
-  const availableWidth = DRAWING_BOUNDS.right - DRAWING_BOUNDS.left;
-  const availableHeight =
-    DRAWING_BOUNDS.bottom - DRAWING_BOUNDS.top;
-  const scale = Math.min(
-    availableWidth / angularWidth,
-    availableHeight / angularHeight,
-  );
-  const angularCenterX = (minimumX + maximumX) / 2;
-  const angularCenterY = (minimumY + maximumY) / 2;
+  if (!projection) {
+    return null;
+  }
+  const {
+    angularCenterX,
+    angularCenterY,
+    pixelsPerRadian,
+  } = projection;
   const drawingCenterX =
-    (DRAWING_BOUNDS.left + DRAWING_BOUNDS.right) / 2;
+    (EVENT_SCENE_DRAWING_BOUNDS.left +
+      EVENT_SCENE_DRAWING_BOUNDS.right) /
+    2;
   const drawingCenterY =
-    (DRAWING_BOUNDS.top + DRAWING_BOUNDS.bottom) / 2;
+    (EVENT_SCENE_DRAWING_BOUNDS.top +
+      EVENT_SCENE_DRAWING_BOUNDS.bottom) /
+    2;
 
   const svgNumber = (value: number) =>
     Math.round(value * 1_000) / 1_000;
-  return circles.map(({ radius, x, y }) => ({
-    radius: svgNumber(radius * scale),
+  const projected = circles.map(({ radius, x, y }) => ({
+    radius: svgNumber(radius * pixelsPerRadian),
     x: svgNumber(
-      drawingCenterX + (x - angularCenterX) * scale,
+      drawingCenterX +
+        (x - angularCenterX) * pixelsPerRadian,
     ),
     // SVG y increases downward, while angular y increases upward.
     y: svgNumber(
-      drawingCenterY - (y - angularCenterY) * scale,
+      drawingCenterY -
+        (y - angularCenterY) * pixelsPerRadian,
     ),
   }));
+  return projected.every(
+    ({ radius, x, y }) =>
+      isFiniteNumber(radius) &&
+      radius > 0 &&
+      isFiniteNumber(x) &&
+      isFiniteNumber(y),
+  )
+    ? projected
+    : null;
+}
+
+function resolvedProjectionForCircles(
+  circles: readonly AngularCircle[],
+  sharedProjection?: EventSceneProjection | null,
+): EventSceneProjection | null {
+  if (circles.some((circle) => !isValidAngularCircle(circle))) {
+    return null;
+  }
+  if (sharedProjection && isValidProjection(sharedProjection)) {
+    const isContained = circles.every(
+      ({ radius, x, y }) =>
+        x - radius >= sharedProjection.angularLeft &&
+        x + radius <= sharedProjection.angularRight &&
+        y - radius >= sharedProjection.angularBottom &&
+        y + radius <= sharedProjection.angularTop,
+    );
+    return isContained ? sharedProjection : null;
+  }
+  return projectionForAngularCircles(circles);
 }
 
 function projectAngularPointWithCircle(
   circle: AngularCircle,
   point: Point2,
+  sharedProjection?: EventSceneProjection | null,
 ): {
   readonly circle: EventSceneCircle;
   readonly point: Point2;
-} {
+} | null {
   // Reserve a small angular marker envelope without changing the actual
   // point coordinate. This prevents a limb contact marker from clipping.
   const markerEnvelope = circle.radius * 0.09;
-  const projected = projectAngularCircles([
-    circle,
-    {
-      radius: markerEnvelope,
-      x: point.x,
-      y: point.y,
-    },
-  ]);
+  const projected = projectAngularCircles(
+    [
+      circle,
+      {
+        radius: markerEnvelope,
+        x: point.x,
+        y: point.y,
+      },
+    ],
+    sharedProjection,
+  );
+  if (!projected) {
+    return null;
+  }
   const projectedCircle = projected[0] as EventSceneCircle;
   const projectedMarkerEnvelope = projected[1] as EventSceneCircle;
   return {
@@ -347,10 +486,11 @@ function phaseLabel(
     case "occultation-reappearance":
       return "出現";
     case "maximum":
-    case undefined:
       return circumstances.event.kind === "lunar-occultation"
         ? "最接近"
         : "最大";
+    case undefined:
+      return "指定時刻";
   }
 }
 
@@ -374,6 +514,7 @@ function unavailableModel(
 ): UnavailableEventSceneModel {
   return {
     ...commonModel(circumstances, sample),
+    angularScalePixelsPerRadian: null,
     description,
     fidelity: "unavailable",
     kind: circumstances.event.kind,
@@ -387,6 +528,7 @@ function unavailableModel(
 function solarModel(
   circumstances: LocalCircumstances,
   sample: EventSceneSample,
+  sharedProjection?: EventSceneProjection | null,
 ): CalculatedSolarEventSceneModel | UnavailableEventSceneModel {
   const sun = sample.bodies.sun;
   const moon = sample.bodies.moon;
@@ -411,17 +553,33 @@ function solarModel(
     );
   }
 
-  const [projectedSun, projectedMoon] =
-    projectAngularCircles([
-      { radius: sunRadius, x: 0, y: 0 },
-      {
-        radius: moonRadius,
-        x: offset.xRadians,
-        y: offset.yRadians,
-      },
-    ]);
+  const angularCircles = [
+    { radius: sunRadius, x: 0, y: 0 },
+    {
+      radius: moonRadius,
+      x: offset.xRadians,
+      y: offset.yRadians,
+    },
+  ];
+  const projection = resolvedProjectionForCircles(
+    angularCircles,
+    sharedProjection,
+  );
+  const projected = projection
+    ? projectAngularCircles(angularCircles, projection)
+    : null;
+  if (!projection || !projected) {
+    return unavailableModel(
+      circumstances,
+      sample,
+      "この時刻の角度範囲を有限な画面縮尺へ変換できないため、円盤配置を描画できません。",
+    );
+  }
+  const [projectedSun, projectedMoon] = projected;
   return {
     ...commonModel(circumstances, sample),
+    angularScalePixelsPerRadian:
+      projection.pixelsPerRadian,
     description:
       "太陽と月の中心間隔・角半径を、この地点から見た地平座標で比例表示しています。",
     fidelity: "calculated",
@@ -444,7 +602,7 @@ function solarModel(
     orientationNote:
       "右は方位角が増える方向、上は高度が上がる方向です。",
     scaleNote:
-      "円盤の大きさと中心間隔は同じ角度縮尺です。画面内に収めるため、時刻ごとに全体倍率は変わります。",
+      "円盤の大きさと中心間隔は同じ角度縮尺です。接触と最大を収める共通画角に固定し、時刻間の画面座標は補間していません。",
     sun: projectedSun as EventSceneCircle,
   };
 }
@@ -478,9 +636,141 @@ function lunarShadowOffset(
   };
 }
 
+function angularCirclesForSample(
+  circumstances: LocalCircumstances,
+  sample: EventSceneSample,
+): readonly AngularCircle[] | null {
+  if (
+    !(sample.instantUtc instanceof Date) ||
+    !Number.isFinite(sample.instantUtc.getTime()) ||
+    sample.bodies === null ||
+    typeof sample.bodies !== "object"
+  ) {
+    return null;
+  }
+  switch (circumstances.event.kind) {
+    case "solar-eclipse": {
+      const sun = sample.bodies.sun;
+      const moon = sample.bodies.moon;
+      const sunRadius = validAngularRadius(sun);
+      const moonRadius = validAngularRadius(moon);
+      if (
+        !sun ||
+        !moon ||
+        sunRadius === null ||
+        moonRadius === null
+      ) {
+        return null;
+      }
+      const offset = horizontalTangentOffset(
+        sun.altitudeAzimuth,
+        moon.altitudeAzimuth,
+      );
+      return offset
+        ? [
+            { radius: sunRadius, x: 0, y: 0 },
+            {
+              radius: moonRadius,
+              x: offset.xRadians,
+              y: offset.yRadians,
+            },
+          ]
+        : null;
+    }
+    case "lunar-eclipse": {
+      const moonRadius = validAngularRadius(sample.bodies.moon);
+      const shadow = sample.lunarShadow;
+      const shadowOffset = shadow
+        ? lunarShadowOffset(
+            shadow.centerSeparationRadians,
+            shadow.centerPositionAngleRadians,
+          )
+        : null;
+      if (
+        moonRadius === null ||
+        !shadow ||
+        !shadowOffset ||
+        !isFiniteNumber(
+          shadow.penumbralAngularRadiusRadians,
+        ) ||
+        shadow.penumbralAngularRadiusRadians <= 0 ||
+        !isFiniteNumber(shadow.umbralAngularRadiusRadians) ||
+        shadow.umbralAngularRadiusRadians <= 0 ||
+        shadow.penumbralAngularRadiusRadians <
+          shadow.umbralAngularRadiusRadians
+      ) {
+        return null;
+      }
+      return [
+        { radius: moonRadius, x: 0, y: 0 },
+        {
+          radius: shadow.penumbralAngularRadiusRadians,
+          x: shadowOffset.x,
+          y: shadowOffset.y,
+        },
+        {
+          radius: shadow.umbralAngularRadiusRadians,
+          x: shadowOffset.x,
+          y: shadowOffset.y,
+        },
+      ];
+    }
+    case "lunar-occultation": {
+      const moon = sample.bodies.moon;
+      const target = sample.bodies.target;
+      const moonRadius = validAngularRadius(moon);
+      if (!moon || !target || moonRadius === null) {
+        return null;
+      }
+      const offset = horizontalTangentOffset(
+        moon.altitudeAzimuth,
+        target.altitudeAzimuth,
+      );
+      return offset
+        ? [
+            { radius: moonRadius, x: 0, y: 0 },
+            {
+              radius: moonRadius * 0.09,
+              x: offset.xRadians,
+              y: offset.yRadians,
+            },
+          ]
+        : null;
+    }
+  }
+}
+
+/**
+ * Builds one immutable angular extent. The default reference set is every
+ * solver-produced contact plus maximum/closest approach. A caller may pass a
+ * physical sample grid instead without introducing screen-space interpolation.
+ * Invalid samples are ignored; no finite geometry means the caller must use a
+ * schematic or unavailable state.
+ */
+export function createEventSceneProjection(
+  circumstances: LocalCircumstances,
+  referenceSamples: readonly EventSceneSample[] = [
+    ...circumstances.contacts,
+    circumstances.maximum,
+  ],
+): EventSceneProjection | null {
+  const circles: AngularCircle[] = [];
+  for (const sample of referenceSamples) {
+    const sampleCircles = angularCirclesForSample(
+      circumstances,
+      sample,
+    );
+    if (sampleCircles) {
+      circles.push(...sampleCircles);
+    }
+  }
+  return projectionForAngularCircles(circles);
+}
+
 function lunarModel(
   circumstances: LocalCircumstances,
   sample: EventSceneSample,
+  sharedProjection?: EventSceneProjection | null,
 ): CalculatedLunarEventSceneModel | SchematicLunarEventSceneModel {
   const moon = sample.bodies.moon;
   const moonRadius = validAngularRadius(moon);
@@ -521,6 +811,7 @@ function lunarModel(
           ];
     return {
       ...commonModel(circumstances, sample),
+      angularScalePixelsPerRadian: null,
       description:
         "影中心・本影半径・半影半径の計算値がこの結果にはないため、局地分類だけを伝える概略図です。",
       fidelity: "schematic",
@@ -534,22 +825,49 @@ function lunarModel(
     };
   }
 
+  const angularCircles = [
+    { radius: moonRadius, x: 0, y: 0 },
+    {
+      radius: shadow.penumbralAngularRadiusRadians,
+      x: shadowOffset.x,
+      y: shadowOffset.y,
+    },
+    {
+      radius: shadow.umbralAngularRadiusRadians,
+      x: shadowOffset.x,
+      y: shadowOffset.y,
+    },
+  ];
+  const projection = resolvedProjectionForCircles(
+    angularCircles,
+    sharedProjection,
+  );
+  const projected = projection
+    ? projectAngularCircles(angularCircles, projection)
+    : null;
+  if (!projection || !projected) {
+    return {
+      ...commonModel(circumstances, sample),
+      angularScalePixelsPerRadian: null,
+      description:
+        "影の角度範囲を有限な画面縮尺へ変換できないため、局地分類だけを伝える概略図です。",
+      fidelity: "schematic",
+      kind: "lunar-eclipse",
+      localClassification:
+        circumstances.localClassification,
+      metrics: [],
+      orientationNote:
+        "月の位置・影との中心間隔・円の大きさは実際の値を表しません。",
+      scaleNote:
+        "不正な縮尺で配置を作らず、数値を安全に表示できる時刻だけ角度比例の配置に切り替わります。",
+    };
+  }
   const [projectedMoon, projectedPenumbra, projectedUmbra] =
-    projectAngularCircles([
-      { radius: moonRadius, x: 0, y: 0 },
-      {
-        radius: shadow.penumbralAngularRadiusRadians,
-        x: shadowOffset.x,
-        y: shadowOffset.y,
-      },
-      {
-        radius: shadow.umbralAngularRadiusRadians,
-        x: shadowOffset.x,
-        y: shadowOffset.y,
-      },
-    ]);
+    projected;
   return {
     ...commonModel(circumstances, sample),
+    angularScalePixelsPerRadian:
+      projection.pixelsPerRadian,
     description:
       "月・地球本影・地球半影の角半径と影中心方向を、天球上の角度に比例して表示しています。",
     fidelity: "calculated",
@@ -579,7 +897,7 @@ function lunarModel(
       "右は天の東、上は天の北です（CIRS接平面の位置角）。",
     penumbra: projectedPenumbra as EventSceneCircle,
     scaleNote:
-      "月・本影・半影の大きさと中心間隔は同じ角度縮尺です。大気による影の濃淡や月面の明るさは予測していません。",
+      "月・本影・半影の大きさと中心間隔は同じ角度縮尺です。全接触と最大を収める共通画角に固定し、大気による影の濃淡や月面の明るさは予測していません。",
     umbra: projectedUmbra as EventSceneCircle,
   };
 }
@@ -587,6 +905,7 @@ function lunarModel(
 function occultationModel(
   circumstances: LocalCircumstances,
   sample: EventSceneSample,
+  sharedProjection?: EventSceneProjection | null,
 ):
   | CalculatedOccultationEventSceneModel
   | UnavailableEventSceneModel {
@@ -611,14 +930,43 @@ function occultationModel(
       "この時刻の局所方向基準を一意に定められないため、月と対象星の相対配置は表示していません。",
     );
   }
+  const angularCircles = [
+    { radius: moonRadius, x: 0, y: 0 },
+    {
+      radius: moonRadius * 0.09,
+      x: offset.xRadians,
+      y: offset.yRadians,
+    },
+  ];
+  const appliedProjection = resolvedProjectionForCircles(
+    angularCircles,
+    sharedProjection,
+  );
+  if (!appliedProjection) {
+    return unavailableModel(
+      circumstances,
+      sample,
+      "この時刻の角度範囲を有限な画面縮尺へ変換できないため、月と対象星の配置を描画できません。",
+    );
+  }
   const projection = projectAngularPointWithCircle(
     { radius: moonRadius, x: 0, y: 0 },
     { x: offset.xRadians, y: offset.yRadians },
+    appliedProjection,
   );
+  if (!projection) {
+    return unavailableModel(
+      circumstances,
+      sample,
+      "この時刻の角度範囲を有限な画面縮尺へ変換できないため、月と対象星の配置を描画できません。",
+    );
+  }
   const targetIsBehindMoon =
     offset.separationRadians <= moonRadius;
   return {
     ...commonModel(circumstances, sample),
+    angularScalePixelsPerRadian:
+      appliedProjection.pixelsPerRadian,
     description: targetIsBehindMoon
       ? "対象星の計算位置は月の平均円盤内です。星は月の手前ではなく、破線の照準で月面裏の位置を示します。"
       : "月の角半径と対象星までの角距離を、この地点から見た地平座標で比例表示しています。",
@@ -642,7 +990,7 @@ function occultationModel(
     orientationNote:
       "右は方位角が増える方向、上は高度が上がる方向です。",
     scaleNote:
-      "月円盤と中心から対象星までの距離は同じ角度縮尺です。月縁は平均球面で、山谷の輪郭は含みません。",
+      "月円盤と中心から対象星までの距離は同じ角度縮尺です。潜入・最接近・出現を収める共通画角に固定し、月縁は平均球面で山谷の輪郭は含みません。",
     target: projection.point,
     targetIsBehindMoon,
   };
@@ -651,9 +999,12 @@ function occultationModel(
 export function createEventSceneModel(
   circumstances: LocalCircumstances,
   selectedSample?: EventSceneSample | null,
+  sharedProjection: EventSceneProjection | null =
+    createEventSceneProjection(circumstances),
 ): EventSceneModel {
   const sample = selectedSample ?? circumstances.maximum;
   if (
+    !(sample.instantUtc instanceof Date) ||
     !Number.isFinite(sample.instantUtc.getTime()) ||
     sample.bodies === null ||
     typeof sample.bodies !== "object"
@@ -666,10 +1017,14 @@ export function createEventSceneModel(
   }
   switch (circumstances.event.kind) {
     case "solar-eclipse":
-      return solarModel(circumstances, sample);
+      return solarModel(circumstances, sample, sharedProjection);
     case "lunar-eclipse":
-      return lunarModel(circumstances, sample);
+      return lunarModel(circumstances, sample, sharedProjection);
     case "lunar-occultation":
-      return occultationModel(circumstances, sample);
+      return occultationModel(
+        circumstances,
+        sample,
+        sharedProjection,
+      );
   }
 }

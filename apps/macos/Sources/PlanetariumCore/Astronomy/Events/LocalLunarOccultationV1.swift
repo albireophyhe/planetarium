@@ -349,85 +349,15 @@ public enum LocalLunarOccultationV1 {
             if let cached = samples[instant] {
                 return cached
             }
-            try EclipseCalculationSupportV1
-                .checkCancellation(
-                    options.shouldCancel
-                )
-            let date = Date(
-                timeIntervalSinceReferenceDate: instant
-            )
-            let earthOrientation =
-                try options.resolvedEarthOrientation(
-                    at: date
-                )
-            let pair =
-                try await EclipseCalculationSupportV1
-                    .apparentTopocentricPair(
-                        provider: provider,
-                        at: date,
-                        location: validLocation,
-                        options: options
-                    )
-            let astrometry = try await observerAstrometry(
+            let sample = try await rawSample(
                 provider: provider,
-                at: date,
+                targetStar: targetStar,
+                at: Date(
+                    timeIntervalSinceReferenceDate:
+                        instant
+                ),
                 location: validLocation,
                 options: options
-            )
-            let star = try Astronomy
-                .calculateApparentStarPositionV2(
-                    targetStar,
-                    at: date,
-                    location: validLocation,
-                    options:
-                        ApparentPositionOptionsV2(
-                            earthOrientation:
-                                earthOrientation,
-                            annualParallax:
-                                .custom(
-                                    CustomAnnualParallaxV2(
-                                        observerPositionAU:
-                                            astrometry
-                                            .barycentricPositionAU
-                                    )
-                                ),
-                            // The lunar apparent-place path omits solar
-                            // deflection. Omitting it on both sides keeps
-                            // the limb equation internally consistent.
-                            solarLightDeflection:
-                                .disabled,
-                            aberration:
-                                .custom(
-                                    CustomAberrationV2(
-                                        observerBarycentricVelocityC:
-                                            astrometry
-                                            .barycentricVelocityC,
-                                        sunObserverDistanceAU:
-                                            astrometry
-                                            .sunObserverDistanceAU
-                                    )
-                                ),
-                            // Site rotation is already in the custom
-                            // barycentric velocity above.
-                            diurnalAberration: .disabled,
-                            refraction: .disabled
-                        )
-                )
-            let sample = LunarOccultationSampleV1(
-                secondsSinceReferenceDate: instant,
-                moon: pair.moon,
-                target:
-                    LunarOccultationStarStateV1(
-                        starHR: targetStar.hr,
-                        cirsDirection:
-                            precisionEquatorialToVector(
-                                star.apparentEquatorial
-                            ),
-                        horizontal:
-                            star.geometricHorizontal,
-                        precisionWarnings:
-                            star.metadata.warnings
-                    )
             )
             samples[instant] = sample
             return sample
@@ -499,6 +429,245 @@ public enum LocalLunarOccultationV1 {
             options: options,
             geometry: geometry,
             visibility: visibility
+        )
+    }
+
+    /**
+     Resolves the candidate target and evaluates a physical Moon/star scene
+     at an arbitrary UTC instant.
+     */
+    public static func sampleScene(
+        provider: DE442SEphemerisProviderV1,
+        candidate: EclipseCandidateV1,
+        catalog: SkyCatalog,
+        at instantUTC: Date,
+        location: ObservingLocation,
+        options: LocalEclipseOptionsV1 =
+            LocalEclipseOptionsV1()
+    ) async throws -> EventSceneSampleV1 {
+        guard candidate.kind == .lunarOccultation
+        else {
+            throw LocalLunarOccultationErrorV1
+                .wrongCandidateKind
+        }
+        guard let targetHR = candidate.targetStarHR
+        else {
+            throw LocalLunarOccultationErrorV1
+                .candidateTargetMissing
+        }
+        guard let targetStar =
+            catalog.starsByHR[targetHR]
+        else {
+            throw LocalLunarOccultationErrorV1
+                .targetStarUnavailable(hr: targetHR)
+        }
+        return try await sampleScene(
+            provider: provider,
+            candidate: candidate,
+            targetStar: targetStar,
+            at: instantUTC,
+            location: location,
+            options: options
+        )
+    }
+
+    /**
+     Evaluates a physical mean-limb occultation scene at an arbitrary UTC
+     instant through the same DE442s observer and BSC5P precision apparent
+     star pipeline used by the contact solver.
+     */
+    public static func sampleScene(
+        provider: DE442SEphemerisProviderV1,
+        candidate: EclipseCandidateV1,
+        targetStar: CatalogStar,
+        at instantUTC: Date,
+        location: ObservingLocation,
+        options: LocalEclipseOptionsV1 =
+            LocalEclipseOptionsV1()
+    ) async throws -> EventSceneSampleV1 {
+        guard candidate.kind == .lunarOccultation
+        else {
+            throw LocalLunarOccultationErrorV1
+                .wrongCandidateKind
+        }
+        guard let targetHR = candidate.targetStarHR
+        else {
+            throw LocalLunarOccultationErrorV1
+                .candidateTargetMissing
+        }
+        guard targetHR == targetStar.hr else {
+            throw LocalLunarOccultationErrorV1
+                .targetStarMismatch(
+                    expectedHR: targetHR,
+                    actualHR: targetStar.hr
+                )
+        }
+        let validLocation =
+            try EclipseCalculationSupportV1
+            .validate(
+                location: location,
+                options: options
+            )
+        if options.eventEarthRotationAt == nil,
+           let timingUncertainty =
+            options.timingUncertaintySeconds
+        {
+            guard
+                timingUncertainty.isFinite,
+                timingUncertainty >= 0
+            else {
+                throw LocalLunarOccultationErrorV1
+                    .invalidTimingUncertainty
+            }
+        }
+        try EclipseCalculationSupportV1
+            .validateSceneInstant(
+                provider: provider,
+                instantUTC: instantUTC,
+                shouldCancel:
+                    options.shouldCancel
+            )
+        let raw = try await rawSample(
+            provider: provider,
+            targetStar: targetStar,
+            at: instantUTC,
+            location: validLocation,
+            options: options
+        )
+        let moon = try EventSceneSampleSupportV1
+            .bodyPosition(raw.moon)
+        let direction =
+            try EventSceneSampleSupportV1
+            .require(
+                EventSceneGeometryV1
+                    .tangentOffset(
+                        reference:
+                            moon.horizontal,
+                        target:
+                            raw.target
+                            .horizontal
+                    )
+            )
+        let target =
+            EventSceneTargetStarPositionV1(
+                starHR: raw.target.starHR,
+                label:
+                    candidate.targetLabel
+                    ?? targetStar.catalogName
+                    ?? "HR \(targetStar.hr)",
+                visualMagnitude:
+                    targetStar.visualMagnitude,
+                horizontal:
+                    raw.target.horizontal,
+                precisionWarnings:
+                    raw.target
+                    .precisionWarnings
+            )
+        return EventSceneSampleV1(
+            kind: .lunarOccultation,
+            instantUTC: instantUTC,
+            sun: nil,
+            moon: moon,
+            lunarShadow: nil,
+            targetStar: target,
+            aboveHorizon:
+                target.horizontal.altitude > 0,
+            relativeDirection: direction
+        )
+    }
+
+    static func rawSample(
+        provider: DE442SEphemerisProviderV1,
+        targetStar: CatalogStar,
+        at instantUTC: Date,
+        location: ObservingLocation,
+        options: LocalEclipseOptionsV1
+    ) async throws
+        -> LunarOccultationSampleV1
+    {
+        try EclipseCalculationSupportV1
+            .checkCancellation(
+                options.shouldCancel
+            )
+        let instant =
+            instantUTC
+            .timeIntervalSinceReferenceDate
+        guard instant.isFinite else {
+            throw EventSceneSampleErrorV1
+                .invalidInstant
+        }
+        let earthOrientation =
+            try options.resolvedEarthOrientation(
+                at: instantUTC
+            )
+        let pair =
+            try await EclipseCalculationSupportV1
+            .apparentTopocentricPair(
+                provider: provider,
+                at: instantUTC,
+                location: location,
+                options: options
+            )
+        let astrometry = try await observerAstrometry(
+            provider: provider,
+            at: instantUTC,
+            location: location,
+            options: options
+        )
+        let star = try Astronomy
+            .calculateApparentStarPositionV2(
+                targetStar,
+                at: instantUTC,
+                location: location,
+                options:
+                    ApparentPositionOptionsV2(
+                        earthOrientation:
+                            earthOrientation,
+                        annualParallax:
+                            .custom(
+                                CustomAnnualParallaxV2(
+                                    observerPositionAU:
+                                        astrometry
+                                        .barycentricPositionAU
+                                )
+                            ),
+                        // The lunar apparent-place path omits solar
+                        // deflection. Omitting it on both sides keeps
+                        // the limb equation internally consistent.
+                        solarLightDeflection:
+                            .disabled,
+                        aberration:
+                            .custom(
+                                CustomAberrationV2(
+                                    observerBarycentricVelocityC:
+                                        astrometry
+                                        .barycentricVelocityC,
+                                    sunObserverDistanceAU:
+                                        astrometry
+                                        .sunObserverDistanceAU
+                                )
+                            ),
+                        // Site rotation is already in the custom
+                        // barycentric velocity above.
+                        diurnalAberration: .disabled,
+                        refraction: .disabled
+                    )
+            )
+        return LunarOccultationSampleV1(
+            secondsSinceReferenceDate: instant,
+            moon: pair.moon,
+            target:
+                LunarOccultationStarStateV1(
+                    starHR: targetStar.hr,
+                    cirsDirection:
+                        precisionEquatorialToVector(
+                            star.apparentEquatorial
+                        ),
+                    horizontal:
+                        star.geometricHorizontal,
+                    precisionWarnings:
+                        star.metadata.warnings
+                )
         )
     }
 

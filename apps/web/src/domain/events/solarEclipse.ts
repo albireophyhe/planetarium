@@ -28,6 +28,7 @@ import type {
   EventEarthOrientationReportedUncertainty,
   EventEphemerisSearchOptions,
   EventEphemerisProvider,
+  EventPhysicalSample,
   EventObserverContext,
   EventProvenance,
   EventSummary,
@@ -490,6 +491,83 @@ function bodyPosition(body: ApparentBodyState): EventBodyPosition {
   };
 }
 
+function solarDiscSampleAt(
+  ephemeris: EventEphemerisProvider,
+  instantMilliseconds: number,
+  location: ObservingLocation,
+  options: LocalSolarEclipseOptions,
+): SolarDiscSample {
+  if (!Number.isFinite(instantMilliseconds)) {
+    throw new RangeError("Solar-eclipse sample time must be finite");
+  }
+  checkCancelled(options.shouldCancel);
+  const date = new Date(instantMilliseconds);
+  const earthOrientation =
+    options.earthOrientationAt?.(date) ??
+    options.earthOrientation;
+  const timeScales = resolveTimeScales(
+    date,
+    earthOrientation,
+  );
+  const apparentOptions = {
+    heightMeters: options.heightMeters ?? 0,
+    ...(earthOrientation?.polarMotion
+      ? { polarMotion: earthOrientation.polarMotion }
+      : {}),
+  };
+  return {
+    instantMilliseconds,
+    sun: calculateApparentBody(
+      ephemeris,
+      "sun",
+      timeScales.ttJulianDate,
+      timeScales.ut1JulianDate,
+      location,
+      apparentOptions,
+    ),
+    moon: calculateApparentBody(
+      ephemeris,
+      "moon",
+      timeScales.ttJulianDate,
+      timeScales.ut1JulianDate,
+      location,
+      apparentOptions,
+    ),
+  };
+}
+
+/**
+ * Recomputes a local Sun/Moon scene at an arbitrary UTC instant.
+ *
+ * The returned value deliberately has no contact phase: consumers must label
+ * it as a sampled instant rather than as C1/C2/maximum/C3/C4.
+ */
+export function sampleLocalSolarEclipseAt(
+  ephemeris: EventEphemerisProvider,
+  instantUtc: Date,
+  location: ObservingLocation,
+  options: LocalSolarEclipseOptions = {},
+): EventPhysicalSample {
+  const sample = solarDiscSampleAt(
+    ephemeris,
+    instantUtc.getTime(),
+    location,
+    options,
+  );
+  return {
+    instantUtc: new Date(sample.instantMilliseconds),
+    bodies: {
+      sun: bodyPosition(sample.sun),
+      moon: bodyPosition(sample.moon),
+    },
+    aboveHorizon:
+      sample.sun.horizontal.altitude +
+        sample.sun.angularRadiusRadians >
+      0,
+    positionAngleRadians: null,
+  };
+}
+
 function contact(
   phase: EventContact["phase"],
   sample: SolarDiscSample,
@@ -533,41 +611,13 @@ export function calculateLocalSolarEclipse(
   if (event.kind !== "solar-eclipse") {
     throw new TypeError("Solar-eclipse calculation requires a solar event");
   }
-  const sampleAt = (instantMilliseconds: number): SolarDiscSample => {
-    const date = new Date(instantMilliseconds);
-    const earthOrientation =
-      options.earthOrientationAt?.(date) ??
-      options.earthOrientation;
-    const timeScales = resolveTimeScales(
-      date,
-      earthOrientation,
-    );
-    const apparentOptions = {
-      heightMeters: options.heightMeters ?? 0,
-      ...(earthOrientation?.polarMotion
-        ? { polarMotion: earthOrientation.polarMotion }
-        : {}),
-    };
-    return {
+  const sampleAt = (instantMilliseconds: number): SolarDiscSample =>
+    solarDiscSampleAt(
+      ephemeris,
       instantMilliseconds,
-      sun: calculateApparentBody(
-        ephemeris,
-        "sun",
-        timeScales.ttJulianDate,
-        timeScales.ut1JulianDate,
-        location,
-        apparentOptions,
-      ),
-      moon: calculateApparentBody(
-        ephemeris,
-        "moon",
-        timeScales.ttJulianDate,
-        timeScales.ut1JulianDate,
-        location,
-        apparentOptions,
-      ),
-    };
-  };
+      location,
+      options,
+    );
   const loadedSearchBounds =
     eventEphemerisSearchBounds(ephemeris);
   const searchBounds = options.searchBounds

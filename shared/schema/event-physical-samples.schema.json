@@ -1,0 +1,406 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/event-physical-samples.schema.json",
+  "title": "Cross-runtime physical event samples",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "model",
+    "assumptions",
+    "tolerances",
+    "cases"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "model": {
+      "const": "event-physical-samples-v1"
+    },
+    "assumptions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ephemerisId",
+        "earthOrientation",
+        "observerHeightReference",
+        "refraction",
+        "lunarLimbModel"
+      ],
+      "properties": {
+        "ephemerisId": {
+          "const": "JPL-DE442s"
+        },
+        "earthOrientation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "dut1Seconds",
+            "xpRadians",
+            "ypRadians"
+          ],
+          "properties": {
+            "dut1Seconds": {
+              "const": 0
+            },
+            "xpRadians": {
+              "const": 0
+            },
+            "ypRadians": {
+              "const": 0
+            }
+          }
+        },
+        "observerHeightReference": {
+          "const": "WGS84-ellipsoid"
+        },
+        "refraction": {
+          "const": false
+        },
+        "lunarLimbModel": {
+          "const": "mean-spherical-limb"
+        }
+      }
+    },
+    "tolerances": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "angleRadians",
+        "distanceKilometers"
+      ],
+      "properties": {
+        "angleRadians": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1e-9
+        },
+        "distanceKilometers": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 0.001
+        }
+      }
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/case"
+      }
+    }
+  },
+  "$defs": {
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "eventId",
+        "kind",
+        "targetStarHR",
+        "role",
+        "instantUtc",
+        "location",
+        "expected"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "eventId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "solar-eclipse",
+            "lunar-eclipse",
+            "lunar-occultation"
+          ]
+        },
+        "targetStarHR": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "role": {
+          "enum": [
+            "reference-maximum",
+            "interior"
+          ]
+        },
+        "instantUtc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "location": {
+          "$ref": "#/$defs/location"
+        },
+        "expected": {
+          "$ref": "#/$defs/expected"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "solar-eclipse"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "targetStarHR": {
+                "type": "null"
+              },
+              "expected": {
+                "type": "object",
+                "properties": {
+                  "bodies": {
+                    "type": "object",
+                    "properties": {
+                      "sun": {},
+                      "moon": {}
+                    },
+                    "required": [
+                      "sun",
+                      "moon"
+                    ]
+                  },
+                  "lunarShadow": {
+                    "type": "null"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "lunar-eclipse"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "targetStarHR": {
+                "type": "null"
+              },
+              "expected": {
+                "type": "object",
+                "properties": {
+                  "bodies": {
+                    "type": "object",
+                    "properties": {
+                      "moon": {}
+                    },
+                    "required": [
+                      "moon"
+                    ]
+                  },
+                  "lunarShadow": {
+                    "$ref": "#/$defs/lunarShadow"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "lunar-occultation"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "targetStarHR": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "expected": {
+                "type": "object",
+                "properties": {
+                  "bodies": {
+                    "type": "object",
+                    "properties": {
+                      "moon": {},
+                      "target": {}
+                    },
+                    "required": [
+                      "moon",
+                      "target"
+                    ]
+                  },
+                  "lunarShadow": {
+                    "type": "null"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "latitude",
+        "longitude",
+        "heightMeters",
+        "timeZone"
+      ],
+      "properties": {
+        "latitude": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "longitude": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "heightMeters": {
+          "type": "number",
+          "minimum": -500,
+          "maximum": 100000
+        },
+        "timeZone": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "aboveHorizon",
+        "bodies",
+        "lunarShadow"
+      ],
+      "properties": {
+        "aboveHorizon": {
+          "type": "boolean"
+        },
+        "bodies": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "sun": {
+              "$ref": "#/$defs/body"
+            },
+            "moon": {
+              "$ref": "#/$defs/body"
+            },
+            "target": {
+              "$ref": "#/$defs/body"
+            }
+          }
+        },
+        "lunarShadow": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/lunarShadow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "body": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "altitudeRadians",
+        "azimuthRadians",
+        "azimuthDefined",
+        "angularRadiusRadians",
+        "distanceKilometers"
+      ],
+      "properties": {
+        "altitudeRadians": {
+          "type": "number",
+          "minimum": -1.5707963267948966,
+          "maximum": 1.5707963267948966
+        },
+        "azimuthRadians": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 6.283185307179586
+        },
+        "azimuthDefined": {
+          "type": "boolean"
+        },
+        "angularRadiusRadians": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0
+        },
+        "distanceKilometers": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "lunarShadow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "centerSeparationRadians",
+        "centerPositionAngleRadians",
+        "penumbralAngularRadiusRadians",
+        "umbralAngularRadiusRadians"
+      ],
+      "properties": {
+        "centerSeparationRadians": {
+          "type": "number",
+          "minimum": 0
+        },
+        "centerPositionAngleRadians": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 6.283185307179586
+        },
+        "penumbralAngularRadiusRadians": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "umbralAngularRadiusRadians": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    }
+  }
+}

@@ -237,17 +237,44 @@ struct EventForecastDependencies: Sendable {
         _ year: Int,
         _ location: ObservingLocation
     ) async throws -> [EventForecastItem]
+    typealias SceneSampler = @Sendable (
+        _ item: EventForecastItem,
+        _ instantUTC: Date
+    ) async throws -> EventSceneSampleV1
 
     let loadForecasts: Loader
+    let sampleScene: SceneSampler
+
+    init(
+        loadForecasts:
+            @escaping Loader,
+        sampleScene:
+            @escaping SceneSampler = {
+                _, _ in
+                throw EventSceneSessionError
+                    .samplingUnavailable
+            }
+    ) {
+        self.loadForecasts = loadForecasts
+        self.sampleScene = sampleScene
+    }
 
     static func live() -> EventForecastDependencies {
         let engine = EventForecastEngine()
-        return EventForecastDependencies { year, location in
-            try await engine.forecasts(
-                year: year,
-                location: location
-            )
-        }
+        return EventForecastDependencies(
+            loadForecasts: { year, location in
+                try await engine.forecasts(
+                    year: year,
+                    location: location
+                )
+            },
+            sampleScene: { item, instantUTC in
+                try await engine.sceneSample(
+                    for: item,
+                    at: instantUTC
+                )
+            }
+        )
     }
 }
 
@@ -256,6 +283,8 @@ struct EventForecastDependencies: Sendable {
 final class EventForecastStore {
     nonisolated static let supportedYears = 1900...2100
     private static let forecastCacheCapacity = 3
+    nonisolated static let sceneSampleCacheCapacity =
+        32
 
     private struct ForecastCacheKey: Hashable {
         let year: Int
@@ -265,10 +294,20 @@ final class EventForecastStore {
     private(set) var selectedYear: Int
     private(set) var phase: EventForecastPhase = .idle
     private(set) var forecasts: [EventForecastItem] = []
-    private(set) var selectedForecastID: String?
+    private(set) var selectedForecastID: String? {
+        didSet {
+            if selectedForecastID != oldValue {
+                deactivateSceneSession()
+            }
+        }
+    }
     private(set) var showBelowHorizon = false
     private(set) var kindFilter: EventForecastKindFilter = .all
     private(set) var originalObservationDate: Date?
+    private(set) var sceneSession:
+        EventSceneSessionState?
+    private(set) var sceneReduceMotionEnabled =
+        false
 
     @ObservationIgnored
     private let dependencies: EventForecastDependencies
@@ -277,10 +316,36 @@ final class EventForecastStore {
     private var loadTask: Task<Void, Never>?
 
     @ObservationIgnored
+    private var sceneProjectionTask:
+        Task<Void, Never>?
+
+    @ObservationIgnored
+    private var sceneSampleTask:
+        Task<Void, Never>?
+
+    @ObservationIgnored
+    private var sceneScrubTask:
+        Task<Void, Never>?
+
+    @ObservationIgnored
+    private var scenePlaybackTask:
+        Task<Void, Never>?
+
+    @ObservationIgnored
     private var requestGeneration = 0
 
     @ObservationIgnored
+    private var sceneGeneration = 0
+
+    @ObservationIgnored
+    private var sceneSampleGeneration = 0
+
+    @ObservationIgnored
     private var activeLocation: ObservingLocation?
+
+    @ObservationIgnored
+    private var activeSceneItem:
+        EventForecastItem?
 
     @ObservationIgnored
     private var observationDateForSelection: Date?
@@ -291,6 +356,14 @@ final class EventForecastStore {
 
     @ObservationIgnored
     private var forecastCacheRecency: [ForecastCacheKey] = []
+
+    @ObservationIgnored
+    private var sceneSampleCache =
+        EventSceneSampleCache(
+            capacity:
+                EventForecastStore
+                .sceneSampleCacheCapacity
+        )
 
     init(
         initialYear: Int = EventForecastStore.utcYear(Date()),
@@ -339,6 +412,35 @@ final class EventForecastStore {
         originalObservationDate != nil
     }
 
+    var canPlayScene: Bool {
+        guard
+            let session = sceneSession,
+            session.plan.isInteractive,
+            session.phase == .ready,
+            session.displayedSample != nil,
+            !sceneReduceMotionEnabled
+        else {
+            return false
+        }
+        return true
+    }
+
+    var sceneSampleCacheCount: Int {
+        sceneSampleCache.count
+    }
+
+    func sceneSession(
+        matching item: EventForecastItem
+    ) -> EventSceneSessionState? {
+        guard
+            activeSceneItem == item,
+            sceneSession?.itemID == item.id
+        else {
+            return nil
+        }
+        return sceneSession
+    }
+
     func activate(
         location: ObservingLocation,
         observationDate: Date
@@ -358,6 +460,7 @@ final class EventForecastStore {
 
     func deactivate() {
         cancelLoad()
+        deactivateSceneSession()
         if phase == .loading {
             phase = .idle
         }
@@ -579,9 +682,616 @@ final class EventForecastStore {
         originalObservationDate = nil
     }
 
+    func activateSceneSession(
+        for item: EventForecastItem,
+        initialDate: Date? = nil,
+        initialLabel: String? = nil
+    ) {
+        if sceneSession?.itemID == item.id,
+           activeSceneItem == item
+        {
+            return
+        }
+        deactivateSceneSession()
+
+        guard let plan =
+            EventSceneSessionPlan(item: item)
+        else {
+            return
+        }
+        let requestedDate = plan.clamped(
+            initialDate ?? item.maximumDate
+        )
+        let requestedLabel =
+            initialLabel ?? "指定時刻"
+        activeSceneItem = item
+
+        if !plan.isInteractive {
+            sceneSession =
+                EventSceneSessionState(
+                    itemID: item.id,
+                    plan: plan,
+                    phase: .staticOnly,
+                    requestedDate:
+                        requestedDate,
+                    requestedLabel:
+                        requestedLabel,
+                    displayedSample: nil,
+                    displayedLabel: nil,
+                    angularExtent: nil,
+                    isPlaying: false,
+                    hasPlaybackPosition:
+                        false
+                )
+            return
+        }
+
+        sceneSession =
+            EventSceneSessionState(
+                itemID: item.id,
+                plan: plan,
+                phase: .preparing,
+                requestedDate: requestedDate,
+                requestedLabel: requestedLabel,
+                displayedSample: nil,
+                displayedLabel: nil,
+                angularExtent: nil,
+                isPlaying: false,
+                hasPlaybackPosition: false
+            )
+        sceneGeneration += 1
+        let generation = sceneGeneration
+        let sampler = dependencies.sampleScene
+        let dates = Array(
+            Set(
+                plan.projectionDates
+                    + [requestedDate]
+            )
+        ).sorted()
+
+        sceneProjectionTask =
+            Task { @MainActor [weak self] in
+                do {
+                    var projectionSamples:
+                        [Date: EventSceneSampleV1] = [:]
+                    var phaseBodies:
+                        [[AngularSceneBody]] = []
+                    phaseBodies.reserveCapacity(
+                        dates.count
+                    )
+
+                    for date in dates {
+                        try Task.checkCancellation()
+                        let sample =
+                            try await sampler(
+                                item,
+                                date
+                            )
+                        try Self.validateSceneSample(
+                            sample,
+                            requestedDate: date,
+                            item: item
+                        )
+                        guard let bodies =
+                            EventSceneAngularBodies
+                            .bodies(for: sample)
+                        else {
+                            throw EventSceneSessionError
+                                .invalidProjection
+                        }
+                        projectionSamples[date] =
+                            sample
+                        phaseBodies.append(bodies)
+                    }
+
+                    guard
+                        let extent =
+                            AngularSceneExtent(
+                                phaseBodies:
+                                    phaseBodies
+                            )?.padded(
+                                fraction:
+                                    EventSceneSessionPlan
+                                    .projectionPaddingFraction
+                            ),
+                        let initialSample =
+                            projectionSamples[
+                                requestedDate
+                            ],
+                        let self,
+                        self.sceneGeneration
+                            == generation,
+                        self.activeSceneItem
+                            == item,
+                        self.sceneSession?
+                            .itemID == item.id
+                    else {
+                        return
+                    }
+
+                    self.sceneSampleCache
+                        .removeAll()
+                    for date in dates {
+                        if let sample =
+                            projectionSamples[date]
+                        {
+                            self.sceneSampleCache
+                                .insert(
+                                    sample,
+                                    for: date
+                                )
+                        }
+                    }
+                    self.sceneSampleCache.insert(
+                        initialSample,
+                        for: requestedDate
+                    )
+
+                    guard var session =
+                        self.sceneSession
+                    else {
+                        return
+                    }
+                    let desiredDate =
+                        session.requestedDate
+                    let desiredLabel =
+                        session.requestedLabel
+                    let desiredSample =
+                        projectionSamples[
+                            desiredDate
+                        ]
+                    session.phase = .ready
+                    session.displayedSample =
+                        desiredSample
+                        ?? initialSample
+                    session.displayedLabel =
+                        desiredSample == nil
+                        ? requestedLabel
+                        : desiredLabel
+                    session.angularExtent = extent
+                    self.sceneSession = session
+                    self.sceneProjectionTask = nil
+                    if desiredSample == nil,
+                       desiredDate != requestedDate
+                    {
+                        self.requestSceneSample(
+                            at: desiredDate,
+                            label: desiredLabel,
+                            stopsPlayback: false
+                        )
+                    }
+                } catch {
+                    guard
+                        let self,
+                        self.sceneGeneration
+                            == generation,
+                        self.activeSceneItem
+                            == item,
+                        self.sceneSession?
+                            .itemID == item.id
+                    else {
+                        return
+                    }
+                    guard var session =
+                        self.sceneSession
+                    else {
+                        return
+                    }
+                    session.phase = .failed(
+                        error.localizedDescription
+                    )
+                    session.isPlaying = false
+                    self.sceneSession = session
+                    self.sceneProjectionTask = nil
+                }
+            }
+    }
+
+    func retrySceneSession(
+        for item: EventForecastItem
+    ) {
+        let requestedDate =
+            sceneSession?.requestedDate
+        let requestedLabel =
+            sceneSession?.requestedLabel
+        deactivateSceneSession()
+        activateSceneSession(
+            for: item,
+            initialDate: requestedDate,
+            initialLabel: requestedLabel
+        )
+    }
+
+    func requestSceneSample(
+        at date: Date,
+        label: String = "指定時刻",
+        stopsPlayback: Bool = true
+    ) {
+        sceneScrubTask?.cancel()
+        sceneScrubTask = nil
+        guard
+            var session = sceneSession,
+            session.plan.isInteractive,
+            let item = activeSceneItem,
+            item.id == session.itemID
+        else {
+            return
+        }
+        if stopsPlayback {
+            pauseScenePlayback()
+            guard let refreshed =
+                sceneSession
+            else {
+                return
+            }
+            session = refreshed
+            session.hasPlaybackPosition =
+                true
+        }
+
+        let requestedDate =
+            session.plan.clamped(date)
+        sceneSampleTask?.cancel()
+        sceneSampleTask = nil
+        sceneSampleGeneration += 1
+        let generation =
+            sceneSampleGeneration
+
+        session.requestedDate =
+            requestedDate
+        session.requestedLabel = label
+        if session.angularExtent == nil {
+            sceneSession = session
+            return
+        }
+
+        if let cached =
+            sceneSampleCache.value(
+                for: requestedDate
+            )
+        {
+            session.phase = .ready
+            session.displayedSample = cached
+            session.displayedLabel = label
+            sceneSession = session
+            return
+        }
+
+        session.phase = .sampling
+        sceneSession = session
+        let sampler = dependencies.sampleScene
+        sceneSampleTask =
+            Task { @MainActor [weak self] in
+                do {
+                    let sample =
+                        try await sampler(
+                            item,
+                            requestedDate
+                        )
+                    guard
+                        let self,
+                        self.sceneSampleGeneration
+                            == generation,
+                        var current =
+                            self.sceneSession,
+                        current.itemID == item.id,
+                        current.requestedDate
+                            == requestedDate
+                    else {
+                        return
+                    }
+                    try Self.validateSceneSample(
+                        sample,
+                        requestedDate:
+                            requestedDate,
+                        item: item,
+                        angularExtent:
+                            current
+                            .angularExtent
+                    )
+                    self.sceneSampleCache.insert(
+                        sample,
+                        for: requestedDate
+                    )
+                    current.phase = .ready
+                    current.displayedSample =
+                        sample
+                    current.displayedLabel = label
+                    self.sceneSession = current
+                    self.sceneSampleTask = nil
+                } catch {
+                    guard
+                        let self,
+                        self.sceneSampleGeneration
+                            == generation,
+                        var current =
+                            self.sceneSession,
+                        current.itemID == item.id,
+                        current.requestedDate
+                            == requestedDate
+                    else {
+                        return
+                    }
+                    current.phase = .failed(
+                        error.localizedDescription
+                    )
+                    current.isPlaying = false
+                    self.sceneSession = current
+                    self.scenePlaybackTask?
+                        .cancel()
+                    self.scenePlaybackTask = nil
+                    self.sceneSampleTask = nil
+                }
+            }
+    }
+
+    func requestCoalescedSceneSample(
+        at date: Date,
+        label: String = "指定時刻"
+    ) {
+        sceneScrubTask?.cancel()
+        sceneScrubTask = nil
+        pauseScenePlayback()
+        guard
+            var session = sceneSession,
+            session.plan.isInteractive,
+            let item = activeSceneItem,
+            item.id == session.itemID
+        else {
+            return
+        }
+        let requestedDate =
+            session.plan.clamped(date)
+        session.requestedDate =
+            requestedDate
+        session.requestedLabel = label
+        session.hasPlaybackPosition = true
+        if session.angularExtent != nil {
+            session.phase = .sampling
+        }
+        sceneSession = session
+
+        sceneScrubTask =
+            Task { @MainActor [weak self] in
+                do {
+                    try await Task.sleep(
+                        for: .milliseconds(100)
+                    )
+                } catch {
+                    return
+                }
+                guard
+                    let self,
+                    self.activeSceneItem == item,
+                    self.sceneSession?
+                        .requestedDate
+                        == requestedDate
+                else {
+                    return
+                }
+                self.sceneScrubTask = nil
+                self.requestSceneSample(
+                    at: requestedDate,
+                    label: label,
+                    stopsPlayback: false
+                )
+            }
+    }
+
+    func playScene() {
+        guard canPlayScene,
+              var session = sceneSession
+        else {
+            return
+        }
+        if !session.hasPlaybackPosition
+            || session.requestedDate
+                >= session.plan.upperBound
+        {
+            requestSceneSample(
+                at: session.plan.lowerBound,
+                label: "指定時刻",
+                stopsPlayback: false
+            )
+            guard let refreshed =
+                sceneSession
+            else {
+                return
+            }
+            session = refreshed
+        }
+        session.isPlaying = true
+        session.hasPlaybackPosition = true
+        sceneSession = session
+        scenePlaybackTask?.cancel()
+        scenePlaybackTask =
+            Task { @MainActor [weak self] in
+                while !Task.isCancelled {
+                    do {
+                        try await Task.sleep(
+                            for: .seconds(
+                                session.plan
+                                    .playbackFrameIntervalSeconds
+                            )
+                        )
+                    } catch {
+                        return
+                    }
+                    guard let self else {
+                        return
+                    }
+                    self.advanceScenePlaybackFrame()
+                }
+            }
+    }
+
+    func pauseScenePlayback() {
+        scenePlaybackTask?.cancel()
+        scenePlaybackTask = nil
+        guard var session = sceneSession,
+              session.isPlaying
+        else {
+            return
+        }
+        sceneSampleGeneration += 1
+        sceneSampleTask?.cancel()
+        sceneSampleTask = nil
+        if let displayed =
+            session.displayedSample
+        {
+            session.requestedDate =
+                displayed.instantUTC
+            session.requestedLabel =
+                session.displayedLabel
+                ?? "指定時刻"
+            session.phase = .ready
+        }
+        session.isPlaying = false
+        sceneSession = session
+    }
+
+    func setSceneReduceMotion(
+        _ reduceMotion: Bool
+    ) {
+        guard
+            sceneReduceMotionEnabled
+                != reduceMotion
+        else {
+            return
+        }
+        sceneReduceMotionEnabled =
+            reduceMotion
+        if reduceMotion {
+            pauseScenePlayback()
+        }
+    }
+
+    func deactivateSceneSession() {
+        sceneGeneration += 1
+        sceneSampleGeneration += 1
+        sceneProjectionTask?.cancel()
+        sceneProjectionTask = nil
+        sceneSampleTask?.cancel()
+        sceneSampleTask = nil
+        sceneScrubTask?.cancel()
+        sceneScrubTask = nil
+        scenePlaybackTask?.cancel()
+        scenePlaybackTask = nil
+        sceneSampleCache.removeAll()
+        activeSceneItem = nil
+        sceneSession = nil
+    }
+
+    func stopScenePlaybackForBackground() {
+        pauseScenePlayback()
+    }
+
     private func cancelLoad() {
         loadTask?.cancel()
         loadTask = nil
+    }
+
+    private func advanceScenePlaybackFrame() {
+        guard
+            let session = sceneSession,
+            session.isPlaying,
+            session.phase == .ready,
+            let displayed =
+                session.displayedSample
+        else {
+            return
+        }
+        let next = min(
+            session.plan.upperBound,
+            displayed.instantUTC
+                .addingTimeInterval(
+                    session.plan
+                        .playbackFrameStepSeconds
+                )
+        )
+        guard next > displayed.instantUTC else {
+            pauseScenePlayback()
+            return
+        }
+        requestSceneSample(
+            at: next,
+            label: "指定時刻",
+            stopsPlayback: false
+        )
+    }
+
+    private static func validateSceneSample(
+        _ sample: EventSceneSampleV1,
+        requestedDate: Date,
+        item: EventForecastItem,
+        angularExtent:
+            AngularSceneExtent? = nil
+    ) throws {
+        guard sample.instantUTC == requestedDate
+        else {
+            throw EventSceneSessionError
+                .sampleInstantMismatch
+        }
+        let expectedKind:
+            EventSceneSampleKindV1
+        switch item.candidate.kind {
+        case .solarEclipse:
+            expectedKind = .solarEclipse
+        case .lunarEclipse:
+            expectedKind = .lunarEclipse
+        case .lunarOccultation:
+            expectedKind = .lunarOccultation
+        }
+        guard sample.kind == expectedKind else {
+            throw EventSceneSessionError
+                .invalidProjection
+        }
+        switch expectedKind {
+        case .solarEclipse:
+            guard
+                sample.sun != nil,
+                sample.lunarShadow == nil,
+                sample.targetStar == nil
+            else {
+                throw EventSceneSessionError
+                    .invalidProjection
+            }
+        case .lunarEclipse:
+            guard
+                sample.sun != nil,
+                sample.lunarShadow != nil,
+                sample.targetStar == nil
+            else {
+                throw EventSceneSessionError
+                    .invalidProjection
+            }
+        case .lunarOccultation:
+            guard
+                let expectedStarHR =
+                    item.candidate.targetStarHR,
+                sample.sun == nil,
+                sample.lunarShadow == nil,
+                sample.targetStar?
+                    .starHR
+                    == expectedStarHR
+            else {
+                throw EventSceneSessionError
+                    .invalidProjection
+            }
+        }
+        if let angularExtent {
+            guard
+                let bodies =
+                    EventSceneAngularBodies
+                    .bodies(for: sample),
+                bodies.allSatisfy(
+                    angularExtent.contains
+                )
+            else {
+                throw EventSceneSessionError
+                    .invalidProjection
+            }
+        }
     }
 
     private func selectFallbackIfNeeded() {
@@ -864,6 +1574,57 @@ actor EventForecastEngine {
             }
         }
         return forecasts
+    }
+
+    func sceneSample(
+        for item: EventForecastItem,
+        at instantUTC: Date
+    ) async throws -> EventSceneSampleV1 {
+        try Task.checkCancellation()
+        let resources = try await loadResources()
+        let candidate = item.candidate
+        let location = item.observer.location
+        let options = try Self.options(
+            for: candidate,
+            location: location,
+            service:
+                resources.earthOrientation
+        )
+
+        switch candidate.kind {
+        case .solarEclipse:
+            return try await LocalSolarEclipseV1
+                .sampleScene(
+                    provider:
+                        resources.ephemeris,
+                    candidate: candidate,
+                    at: instantUTC,
+                    location: location,
+                    options: options
+                )
+        case .lunarEclipse:
+            return try await LocalLunarEclipseV1
+                .sampleScene(
+                    provider:
+                        resources.ephemeris,
+                    candidate: candidate,
+                    at: instantUTC,
+                    location: location,
+                    options: options
+                )
+        case .lunarOccultation:
+            return try await LocalLunarOccultationV1
+                .sampleScene(
+                    provider:
+                        resources.ephemeris,
+                    candidate: candidate,
+                    catalog:
+                        resources.skyCatalog,
+                    at: instantUTC,
+                    location: location,
+                    options: options
+                )
+        }
     }
 
     private func loadResources()

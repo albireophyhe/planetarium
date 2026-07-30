@@ -73,6 +73,10 @@ struct ContentView: View {
         .tint(store.nightMode ? Color(red: 0.88, green: 0.29, blue: 0.29) : .blue)
         .onChange(of: scenePhase) { _, newPhase in
             store.handleScenePhase(newPhase)
+            if newPhase != .active {
+                eventStore
+                    .stopScenePlaybackForBackground()
+            }
         }
         .onChange(of: sidebarMode) { _, newMode in
             switch newMode {

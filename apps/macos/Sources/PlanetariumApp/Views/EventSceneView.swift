@@ -2,13 +2,13 @@ import AppKit
 import PlanetariumCore
 import SwiftUI
 
-/// A solved-contact diagram for one local event forecast.
+/// A fixed-angular-viewport diagram for one selected local event forecast.
 ///
-/// The view deliberately has no playback animation. Besides keeping the
-/// inspector lightweight, a static diagram remains usable when Reduce Motion
-/// is enabled and avoids inventing positions between solver samples.
+/// Interactive frames are physical arbitrary-UTC samples. The view never
+/// interpolates body positions in screen coordinates.
 struct EventSceneView: View {
     let item: EventForecastItem
+    @Bindable var eventStore: EventForecastStore
     let observationDate: Date
     let onShowOnSky: (Date, String) -> Void
 
@@ -28,12 +28,26 @@ struct EventSceneView: View {
             EventSceneTimeline.moments(for: item)
         let selectedMoment =
             resolvedMoment(in: moments)
+        let session =
+            matchingSceneSession
+        let display =
+            resolvedDisplay(
+                selectedMoment: selectedMoment,
+                session: session
+            )
+        let angularExtent =
+            session?.angularExtent
+            ?? eventWideAngularExtent(
+                moments: moments
+            )
 
         Group {
-            if let selectedMoment {
+            if let display {
                 sceneContent(
-                    moment: selectedMoment,
-                    moments: moments
+                    display: display,
+                    moments: moments,
+                    session: session,
+                    angularExtent: angularExtent
                 )
             } else {
                 ContentUnavailableView(
@@ -50,14 +64,17 @@ struct EventSceneView: View {
             }
         }
         .onAppear {
-            selectMatchingOrDefault(in: moments)
+            configureSceneSession(
+                moments: moments
+            )
         }
-        .onChange(of: item.id) {
+        .onChange(of: item) {
             selectedMomentID = nil
-            selectMatchingOrDefault(
-                in:
-                    EventSceneTimeline
-                    .moments(for: item)
+            configureSceneSession(
+                moments:
+                    EventSceneTimeline.moments(
+                        for: item
+                    )
             )
         }
         .onChange(of: observationDate) {
@@ -67,9 +84,14 @@ struct EventSceneView: View {
                     .moments(for: item)
             )
         }
-        // No animation is introduced by this view. This also prevents a
-        // parent inspector transition from animating the scientific diagram
-        // when the system Reduce Motion preference is active.
+        .onChange(of: reduceMotion) {
+            eventStore.setSceneReduceMotion(
+                reduceMotion
+            )
+        }
+        .onDisappear {
+            eventStore.deactivateSceneSession()
+        }
         .transaction { transaction in
             if reduceMotion {
                 transaction.animation = nil
@@ -79,33 +101,37 @@ struct EventSceneView: View {
     }
 
     private func sceneContent(
-        moment: EventSceneTimelineMoment,
-        moments: [EventSceneTimelineMoment]
+        display: EventSceneDisplay,
+        moments: [EventSceneTimelineMoment],
+        session: EventSceneSessionState?,
+        angularExtent: AngularSceneExtent?
     ) -> some View {
-        let scene =
-            EventScenePresentation(
-                item: item,
-                moment: moment
-            )
         let matchesSky =
-            EventSceneTimeline
-            .matchingMoment(
-                observationDate:
-                    observationDate,
-                in: [moment]
-            ) != nil
+            abs(
+                display.instantUTC
+                    .timeIntervalSince(
+                        observationDate
+                    )
+            )
+            <= EventSceneTimeline
+            .matchingTolerance
 
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 Label(
-                    moment.label + "の相対配置",
-                    systemImage: scene.systemImage
+                    display.label + "の相対配置",
+                    systemImage:
+                        display.presentation
+                        .systemImage
                 )
                 .font(SkyTypography.heading)
 
                 Spacer(minLength: 8)
 
-                Text(scene.fidelityLabel)
+                Text(
+                    display.presentation
+                        .fidelityLabel
+                )
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 7)
@@ -123,6 +149,10 @@ struct EventSceneView: View {
                         moments: moments
                     )
             ) {
+                if selectedMomentID == nil {
+                    Text("指定時刻")
+                        .tag(arbitraryMomentID)
+                }
                 ForEach(moments) { candidate in
                     Text(
                         candidate.label
@@ -142,15 +172,27 @@ struct EventSceneView: View {
             .pickerStyle(.menu)
             .accessibilityHint(
                 momentKindsDescription
-                    + "の計算済み静止図を選びます。星図の観測時刻は変わりません"
+                    + "の正確な解時刻へ移動します。星図の観測時刻は変わりません"
             )
+            .disabled(
+                session?.plan.isInteractive
+                    == true
+                    && session?.angularExtent
+                    == nil
+            )
+
+            if let session {
+                sceneSessionControls(
+                    session: session
+                )
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(
                     "現地："
                         + EventForecastFormatting
                         .dateTime(
-                            moment.instantUTC,
+                            display.instantUTC,
                             timeZoneIdentifier:
                                 item.observer
                                 .location
@@ -161,7 +203,7 @@ struct EventSceneView: View {
                     "UTC："
                         + EventForecastFormatting
                         .utcDateTime(
-                            moment.instantUTC
+                            display.instantUTC
                         )
                 )
                 .foregroundStyle(.secondary)
@@ -172,7 +214,7 @@ struct EventSceneView: View {
             Label(
                 matchesSky
                     ? "星図と同じ時刻です。"
-                    : "計算済み時刻の静止図です。現在の星図時刻とは別です。",
+                    : "この配置の時刻は、現在の星図時刻とは別です。",
                 systemImage:
                     matchesSky
                     ? "checkmark.circle"
@@ -195,13 +237,18 @@ struct EventSceneView: View {
                     colorMode: .linear
                 ) { context, size in
                     draw(
-                        scene,
+                        display.presentation,
+                        angularExtent:
+                            angularExtent,
                         in: &context,
                         size: size
                     )
                 }
 
-                Text(scene.axisLabel)
+                Text(
+                    display.presentation
+                        .axisLabel
+                )
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .padding(8)
@@ -250,16 +297,18 @@ struct EventSceneView: View {
                 children: .ignore
             )
             .accessibilityLabel(
-                moment.label + "の相対配置"
+                display.label + "の相対配置"
             )
             .accessibilityValue(
-                scene.accessibilitySummary
+                display.presentation
+                    .accessibilitySummary
             )
             .accessibilityHint(
-                scene.accessibilityHint
+                display.presentation
+                    .accessibilityHint
             )
 
-            Text(scene.legend)
+            Text(display.presentation.legend)
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.primary)
                 .fixedSize(
@@ -268,9 +317,10 @@ struct EventSceneView: View {
                 )
 
             Label(
-                scene.explanation,
+                display.presentation.explanation,
                 systemImage:
-                    scene.isSchematic
+                    display.presentation
+                    .isSchematic
                     ? "info.circle"
                     : "scope"
             )
@@ -283,8 +333,8 @@ struct EventSceneView: View {
 
             Button {
                 onShowOnSky(
-                    moment.instantUTC,
-                    moment.label + "を空に表示"
+                    display.instantUTC,
+                    display.label + "を空に表示"
                 )
             } label: {
                 Label(
@@ -295,12 +345,14 @@ struct EventSceneView: View {
             }
             .buttonStyle(.bordered)
             .accessibilityHint(
-                "時間再生を停止し、星図の観測時刻をこの計算済み時刻へ変更します"
+                "時間再生を停止し、星図の観測時刻をこの配置のUTC時刻へ変更します"
             )
 
             Text(
-                momentKindsDescription
-                    + "のソルバー計算結果だけを切り替える静止図です。時刻間の画面座標は補間していません。"
+                display.isRuntimeSample
+                    ? "指定UTCごとに天体位置と相対配置を物理再計算しています。時刻間の画面座標は補間していません。"
+                    : momentKindsDescription
+                        + "のソルバー計算結果を表示しています。"
             )
             .font(.caption2)
             .foregroundStyle(.secondary)
@@ -316,13 +368,206 @@ struct EventSceneView: View {
     ) -> Binding<String> {
         Binding(
             get: {
-                resolvedMoment(in: moments)?.id
-                    ?? ""
+                selectedMomentID
+                    ?? arbitraryMomentID
             },
-            set: {
-                selectedMomentID = $0
+            set: { identifier in
+                guard
+                    let moment = moments.first(
+                        where: {
+                            $0.id == identifier
+                        }
+                    )
+                else {
+                    return
+                }
+                selectedMomentID = moment.id
+                eventStore.requestSceneSample(
+                    at: moment.instantUTC,
+                    label: moment.label
+                )
             }
         )
+    }
+
+    @ViewBuilder
+    private func sceneSessionControls(
+        session: EventSceneSessionState
+    ) -> some View {
+        if session.plan.isInteractive {
+            VStack(alignment: .leading, spacing: 7) {
+                Slider(
+                    value: Binding(
+                        get: {
+                            session.requestedDate
+                                .timeIntervalSinceReferenceDate
+                        },
+                        set: { seconds in
+                            selectedMomentID = nil
+                            eventStore
+                            .requestCoalescedSceneSample(
+                                at: Date(
+                                    timeIntervalSinceReferenceDate:
+                                        seconds.rounded()
+                                ),
+                                label: "指定時刻"
+                            )
+                        }
+                    ),
+                    in:
+                        session.plan.lowerBound
+                        .timeIntervalSinceReferenceDate
+                        ...
+                        session.plan.upperBound
+                        .timeIntervalSinceReferenceDate,
+                    step: 1
+                )
+                .disabled(
+                    session.angularExtent == nil
+                        || session.phase
+                            == .preparing
+                )
+                .accessibilityLabel(
+                    "現象内の指定時刻"
+                )
+                .accessibilityHint(
+                    "1秒単位で指定し、そのUTC時刻の配置を再計算します"
+                )
+                .accessibilityValue(
+                    "現地 "
+                        + EventForecastFormatting
+                        .dateTime(
+                            session.requestedDate,
+                            timeZoneIdentifier:
+                                item.observer
+                                .location
+                                .timeZoneIdentifier
+                        )
+                        + "、UTC "
+                        + EventForecastFormatting
+                        .utcDateTime(
+                            session.requestedDate
+                        )
+                )
+
+                HStack(spacing: 8) {
+                    Button {
+                        if session.isPlaying {
+                            eventStore
+                                .pauseScenePlayback()
+                        } else {
+                            selectedMomentID = nil
+                            eventStore.playScene()
+                        }
+                    } label: {
+                        Label(
+                            session.isPlaying
+                                ? "一時停止"
+                                : (
+                                    session.requestedDate
+                                        >= session.plan
+                                        .upperBound
+                                    ? "最初から再生"
+                                    : "再生"
+                                ),
+                            systemImage:
+                                session.isPlaying
+                                ? "pause.fill"
+                                : (
+                                    session.requestedDate
+                                        >= session.plan
+                                        .upperBound
+                                    ? "arrow.counterclockwise"
+                                    : "play.fill"
+                                )
+                        )
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(
+                        !session.isPlaying
+                            && !eventStore
+                            .canPlayScene
+                    )
+
+                    if session.phase == .preparing {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("固定画角を計算中…")
+                            .foregroundStyle(
+                                .secondary
+                            )
+                    } else if session.phase == .sampling {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("指定UTCを再計算中…")
+                            .foregroundStyle(
+                                .secondary
+                            )
+                    } else if session.isPlaying {
+                        Text(
+                            "最大約"
+                                + String(
+                                    Int(
+                                        EventSceneSessionPlan
+                                        .playbackFramesPerSecond
+                                    )
+                                )
+                                + "フレーム/秒・全区間約"
+                                + String(
+                                    Int(
+                                        EventSceneSessionPlan
+                                        .targetPlaybackDurationSeconds
+                                    )
+                                )
+                                + "秒"
+                        )
+                            .foregroundStyle(
+                                .secondary
+                            )
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .font(.caption)
+
+                if reduceMotion {
+                    Label(
+                        "視差効果を減らす設定中は自動再生を停止します。スライダーと解時刻は利用できます。",
+                        systemImage:
+                            "figure.walk.motion"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+
+                if case let .failed(message) =
+                    session.phase
+                {
+                    HStack(alignment: .firstTextBaseline) {
+                        Label(
+                            message,
+                            systemImage:
+                                "exclamationmark.triangle"
+                        )
+                        .foregroundStyle(.orange)
+                        Button("再準備") {
+                            eventStore
+                                .retrySceneSession(
+                                    for: item
+                                )
+                        }
+                    }
+                    .font(.caption)
+                }
+            }
+        } else if session.phase == .staticOnly {
+            Label(
+                "解かれた時刻が1点だけのため、静止図として表示します。",
+                systemImage: "pause.circle"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
     }
 
     private func resolvedMoment(
@@ -379,6 +624,81 @@ struct EventSceneView: View {
             return
         }
         selectedMomentID = matching.id
+        eventStore.requestSceneSample(
+            at: matching.instantUTC,
+            label: matching.label
+        )
+    }
+
+    private func configureSceneSession(
+        moments: [EventSceneTimelineMoment]
+    ) {
+        selectMatchingOrDefault(in: moments)
+        eventStore.setSceneReduceMotion(
+            reduceMotion
+        )
+        let initial = resolvedMoment(
+            in: moments
+        )
+        eventStore.activateSceneSession(
+            for: item,
+            initialDate:
+                initial?.instantUTC,
+            initialLabel: initial?.label
+        )
+    }
+
+    private var matchingSceneSession:
+        EventSceneSessionState?
+    {
+        guard
+            let session =
+                eventStore.sceneSession(
+                    matching: item
+                )
+        else {
+            return nil
+        }
+        return session
+    }
+
+    private func resolvedDisplay(
+        selectedMoment:
+            EventSceneTimelineMoment?,
+        session: EventSceneSessionState?
+    ) -> EventSceneDisplay? {
+        if let sample =
+            session?.displayedSample
+        {
+            let label =
+                session?.displayedLabel
+                ?? "指定時刻"
+            return EventSceneDisplay(
+                label: label,
+                instantUTC: sample.instantUTC,
+                presentation:
+                    EventScenePresentation(
+                        item: item,
+                        sample: sample,
+                        phaseLabel: label
+                    ),
+                isRuntimeSample: true
+            )
+        }
+        guard let selectedMoment else {
+            return nil
+        }
+        return EventSceneDisplay(
+            label: selectedMoment.label,
+            instantUTC:
+                selectedMoment.instantUTC,
+            presentation:
+                EventScenePresentation(
+                    item: item,
+                    moment: selectedMoment
+                ),
+            isRuntimeSample: false
+        )
     }
 
     private var momentKindsDescription: String {
@@ -390,12 +710,37 @@ struct EventSceneView: View {
         }
     }
 
+    private var arbitraryMomentID: String {
+        "__event-scene-arbitrary-utc__"
+    }
+
     private var increasedContrast: Bool {
         colorSchemeContrast == .increased
     }
 
+    private func eventWideAngularExtent(
+        moments: [EventSceneTimelineMoment]
+    ) -> AngularSceneExtent? {
+        let phaseBodies =
+            moments.compactMap {
+                EventScenePresentation(
+                    item: item,
+                    moment: $0
+                )
+                .angularBodies
+            }
+        return AngularSceneExtent(
+            phaseBodies: phaseBodies
+        )?.padded(
+            fraction:
+                EventSceneSessionPlan
+                .projectionPaddingFraction
+        )
+    }
+
     private func draw(
         _ scene: EventScenePresentation,
+        angularExtent: AngularSceneExtent?,
         in context: inout GraphicsContext,
         size: CGSize
     ) {
@@ -403,18 +748,24 @@ struct EventSceneView: View {
         case let .solar(solar):
             drawSolar(
                 solar,
+                angularExtent:
+                    angularExtent,
                 in: &context,
                 size: size
             )
         case let .lunar(lunar):
             drawLunar(
                 lunar,
+                angularExtent:
+                    angularExtent,
                 in: &context,
                 size: size
             )
         case let .occultation(occultation):
             drawOccultation(
                 occultation,
+                angularExtent:
+                    angularExtent,
                 in: &context,
                 size: size
             )
@@ -428,29 +779,16 @@ struct EventSceneView: View {
 
     private func drawSolar(
         _ scene: SolarEventScene,
+        angularExtent: AngularSceneExtent?,
         in context: inout GraphicsContext,
         size: CGSize
     ) {
-        let bodies = [
-            AngularSceneBody(
-                eastward: 0,
-                upward: 0,
-                radius: scene.sunRadius
-            ),
-            AngularSceneBody(
-                eastward:
-                    scene.moonOffset
-                    .eastwardRadians,
-                upward:
-                    scene.moonOffset
-                    .upwardRadians,
-                radius: scene.moonRadius
-            ),
-        ]
-        guard let transform =
+        guard
+            let angularExtent,
+            let transform =
             AngularSceneTransform(
                 size: size,
-                bodies: bodies
+                extent: angularExtent
             )
         else {
             drawUnavailable(
@@ -561,29 +899,16 @@ struct EventSceneView: View {
 
     private func drawLunar(
         _ scene: LunarEclipseEventScene,
+        angularExtent: AngularSceneExtent?,
         in context: inout GraphicsContext,
         size: CGSize
     ) {
-        let bodies = [
-            AngularSceneBody(
-                eastward: 0,
-                upward: 0,
-                radius: scene.penumbralRadius
-            ),
-            AngularSceneBody(
-                eastward:
-                    scene.moonOffset
-                    .eastwardRadians,
-                upward:
-                    scene.moonOffset
-                    .upwardRadians,
-                radius: scene.moonRadius
-            ),
-        ]
-        guard let transform =
+        guard
+            let angularExtent,
+            let transform =
             AngularSceneTransform(
                 size: size,
-                bodies: bodies
+                extent: angularExtent
             )
         else {
             drawUnavailable(
@@ -771,34 +1096,16 @@ struct EventSceneView: View {
 
     private func drawOccultation(
         _ scene: OccultationEventScene,
+        angularExtent: AngularSceneExtent?,
         in context: inout GraphicsContext,
         size: CGSize
     ) {
-        let markerAllowance =
-            max(
-                scene.moonRadius * 0.10,
-                1e-12
-            )
-        let bodies = [
-            AngularSceneBody(
-                eastward: 0,
-                upward: 0,
-                radius: scene.moonRadius
-            ),
-            AngularSceneBody(
-                eastward:
-                    scene.targetOffset
-                    .eastwardRadians,
-                upward:
-                    scene.targetOffset
-                    .upwardRadians,
-                radius: markerAllowance
-            ),
-        ]
-        guard let transform =
+        guard
+            let angularExtent,
+            let transform =
             AngularSceneTransform(
                 size: size,
-                bodies: bodies
+                extent: angularExtent
             )
         else {
             drawUnavailable(
@@ -1107,125 +1414,11 @@ struct EventSceneView: View {
     }
 }
 
-private struct AngularSceneBody {
-    let eastward: Double
-    let upward: Double
-    let radius: Double
-}
-
-private struct AngularSceneTransform {
-    let contentRect: CGRect
-    private let scale: Double
-    private let angularMidX: Double
-    private let angularMidY: Double
-
-    init?(
-        size: CGSize,
-        bodies: [AngularSceneBody]
-    ) {
-        guard
-            size.width.isFinite,
-            size.height.isFinite,
-            size.width > 80,
-            size.height > 80,
-            !bodies.isEmpty,
-            bodies.allSatisfy({
-                $0.eastward.isFinite
-                    && $0.upward.isFinite
-                    && $0.radius.isFinite
-                    && $0.radius >= 0
-            })
-        else {
-            return nil
-        }
-
-        let inset: CGFloat = 26
-        let rect = CGRect(
-            x: inset,
-            y: inset,
-            width: size.width - 2 * inset,
-            height: size.height - 2 * inset
-        )
-        guard rect.width > 0, rect.height > 0 else {
-            return nil
-        }
-
-        var minX = Double.infinity
-        var maxX = -Double.infinity
-        var minY = Double.infinity
-        var maxY = -Double.infinity
-        var maximumRadius = 0.0
-        for body in bodies {
-            minX = min(
-                minX,
-                body.eastward - body.radius
-            )
-            maxX = max(
-                maxX,
-                body.eastward + body.radius
-            )
-            minY = min(
-                minY,
-                body.upward - body.radius
-            )
-            maxY = max(
-                maxY,
-                body.upward + body.radius
-            )
-            maximumRadius = max(
-                maximumRadius,
-                body.radius
-            )
-        }
-        guard
-            minX.isFinite,
-            maxX.isFinite,
-            minY.isFinite,
-            maxY.isFinite,
-            maximumRadius > 0
-        else {
-            return nil
-        }
-
-        let minimumSpan = maximumRadius * 2.45
-        let spanX = max(maxX - minX, minimumSpan)
-        let spanY = max(maxY - minY, minimumSpan)
-        let resolvedScale = min(
-            Double(rect.width) / spanX,
-            Double(rect.height) / spanY
-        )
-        guard
-            resolvedScale.isFinite,
-            resolvedScale > 0
-        else {
-            return nil
-        }
-
-        contentRect = rect
-        scale = resolvedScale
-        angularMidX = (minX + maxX) / 2
-        angularMidY = (minY + maxY) / 2
-    }
-
-    func point(
-        eastward: Double,
-        upward: Double
-    ) -> CGPoint {
-        CGPoint(
-            x:
-                contentRect.midX
-                + (eastward - angularMidX)
-                * scale,
-            y:
-                contentRect.midY
-                - (upward - angularMidY)
-                * scale
-        )
-    }
-
-    func length(_ radians: Double) -> CGFloat {
-        radians * scale
-    }
+private struct EventSceneDisplay {
+    let label: String
+    let instantUTC: Date
+    let presentation: EventScenePresentation
+    let isRuntimeSample: Bool
 }
 
 private enum EventSceneContent {
@@ -1266,6 +1459,70 @@ private struct EventScenePresentation {
     let accessibilitySummary: String
     let accessibilityHint: String
     let isSchematic: Bool
+
+    var angularBodies: [AngularSceneBody]? {
+        switch content {
+        case let .solar(scene):
+            return [
+                AngularSceneBody(
+                    eastward: 0,
+                    upward: 0,
+                    radius: scene.sunRadius
+                ),
+                AngularSceneBody(
+                    eastward:
+                        scene.moonOffset
+                        .eastwardRadians,
+                    upward:
+                        scene.moonOffset
+                        .upwardRadians,
+                    radius: scene.moonRadius
+                ),
+            ]
+        case let .lunar(scene):
+            return [
+                AngularSceneBody(
+                    eastward: 0,
+                    upward: 0,
+                    radius:
+                        scene.penumbralRadius
+                ),
+                AngularSceneBody(
+                    eastward:
+                        scene.moonOffset
+                        .eastwardRadians,
+                    upward:
+                        scene.moonOffset
+                        .upwardRadians,
+                    radius: scene.moonRadius
+                ),
+            ]
+        case let .occultation(scene):
+            return [
+                AngularSceneBody(
+                    eastward: 0,
+                    upward: 0,
+                    radius: scene.moonRadius
+                ),
+                AngularSceneBody(
+                    eastward:
+                        scene.targetOffset
+                        .eastwardRadians,
+                    upward:
+                        scene.targetOffset
+                        .upwardRadians,
+                    radius:
+                        max(
+                            scene.moonRadius
+                                * 0.10,
+                            1e-12
+                        )
+                ),
+            ]
+        case .unavailable:
+            return nil
+        }
+    }
 
     private init(
         content: EventSceneContent,
@@ -1335,6 +1592,292 @@ private struct EventScenePresentation {
                 phaseLabel: moment.label
             )
         }
+    }
+
+    init(
+        item: EventForecastItem,
+        sample: EventSceneSampleV1,
+        phaseLabel: String
+    ) {
+        switch (item, sample.kind) {
+        case (.eclipse, .solarEclipse):
+            self = Self.runtimeSolar(
+                sample,
+                phaseLabel: phaseLabel
+            )
+        case (.eclipse, .lunarEclipse):
+            self = Self.runtimeLunar(
+                sample,
+                phaseLabel: phaseLabel
+            )
+        case let (
+            .occultation(forecast),
+            .lunarOccultation
+        ):
+            self = Self.runtimeOccultation(
+                forecast,
+                sample: sample,
+                phaseLabel: phaseLabel,
+                solvedPhase:
+                    forecast.contacts.first {
+                        $0.instantUTC
+                            == sample.instantUTC
+                    }?
+                    .phase
+            )
+        default:
+            self = Self.unavailable(
+                systemImage: item.systemImage,
+                phaseLabel: phaseLabel
+            )
+        }
+    }
+
+    private static func runtimeSolar(
+        _ sample: EventSceneSampleV1,
+        phaseLabel: String
+    ) -> Self {
+        guard
+            let sun = sample.sun,
+            validRadius(
+                sun.angularRadiusRadians
+            ),
+            validRadius(
+                sample.moon
+                    .angularRadiusRadians
+            ),
+            validOffset(
+                sample.relativeDirection
+            )
+        else {
+            return unavailable(
+                systemImage: "sun.max",
+                phaseLabel: phaseLabel
+            )
+        }
+        let offset =
+            sample.relativeDirection
+        let summary =
+            "日食の\(phaseLabel)です。"
+            + "太陽と月の中心間隔は"
+            + EventSceneFormatting.angle(
+                offset.separationRadians
+            )
+            + "。月中心は太陽中心から"
+            + EventSceneFormatting
+            .relativeDirection(offset)
+            + "。太陽の角半径は"
+            + EventSceneFormatting.angle(
+                sun.angularRadiusRadians
+            )
+            + "、月の角半径は"
+            + EventSceneFormatting.angle(
+                sample.moon
+                    .angularRadiusRadians
+            )
+            + "です。"
+
+        return Self(
+            content: .solar(
+                SolarEventScene(
+                    sunRadius:
+                        sun.angularRadiusRadians,
+                    moonRadius:
+                        sample.moon
+                        .angularRadiusRadians,
+                    moonOffset: offset
+                )
+            ),
+            systemImage: "sun.max",
+            fidelityLabel: "指定UTC計算",
+            axisLabel:
+                offset.orientationIsDefined
+                ? "上：高度が高い　右：方位角が増える"
+                : "相対方向の軸は未定義",
+            legend:
+                "黄色：太陽　輪郭円：月",
+            explanation:
+                "\(phaseLabel)のUTC時刻で地平座標と角半径を再計算し、固定角尺度で投影しています。月縁は平均球面で、月面地形やベイリービーズは再現しません。",
+            accessibilitySummary: summary,
+            accessibilityHint:
+                "太陽と月の円は同じ固定角尺度です。",
+            isSchematic: false
+        )
+    }
+
+    private static func runtimeLunar(
+        _ sample: EventSceneSampleV1,
+        phaseLabel: String
+    ) -> Self {
+        guard
+            let shadow =
+                sample.lunarShadow,
+            validRadius(
+                sample.moon
+                    .angularRadiusRadians
+            ),
+            validRadius(
+                shadow
+                    .penumbralAngularRadiusRadians
+            ),
+            validRadius(
+                shadow
+                    .umbralAngularRadiusRadians
+            ),
+            validOffset(
+                sample.relativeDirection
+            )
+        else {
+            return unavailable(
+                systemImage: "moon.stars",
+                phaseLabel: phaseLabel
+            )
+        }
+        let offset =
+            sample.relativeDirection
+        let summary =
+            "月食の\(phaseLabel)です。"
+            + "月と地球影の中心間隔は"
+            + EventSceneFormatting.angle(
+                offset.separationRadians
+            )
+            + "。本影の角半径は"
+            + EventSceneFormatting.angle(
+                shadow
+                    .umbralAngularRadiusRadians
+            )
+            + "、半影の角半径は"
+            + EventSceneFormatting.angle(
+                shadow
+                    .penumbralAngularRadiusRadians
+            )
+            + "、月の角半径は"
+            + EventSceneFormatting.angle(
+                sample.moon
+                    .angularRadiusRadians
+            )
+            + "です。"
+
+        return Self(
+            content: .lunar(
+                LunarEclipseEventScene(
+                    moonRadius:
+                        sample.moon
+                        .angularRadiusRadians,
+                    penumbralRadius:
+                        shadow
+                        .penumbralAngularRadiusRadians,
+                    umbralRadius:
+                        shadow
+                        .umbralAngularRadiusRadians,
+                    moonOffset: offset
+                )
+            ),
+            systemImage: "moon.stars",
+            fidelityLabel: "指定UTC計算",
+            axisLabel:
+                offset.orientationIsDefined
+                ? "上：天の北　右：天の東"
+                : "円の大きさは実値・向きは概略",
+            legend:
+                "破線：半影　内側の円：本影　明るい円：月",
+            explanation:
+                "\(phaseLabel)のUTC時刻でDanjon法（影半径1.01倍）の配置を再計算し、固定角尺度で投影しています。色と明暗は識別用で、肉眼で見える月面輝度の再現ではありません。",
+            accessibilitySummary: summary,
+            accessibilityHint:
+                "半影、本影、月の円は同じ固定角尺度です。",
+            isSchematic:
+                !offset.orientationIsDefined
+        )
+    }
+
+    private static func runtimeOccultation(
+        _ forecast:
+            LocalLunarOccultationCircumstancesV1,
+        sample: EventSceneSampleV1,
+        phaseLabel: String,
+        solvedPhase:
+            LunarOccultationContactPhaseV1?
+    ) -> Self {
+        guard
+            let target = sample.targetStar,
+            validRadius(
+                sample.moon
+                    .angularRadiusRadians
+            ),
+            validOffset(
+                sample.relativeDirection
+            )
+        else {
+            return unavailable(
+                systemImage: "moon.circle",
+                phaseLabel: phaseLabel
+            )
+        }
+        let offset =
+            sample.relativeDirection
+        let clearance =
+            offset.separationRadians
+            - sample.moon
+            .angularRadiusRadians
+        let targetState =
+            OccultationSceneTargetState
+            .resolve(
+                phase:
+                    solvedPhase ?? .maximum,
+                grazing: forecast.grazing,
+                clearanceRadians: clearance
+            )
+        let summary =
+            "恒星掩蔽の\(phaseLabel)です。"
+            + target.label
+            + "の予測方向は月中心から"
+            + EventSceneFormatting
+            .relativeDirection(offset)
+            + "、中心間隔は"
+            + EventSceneFormatting.angle(
+                offset.separationRadians
+            )
+            + "です。平均月縁からのクリアランスは"
+            + EventSceneFormatting
+            .signedAngle(clearance)
+            + "です。"
+            + targetState
+            .accessibilitySummary
+
+        return Self(
+            content: .occultation(
+                OccultationEventScene(
+                    moonRadius:
+                        sample.moon
+                        .angularRadiusRadians,
+                    targetOffset: offset,
+                    targetState: targetState
+                )
+            ),
+            systemImage: "moon.circle",
+            fidelityLabel:
+                targetState
+                    == .uncertainBoundary
+                ? "指定UTC・名目計算"
+                : "指定UTC計算",
+            axisLabel:
+                offset.orientationIsDefined
+                ? "上：高度が高い　右：方位角が増える"
+                : "相対方向の軸は未定義",
+            legend:
+                "円：平均月縁　星印："
+                + target.label
+                + targetState.legendSuffix,
+            explanation:
+                targetState.explanation(
+                    phaseLabel: phaseLabel
+                ),
+            accessibilitySummary: summary,
+            accessibilityHint:
+                targetState.accessibilityHint,
+            isSchematic: false
+        )
     }
 
     private static func solar(
@@ -1726,6 +2269,17 @@ private struct EventScenePresentation {
         _ radius: Double
     ) -> Bool {
         radius.isFinite && radius > 0
+    }
+
+    private static func validOffset(
+        _ offset: EventSceneTangentOffsetV1
+    ) -> Bool {
+        offset.eastwardRadians.isFinite
+            && offset.upwardRadians.isFinite
+            && offset.separationRadians.isFinite
+            && offset.separationRadians >= 0
+            && offset
+                .positionAngleRadians.isFinite
     }
 }
 

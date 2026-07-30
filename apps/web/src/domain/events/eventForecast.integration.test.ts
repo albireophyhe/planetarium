@@ -9,6 +9,9 @@ import {
   calculateLocalSolarEclipse,
   eventEphemerisSearchBounds,
   resolveEventSearchBounds,
+  sampleLocalLunarEclipseAt,
+  sampleLocalLunarOccultationAt,
+  sampleLocalSolarEclipseAt,
 } from "./index";
 import { precisionStarByHR } from "../precisionData";
 import { EventCandidateLoader } from "./eventCandidates";
@@ -245,6 +248,62 @@ describe("bundled event forecast end to end", () => {
         180) /
         Math.PI,
     ).toBeCloseTo(10, 0);
+
+    const sampledMaximum = sampleLocalSolarEclipseAt(
+      ephemeris,
+      circumstances!.maximum.instantUtc,
+      {
+        latitude: 51.5,
+        longitude: -(10 / 60),
+        name: "London",
+        timeZone: "Europe/London",
+      },
+      { heightMeters: 0 },
+    );
+    expect(sampledMaximum.instantUtc).toEqual(
+      circumstances!.maximum.instantUtc,
+    );
+    expect(sampledMaximum.bodies.sun).toEqual(
+      circumstances!.maximum.bodies.sun,
+    );
+    expect(sampledMaximum.bodies.moon).toEqual(
+      circumstances!.maximum.bodies.moon,
+    );
+    const solarMidpoint = new Date(
+      (
+        contacts.get("solar-c1")!.instantUtc.getTime() +
+        contacts.get("solar-c4")!.instantUtc.getTime()
+      ) / 2,
+    );
+    const sampledMidpoint = sampleLocalSolarEclipseAt(
+      ephemeris,
+      solarMidpoint,
+      {
+        latitude: 51.5,
+        longitude: -(10 / 60),
+        name: "London",
+        timeZone: "Europe/London",
+      },
+    );
+    expect(sampledMidpoint.instantUtc).toEqual(solarMidpoint);
+    expect(
+      sampledMidpoint.bodies.sun?.angularRadiusRadians,
+    ).toBeGreaterThan(0);
+    expect(
+      sampledMidpoint.bodies.moon?.angularRadiusRadians,
+    ).toBeGreaterThan(0);
+    expect(() =>
+      sampleLocalSolarEclipseAt(
+        ephemeris,
+        new Date(Number.NaN),
+        {
+          latitude: 51.5,
+          longitude: -(10 / 60),
+          name: "London",
+          timeZone: "Europe/London",
+        },
+      ),
+    ).toThrow(/sample time/);
   });
 
   it("matches NASA's 2026-03-03 lunar greatest-eclipse time and magnitude", async () => {
@@ -386,6 +445,65 @@ describe("bundled event forecast end to end", () => {
     expect(
       maximumShadow.centerPositionAngleRadians,
     ).not.toBeNull();
+
+    const sampledMaximum = sampleLocalLunarEclipseAt(
+      ephemeris,
+      circumstances!.maximum.instantUtc,
+      {
+        latitude: 35.681_236,
+        longitude: 139.767_125,
+        name: "東京",
+        timeZone: "Asia/Tokyo",
+      },
+      { heightMeters: 0 },
+    );
+    expect(sampledMaximum.instantUtc).toEqual(
+      circumstances!.maximum.instantUtc,
+    );
+    expect(sampledMaximum.bodies.moon).toEqual(
+      circumstances!.maximum.bodies.moon,
+    );
+    expect(sampledMaximum.lunarShadow).toEqual(
+      circumstances!.maximum.lunarShadow,
+    );
+    const firstContact = circumstances!.contacts[0]!;
+    const lastContact =
+      circumstances!.contacts[circumstances!.contacts.length - 1]!;
+    const lunarMidpoint = new Date(
+      (firstContact.instantUtc.getTime() +
+        lastContact.instantUtc.getTime()) /
+        2,
+    );
+    const sampledMidpoint = sampleLocalLunarEclipseAt(
+      ephemeris,
+      lunarMidpoint,
+      {
+        latitude: 35.681_236,
+        longitude: 139.767_125,
+        name: "東京",
+        timeZone: "Asia/Tokyo",
+      },
+    );
+    expect(sampledMidpoint.instantUtc).toEqual(lunarMidpoint);
+    expect(
+      sampledMidpoint.lunarShadow
+        ?.penumbralAngularRadiusRadians,
+    ).toBeGreaterThan(
+      sampledMidpoint.lunarShadow
+        ?.umbralAngularRadiusRadians ?? Number.POSITIVE_INFINITY,
+    );
+    expect(() =>
+      sampleLocalLunarEclipseAt(
+        ephemeris,
+        new Date(Number.NaN),
+        {
+          latitude: 35.681_236,
+          longitude: 139.767_125,
+          name: "東京",
+          timeZone: "Asia/Tokyo",
+        },
+      ),
+    ).toThrow(/sample time/);
   });
 
   it("reproduces the documented 2017-03-05 Aldebaran graze region", async () => {
@@ -449,6 +567,62 @@ describe("bundled event forecast end to end", () => {
       "物理境界帯",
     );
     expect(circumstances?.event.targetStarHR).toBe(1457);
+
+    const sampledMaximum = sampleLocalLunarOccultationAt(
+      ephemeris,
+      circumstances!.maximum.instantUtc,
+      target,
+      {
+        latitude: 43.638_145,
+        longitude: -79.789_429,
+        name: "Lionhead Golf Club",
+        timeZone: "America/Toronto",
+      },
+      { heightMeters: 200 },
+    );
+    expect(sampledMaximum.instantUtc).toEqual(
+      circumstances!.maximum.instantUtc,
+    );
+    expect(sampledMaximum.bodies.moon).toEqual(
+      circumstances!.maximum.bodies.moon,
+    );
+    expect(sampledMaximum.bodies.target).toEqual(
+      circumstances!.maximum.bodies.target,
+    );
+    const sampledMinuteLater = sampleLocalLunarOccultationAt(
+      ephemeris,
+      new Date(
+        circumstances!.maximum.instantUtc.getTime() + 60_000,
+      ),
+      target,
+      {
+        latitude: 43.638_145,
+        longitude: -79.789_429,
+        name: "Lionhead Golf Club",
+        timeZone: "America/Toronto",
+      },
+      { heightMeters: 200 },
+    );
+    expect(
+      sampledMinuteLater.bodies.moon?.angularRadiusRadians,
+    ).toBeGreaterThan(0);
+    expect(
+      sampledMinuteLater.bodies.target?.altitudeAzimuth.altitude,
+    ).toBeTypeOf("number");
+    expect(() =>
+      sampleLocalLunarOccultationAt(
+        ephemeris,
+        new Date(Number.NaN),
+        target,
+        {
+          latitude: 43.638_145,
+          longitude: -79.789_429,
+          name: "Lionhead Golf Club",
+          timeZone: "America/Toronto",
+        },
+        { heightMeters: 200 },
+      ),
+    ).toThrow(/sample time/);
   });
 
   it(

@@ -110,23 +110,33 @@ export type ApparentGeocentricBodyState = Omit<
   "horizontal"
 >;
 
-export interface EventContact {
-  readonly phase: EventContactPhase;
+/**
+ * A physically evaluated local event state at one UTC instant.
+ *
+ * Unlike `EventContact`, this does not claim that the instant is a solved
+ * contact or maximum. It is the common payload used by event-scene scrubbers
+ * that recompute the astronomy instead of interpolating screen coordinates.
+ */
+export interface EventPhysicalSample {
   readonly instantUtc: Date;
   readonly bodies: Readonly<
     Partial<Record<"sun" | "moon" | "target", EventBodyPosition>>
   >;
-  /** Present for lunar-eclipse contacts computed by the v1 solver. */
+  /** Present for lunar-eclipse samples computed by the v1 solver. */
   readonly lunarShadow?: LunarShadowGeometry;
   readonly aboveHorizon: boolean;
   /**
-   * Contact point around the reference disc, in radians [0, 2π), measured
-   * eastward from CIP-defined celestial north in the CIRS tangent plane.
-   * `null` at maximum and for degenerate directions. The reference disc
-   * is the Sun for solar eclipses and the Moon for lunar
-   * eclipses/occultations.
+   * Relative target direction around the reference disc, in radians
+   * [0, 2π), measured eastward from CIP-defined celestial north in the CIRS
+   * tangent plane. It is `null` when the direction is degenerate or not
+   * required. At a solved contact this is the corresponding contact point;
+   * at an arbitrary sampled instant it is only a relative direction.
    */
   readonly positionAngleRadians: number | null;
+}
+
+export interface EventContact extends EventPhysicalSample {
+  readonly phase: EventContactPhase;
 }
 
 export interface ForecastUncertainty {

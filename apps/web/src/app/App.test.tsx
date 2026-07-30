@@ -79,6 +79,7 @@ vi.mock("./selectedStarTrack", async (importOriginal) => {
 
 type MockEventPanelProps = {
   canRestoreObservationTime: boolean;
+  isActive: boolean;
   observationDate: Date;
   onRestoreObservationTime: () => void;
   onShowEventTime: (date: Date) => void;
@@ -298,10 +299,22 @@ describe("App selection announcements", () => {
       }),
     ).toBeVisible();
     expect(eventPanelRenderSpy).toHaveBeenCalled();
+    expect(eventPanelRenderSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ isActive: true }),
+    );
     expect(readout).toHaveAttribute("datetime", originalDateTime);
     expect(
       screen.getByRole("button", { name: "時間を一時停止" }),
     ).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(screen.getByRole("tab", { name: "恒星" }));
+    expect(eventPanelRenderSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ isActive: false }),
+    );
+    await user.click(screen.getByRole("tab", { name: "現象" }));
+    expect(eventPanelRenderSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ isActive: true }),
+    );
 
     await user.click(
       screen.getByRole("button", {
@@ -322,6 +335,53 @@ describe("App selection announcements", () => {
       }),
     );
     expect(readout).toHaveAttribute("datetime", originalDateTime);
+  });
+
+  it("marks the retained event panel inactive while mobile settings are shown", async () => {
+    const matchMedia = vi.fn((query: string) => ({
+      addEventListener: vi.fn(),
+      addListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+      matches: query === "(max-width: 860px)",
+      media: query,
+      onchange: null,
+      removeEventListener: vi.fn(),
+      removeListener: vi.fn(),
+    }));
+    vi.stubGlobal("matchMedia", matchMedia);
+    const user = userEvent.setup();
+    const { unmount } = render(<App />);
+    try {
+      await user.click(
+        screen.getByRole("tab", { name: "現象" }),
+      );
+      await screen.findByRole("region", {
+        name: "テスト用天文現象予報",
+      });
+      expect(eventPanelRenderSpy).toHaveBeenLastCalledWith(
+        expect.objectContaining({ isActive: true }),
+      );
+
+      await user.click(
+        screen.getByRole("tab", { name: "表示設定" }),
+      );
+      expect(eventPanelRenderSpy).toHaveBeenLastCalledWith(
+        expect.objectContaining({ isActive: false }),
+      );
+
+      await user.click(
+        screen.getByRole("tab", {
+          hidden: true,
+          name: "星と現象",
+        }),
+      );
+      expect(eventPanelRenderSpy).toHaveBeenLastCalledWith(
+        expect.objectContaining({ isActive: true }),
+      );
+    } finally {
+      unmount();
+      vi.unstubAllGlobals();
+    }
   });
 
   it.each([

@@ -851,6 +851,37 @@ enum EclipseCalculationSupportV1 {
         return validLocation
     }
 
+    static func validateSceneInstant(
+        provider:
+            DE442SEphemerisProviderV1,
+        instantUTC: Date,
+        shouldCancel:
+            (@Sendable () -> Bool)?
+    ) throws {
+        try checkCancellation(shouldCancel)
+        let instant =
+            instantUTC
+            .timeIntervalSinceReferenceDate
+        guard instant.isFinite else {
+            throw EventSceneSampleErrorV1
+                .invalidInstant
+        }
+        let range = try ephemerisSearchRange(
+            provider: provider
+        )
+        guard
+            instant
+                >= range
+                .startSecondsSinceReferenceDate,
+            instant
+                <= range
+                .endSecondsSinceReferenceDate
+        else {
+            throw EventSceneSampleErrorV1
+                .outsideEphemerisCoverage
+        }
+    }
+
     static func checkCancellation(
         _ shouldCancel: (@Sendable () -> Bool)?
     ) throws {
