@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/de442s-ephemeris-fixture.v1.json",
+  "title": "JPL DE442s Float32 extraction comparison fixture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "model",
+    "oracle",
+    "sourceSha256",
+    "comparison",
+    "units",
+    "tolerances",
+    "boundaryCases",
+    "sampleCases",
+    "summary"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "model": { "const": "jpl-de442s-type2-float32" },
+    "oracle": {
+      "const": "direct Float64 evaluation of the pinned JPL DE442s Type 2 records"
+    },
+    "sourceSha256": {
+      "const": "54d97562a5b094d298b1b8eafa5a2e17e3e010ce85e1a366d07f003ad159323c"
+    },
+    "comparison": { "type": "string", "minLength": 1 },
+    "units": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["position", "velocity", "recordTime", "julianDate"],
+      "properties": {
+        "position": { "const": "kilometer" },
+        "velocity": { "const": "kilometer per second" },
+        "recordTime": { "const": "TDB seconds past J2000.0" },
+        "julianDate": { "const": "TDB Julian Date" }
+      }
+    },
+    "tolerances": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": { "$ref": "#/$defs/tolerance" }
+    },
+    "boundaryCases": {
+      "type": "array",
+      "minItems": 42,
+      "maxItems": 42,
+      "items": { "$ref": "#/$defs/boundaryCase" }
+    },
+    "sampleCases": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "items": { "$ref": "#/$defs/sampleCase" }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "boundaryCount",
+        "boundaryChunkComparisonCount",
+        "sampleCount",
+        "maximumErrorsBySeries",
+        "quantizationGrid"
+      ],
+      "properties": {
+        "boundaryCount": { "const": 42 },
+        "boundaryChunkComparisonCount": { "const": 82 },
+        "sampleCount": { "const": 9 },
+        "maximumErrorsBySeries": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/errorSummary" }
+        },
+        "quantizationGrid": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "rule",
+            "evaluationCount",
+            "maximumErrorsBySeries"
+          ],
+          "properties": {
+            "rule": {
+              "const": "each source record clipped to artifact coverage at start, midpoint, and end"
+            },
+            "evaluationCount": { "const": 82602 },
+            "maximumErrorsBySeries": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "items": { "$ref": "#/$defs/errorSummary" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "seriesId": {
+      "enum": ["emb", "sun", "moon"]
+    },
+    "vector3": {
+      "type": "array",
+      "prefixItems": [
+        { "type": "number" },
+        { "type": "number" },
+        { "type": "number" }
+      ],
+      "items": false,
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "tolerance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seriesId",
+        "positionErrorKilometers",
+        "velocityErrorKilometersPerSecond"
+      ],
+      "properties": {
+        "seriesId": { "$ref": "#/$defs/seriesId" },
+        "positionErrorKilometers": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "velocityErrorKilometersPerSecond": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seriesId",
+        "sourcePositionKilometers",
+        "sourceVelocityKilometersPerSecond",
+        "packedPositionKilometers",
+        "packedVelocityKilometersPerSecond",
+        "positionErrorKilometers",
+        "velocityErrorKilometersPerSecond"
+      ],
+      "properties": {
+        "seriesId": { "$ref": "#/$defs/seriesId" },
+        "sourcePositionKilometers": { "$ref": "#/$defs/vector3" },
+        "sourceVelocityKilometersPerSecond": { "$ref": "#/$defs/vector3" },
+        "packedPositionKilometers": { "$ref": "#/$defs/vector3" },
+        "packedVelocityKilometersPerSecond": { "$ref": "#/$defs/vector3" },
+        "positionErrorKilometers": { "type": "number", "minimum": 0 },
+        "velocityErrorKilometersPerSecond": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "chunkComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chunkId", "series"],
+      "properties": {
+        "chunkId": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{4}$"
+        },
+        "series": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/comparison" }
+        }
+      }
+    },
+    "boundaryCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "year",
+        "julianDateTdb",
+        "secondsPastJ2000Tdb",
+        "chunks"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^boundary-[0-9]{4}$" },
+        "year": { "type": "integer", "minimum": 1900, "maximum": 2101 },
+        "julianDateTdb": { "type": "number" },
+        "secondsPastJ2000Tdb": { "type": "number" },
+        "chunks": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": { "$ref": "#/$defs/chunkComparison" }
+        }
+      }
+    },
+    "sampleCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "julianDateTdb",
+        "secondsPastJ2000Tdb",
+        "chunkId",
+        "series"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^sample-[a-z0-9-]+$" },
+        "julianDateTdb": { "type": "number" },
+        "secondsPastJ2000Tdb": { "type": "number" },
+        "chunkId": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{4}$"
+        },
+        "series": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/comparison" }
+        }
+      }
+    },
+    "errorSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seriesId",
+        "positionErrorKilometers",
+        "velocityErrorKilometersPerSecond"
+      ],
+      "properties": {
+        "seriesId": { "$ref": "#/$defs/seriesId" },
+        "positionErrorKilometers": { "type": "number", "minimum": 0 },
+        "velocityErrorKilometersPerSecond": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,302 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/de442s-ephemeris.v1.json",
+  "title": "JPL DE442s Float32 Type 2 ephemeris manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "model",
+    "source",
+    "coverage",
+    "units",
+    "binaryFormat",
+    "series",
+    "chunks",
+    "statistics"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "model": { "const": "jpl-de442s-type2-float32" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "release",
+        "kernelFile",
+        "kernelUrl",
+        "technicalCommentsUrl",
+        "byteLength",
+        "md5",
+        "sha256",
+        "binaryFileFormat"
+      ],
+      "properties": {
+        "release": { "const": "JPL DE442s" },
+        "kernelFile": { "const": "de442s.bsp" },
+        "kernelUrl": {
+          "const": "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de442s.bsp"
+        },
+        "technicalCommentsUrl": {
+          "const": "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de442_tech-comments.txt"
+        },
+        "byteLength": { "const": 32701440 },
+        "md5": {
+          "const": "cc49327e06088124c0e39d8dde9f0b58"
+        },
+        "sha256": {
+          "const": "54d97562a5b094d298b1b8eafa5a2e17e3e010ce85e1a366d07f003ad159323c"
+        },
+        "binaryFileFormat": { "const": "DAF/SPK LTL-IEEE" }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "calendar",
+        "timeScale",
+        "startIsoTdb",
+        "endIsoTdb",
+        "startJulianDateTdb",
+        "endJulianDateTdb",
+        "startSecondsPastJ2000Tdb",
+        "endSecondsPastJ2000Tdb",
+        "endIsIncluded",
+        "chunkYears",
+        "chunkBoundaryRule"
+      ],
+      "properties": {
+        "calendar": { "const": "proleptic Gregorian" },
+        "timeScale": { "const": "TDB" },
+        "startIsoTdb": { "const": "1900-01-01T00:00:00 TDB" },
+        "endIsoTdb": { "const": "2101-01-01T00:00:00 TDB" },
+        "startJulianDateTdb": { "const": 2415020.5 },
+        "endJulianDateTdb": { "const": 2488434.5 },
+        "startSecondsPastJ2000Tdb": { "const": -3155716800 },
+        "endSecondsPastJ2000Tdb": { "const": 3187252800 },
+        "endIsIncluded": { "const": true },
+        "chunkYears": { "const": 5 },
+        "chunkBoundaryRule": {
+          "const": "start-inclusive/end-exclusive selection except artifact end; the source record selected at each boundary is duplicated"
+        }
+      }
+    },
+    "units": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["position", "velocity", "recordTime", "julianDate"],
+      "properties": {
+        "position": { "const": "kilometer" },
+        "velocity": { "const": "kilometer per second" },
+        "recordTime": { "const": "TDB seconds past J2000.0" },
+        "julianDate": { "const": "TDB Julian Date" }
+      }
+    },
+    "binaryFormat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "magic",
+        "formatVersion",
+        "byteOrder",
+        "coefficientEncoding",
+        "timeEncoding",
+        "headerBytes",
+        "seriesDirectoryEntryBytes",
+        "headerLayout",
+        "directoryLayout",
+        "recordLayout",
+        "evaluation"
+      ],
+      "properties": {
+        "magic": { "const": "PLDE4421" },
+        "formatVersion": { "const": 1 },
+        "byteOrder": { "const": "little-endian" },
+        "coefficientEncoding": { "const": "IEEE-754 binary32" },
+        "timeEncoding": { "const": "IEEE-754 binary64" },
+        "headerBytes": { "const": 32 },
+        "seriesDirectoryEntryBytes": { "const": 32 },
+        "headerLayout": {
+          "type": "array",
+          "minItems": 5,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "directoryLayout": {
+          "type": "array",
+          "minItems": 8,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "recordLayout": {
+          "type": "array",
+          "minItems": 4,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "evaluation": { "type": "string", "minLength": 1 }
+      }
+    },
+    "series": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": { "$ref": "#/$defs/sourceSeries" }
+    },
+    "chunks": {
+      "type": "array",
+      "minItems": 41,
+      "maxItems": 41,
+      "items": { "$ref": "#/$defs/chunk" }
+    },
+    "statistics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "chunkCount",
+        "totalChunkBytes",
+        "totalChunkGzipBytes",
+        "maximumChunkBytes",
+        "maximumChunkGzipBytes"
+      ],
+      "properties": {
+        "chunkCount": { "const": 41 },
+        "totalChunkBytes": { "type": "integer", "minimum": 1 },
+        "totalChunkGzipBytes": { "type": "integer", "minimum": 1 },
+        "maximumChunkBytes": { "type": "integer", "minimum": 1 },
+        "maximumChunkGzipBytes": { "type": "integer", "minimum": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "sourceSeries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "targetNaifId",
+        "centerNaifId",
+        "frameNaifId",
+        "frame",
+        "spkDataType",
+        "sourceInitialAddress",
+        "sourceFinalAddress",
+        "sourceStartSecondsPastJ2000Tdb",
+        "sourceEndSecondsPastJ2000Tdb",
+        "sourceInitialEpochSecondsPastJ2000Tdb",
+        "sourceRecordIntervalSeconds",
+        "sourceRecordCount",
+        "coefficientCountPerAxis",
+        "degree"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/seriesId" },
+        "label": { "type": "string", "minLength": 1 },
+        "targetNaifId": { "type": "integer" },
+        "centerNaifId": { "type": "integer" },
+        "frameNaifId": { "const": 1 },
+        "frame": { "const": "J2000" },
+        "spkDataType": { "const": 2 },
+        "sourceInitialAddress": { "type": "integer", "minimum": 1 },
+        "sourceFinalAddress": { "type": "integer", "minimum": 1 },
+        "sourceStartSecondsPastJ2000Tdb": { "type": "number" },
+        "sourceEndSecondsPastJ2000Tdb": { "type": "number" },
+        "sourceInitialEpochSecondsPastJ2000Tdb": { "type": "number" },
+        "sourceRecordIntervalSeconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "sourceRecordCount": { "type": "integer", "minimum": 1 },
+        "coefficientCountPerAxis": { "type": "integer", "minimum": 1 },
+        "degree": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "chunk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "startYear",
+        "endYear",
+        "startJulianDateTdb",
+        "endJulianDateTdb",
+        "startSecondsPastJ2000Tdb",
+        "endSecondsPastJ2000Tdb",
+        "file",
+        "byteLength",
+        "gzipByteLength",
+        "sha256",
+        "series"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{4}$" },
+        "startYear": { "type": "integer", "minimum": 1900, "maximum": 2100 },
+        "endYear": { "type": "integer", "minimum": 1901, "maximum": 2101 },
+        "startJulianDateTdb": { "type": "number" },
+        "endJulianDateTdb": { "type": "number" },
+        "startSecondsPastJ2000Tdb": { "type": "number" },
+        "endSecondsPastJ2000Tdb": { "type": "number" },
+        "file": {
+          "type": "string",
+          "pattern": "^shared/ephemeris/de442s/chunks/[0-9]{4}-[0-9]{4}\\.v1\\.bin$"
+        },
+        "byteLength": { "type": "integer", "minimum": 1 },
+        "gzipByteLength": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "series": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/chunkSeries" }
+        }
+      }
+    },
+    "chunkSeries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "targetNaifId",
+        "centerNaifId",
+        "frameNaifId",
+        "spkDataType",
+        "recordCount",
+        "coefficientCountPerAxis",
+        "degree",
+        "dataOffsetBytes",
+        "recordStrideBytes",
+        "firstRecordStartSecondsPastJ2000Tdb",
+        "lastRecordEndSecondsPastJ2000Tdb",
+        "sourceFirstRecordIndex",
+        "sourceLastRecordIndex",
+        "recordIntervalSeconds"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/seriesId" },
+        "targetNaifId": { "type": "integer" },
+        "centerNaifId": { "type": "integer" },
+        "frameNaifId": { "const": 1 },
+        "spkDataType": { "const": 2 },
+        "recordCount": { "type": "integer", "minimum": 1 },
+        "coefficientCountPerAxis": { "type": "integer", "minimum": 1 },
+        "degree": { "type": "integer", "minimum": 0 },
+        "dataOffsetBytes": { "type": "integer", "minimum": 128 },
+        "recordStrideBytes": { "type": "integer", "minimum": 1 },
+        "firstRecordStartSecondsPastJ2000Tdb": { "type": "number" },
+        "lastRecordEndSecondsPastJ2000Tdb": { "type": "number" },
+        "sourceFirstRecordIndex": { "type": "integer", "minimum": 0 },
+        "sourceLastRecordIndex": { "type": "integer", "minimum": 0 },
+        "recordIntervalSeconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "seriesId": {
+      "enum": ["emb", "sun", "moon"]
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

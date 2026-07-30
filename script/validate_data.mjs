@@ -1,11 +1,28 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { gzipSync } from "node:zlib";
 import {
   decodeEopChunk,
   parseFinals2000AEop,
   validateEopChunkDescriptors,
 } from "./lib/eop-data.mjs";
+import {
+  DE442S_BINARY,
+  DE442S_CHUNK_YEARS,
+  DE442S_END_YEAR,
+  DE442S_MODEL,
+  DE442S_PATHS,
+  DE442S_SERIES,
+  DE442S_SOURCE,
+  DE442S_START_YEAR,
+  SECONDS_PER_DAY,
+  decodeDe442sChunk,
+  evaluateDe442sChunkSeries,
+  gregorianJulianDateAtMidnight,
+  readDe442sChunkRecord,
+  secondsPastJ2000FromJulianDate,
+  vectorDistance,
+} from "./lib/de442s-ephemeris.mjs";
 
 const readJson = async (relativePath) =>
   JSON.parse(
@@ -31,6 +48,8 @@ const [
   solarLightDeflectionFixtures,
   solarPositionFixtures,
   earthEphemeris,
+  de442sManifest,
+  de442sFixture,
 ] = await Promise.all([
   readJson("shared/catalog/bright-stars.v1.json"),
   readJson("shared/catalog/bright-stars.lock.v1.json"),
@@ -50,6 +69,8 @@ const [
   readJson("shared/fixtures/sofa-solar-light-deflection.v1.json"),
   readJson("shared/fixtures/sofa-solar-position.v1.json"),
   readJson("shared/ephemeris/truncated-earth-heliocentric.v1.json"),
+  readJson(DE442S_PATHS.manifest),
+  readJson(DE442S_PATHS.fixture),
 ]);
 
 const fail = (message) => {
@@ -1493,6 +1514,627 @@ for (const group of ephemerisGroups) {
   }
 }
 
+const de442sExpectedSourceSeries = {
+  emb: {
+    sourceRecordCount: 6_851,
+    sourceStartSecondsPastJ2000Tdb: -4_734_072_000,
+    sourceEndSecondsPastJ2000Tdb: 4_735_368_000,
+  },
+  sun: {
+    sourceRecordCount: 6_851,
+    sourceStartSecondsPastJ2000Tdb: -4_734_072_000,
+    sourceEndSecondsPastJ2000Tdb: 4_735_368_000,
+  },
+  moon: {
+    sourceRecordCount: 27_401,
+    sourceStartSecondsPastJ2000Tdb: -4_734_072_000,
+    sourceEndSecondsPastJ2000Tdb: 4_735_368_000,
+  },
+};
+const de442sCoverageStartJulianDate =
+  gregorianJulianDateAtMidnight(DE442S_START_YEAR);
+const de442sCoverageEndJulianDate =
+  gregorianJulianDateAtMidnight(DE442S_END_YEAR);
+const de442sCoverageStartSeconds = secondsPastJ2000FromJulianDate(
+  de442sCoverageStartJulianDate,
+);
+const de442sCoverageEndSeconds = secondsPastJ2000FromJulianDate(
+  de442sCoverageEndJulianDate,
+);
+
+if (
+  de442sManifest.schemaVersion !== 1 ||
+  de442sManifest.model !== DE442S_MODEL ||
+  de442sManifest.source?.byteLength !== DE442S_SOURCE.byteLength ||
+  de442sManifest.source?.md5 !== DE442S_SOURCE.md5 ||
+  de442sManifest.source?.sha256 !== DE442S_SOURCE.sha256 ||
+  de442sManifest.source?.kernelUrl !== DE442S_SOURCE.url ||
+  de442sManifest.coverage?.startJulianDateTdb !==
+    de442sCoverageStartJulianDate ||
+  de442sManifest.coverage?.endJulianDateTdb !==
+    de442sCoverageEndJulianDate ||
+  de442sManifest.coverage?.startSecondsPastJ2000Tdb !==
+    de442sCoverageStartSeconds ||
+  de442sManifest.coverage?.endSecondsPastJ2000Tdb !==
+    de442sCoverageEndSeconds ||
+  de442sManifest.coverage?.endIsIncluded !== true ||
+  de442sManifest.coverage?.chunkYears !== DE442S_CHUNK_YEARS ||
+  de442sManifest.binaryFormat?.magic !== DE442S_BINARY.magic ||
+  de442sManifest.binaryFormat?.formatVersion !==
+    DE442S_BINARY.formatVersion ||
+  de442sManifest.binaryFormat?.coefficientEncoding !==
+    DE442S_BINARY.coefficientEncoding ||
+  de442sManifest.binaryFormat?.timeEncoding !==
+    DE442S_BINARY.timeEncoding
+) {
+  fail("DE442s manifestの版、出典、coverage、またはbinary形式が不正");
+}
+
+for (const [seriesIndex, definition] of DE442S_SERIES.entries()) {
+  const sourceSeries = de442sManifest.series?.[seriesIndex];
+  const expectedSource = de442sExpectedSourceSeries[definition.id];
+  if (
+    sourceSeries?.id !== definition.id ||
+    sourceSeries?.targetNaifId !== definition.targetNaifId ||
+    sourceSeries?.centerNaifId !== definition.centerNaifId ||
+    sourceSeries?.frameNaifId !== definition.frameNaifId ||
+    sourceSeries?.spkDataType !== definition.spkDataType ||
+    sourceSeries?.sourceInitialAddress !==
+      definition.sourceInitialAddress ||
+    sourceSeries?.sourceFinalAddress !== definition.sourceFinalAddress ||
+    sourceSeries?.sourceRecordIntervalSeconds !==
+      definition.expectedRecordIntervalSeconds ||
+    sourceSeries?.coefficientCountPerAxis !==
+      definition.expectedDegree + 1 ||
+    sourceSeries?.degree !== definition.expectedDegree ||
+    sourceSeries?.sourceRecordCount !==
+      expectedSource.sourceRecordCount ||
+    sourceSeries?.sourceStartSecondsPastJ2000Tdb !==
+      expectedSource.sourceStartSecondsPastJ2000Tdb ||
+    sourceSeries?.sourceEndSecondsPastJ2000Tdb !==
+      expectedSource.sourceEndSecondsPastJ2000Tdb
+  ) {
+    fail(`DE442s source series ${definition.id}のmetadataが不正`);
+  }
+}
+
+const de442sChunks = de442sManifest.chunks ?? [];
+const de442sExpectedChunkCount =
+  Math.ceil(
+    (DE442S_END_YEAR - DE442S_START_YEAR) /
+      DE442S_CHUNK_YEARS,
+  );
+if (
+  de442sChunks.length !== de442sExpectedChunkCount ||
+  de442sManifest.statistics?.chunkCount !==
+    de442sExpectedChunkCount
+) {
+  fail("DE442s 5年chunk数が不正");
+}
+
+const de442sActualChunkNames = (
+  await readdir(
+    new URL(
+      "../shared/ephemeris/de442s/chunks/",
+      import.meta.url,
+    ),
+  )
+).sort();
+const de442sExpectedChunkNames = de442sChunks
+  .map((chunk) => chunk.file?.split("/").at(-1))
+  .sort();
+if (
+  de442sActualChunkNames.length !==
+    de442sExpectedChunkNames.length ||
+  de442sActualChunkNames.some(
+    (name, index) => name !== de442sExpectedChunkNames[index],
+  )
+) {
+  fail("DE442s chunk directoryがmanifestの集合と一致しない");
+}
+
+const de442sDecodedChunksById = new Map();
+let de442sTotalChunkBytes = 0;
+let de442sTotalChunkGzipBytes = 0;
+let de442sMaximumChunkBytes = 0;
+let de442sMaximumChunkGzipBytes = 0;
+for (const [chunkIndex, chunk] of de442sChunks.entries()) {
+  const expectedStartYear =
+    DE442S_START_YEAR + chunkIndex * DE442S_CHUNK_YEARS;
+  const expectedEndYear = Math.min(
+    expectedStartYear + DE442S_CHUNK_YEARS,
+    DE442S_END_YEAR,
+  );
+  const expectedId = `${expectedStartYear}-${expectedEndYear}`;
+  const expectedStartJulianDate =
+    gregorianJulianDateAtMidnight(expectedStartYear);
+  const expectedEndJulianDate =
+    gregorianJulianDateAtMidnight(expectedEndYear);
+  const expectedStartSeconds =
+    secondsPastJ2000FromJulianDate(expectedStartJulianDate);
+  const expectedEndSeconds =
+    secondsPastJ2000FromJulianDate(expectedEndJulianDate);
+  const expectedFile =
+    `${DE442S_PATHS.chunks}/${expectedId}.v1.bin`;
+  if (
+    chunk.id !== expectedId ||
+    chunk.startYear !== expectedStartYear ||
+    chunk.endYear !== expectedEndYear ||
+    chunk.startJulianDateTdb !== expectedStartJulianDate ||
+    chunk.endJulianDateTdb !== expectedEndJulianDate ||
+    chunk.startSecondsPastJ2000Tdb !== expectedStartSeconds ||
+    chunk.endSecondsPastJ2000Tdb !== expectedEndSeconds ||
+    chunk.file !== expectedFile
+  ) {
+    fail(`DE442s chunk ${chunkIndex}の連続coverageが不正`);
+    continue;
+  }
+
+  const chunkBytes = await readFile(
+    new URL(`../${chunk.file}`, import.meta.url),
+  );
+  const actualSha256 = createHash("sha256")
+    .update(chunkBytes)
+    .digest("hex");
+  const actualGzipBytes = gzipSync(chunkBytes, {
+    level: 9,
+  }).byteLength;
+  if (
+    chunk.byteLength !== chunkBytes.byteLength ||
+    chunk.gzipByteLength !== actualGzipBytes ||
+    chunk.sha256 !== actualSha256
+  ) {
+    fail(`DE442s chunk ${chunk.id}のsizeまたはSHA-256が不正`);
+  }
+  de442sTotalChunkBytes += chunkBytes.byteLength;
+  de442sTotalChunkGzipBytes += actualGzipBytes;
+  de442sMaximumChunkBytes = Math.max(
+    de442sMaximumChunkBytes,
+    chunkBytes.byteLength,
+  );
+  de442sMaximumChunkGzipBytes = Math.max(
+    de442sMaximumChunkGzipBytes,
+    actualGzipBytes,
+  );
+
+  let decodedChunk;
+  try {
+    decodedChunk = decodeDe442sChunk(chunkBytes);
+  } catch (error) {
+    fail(`DE442s chunk ${chunk.id}をdecodeできない: ${error.message}`);
+    continue;
+  }
+  de442sDecodedChunksById.set(chunk.id, decodedChunk);
+  if (
+    decodedChunk.chunkStartSecondsPastJ2000Tdb !==
+      chunk.startSecondsPastJ2000Tdb ||
+    decodedChunk.chunkEndSecondsPastJ2000Tdb !==
+      chunk.endSecondsPastJ2000Tdb
+  ) {
+    fail(`DE442s chunk ${chunk.id}のbinary header時刻が不正`);
+  }
+
+  for (const [seriesIndex, definition] of DE442S_SERIES.entries()) {
+    const declared = chunk.series?.[seriesIndex];
+    const binary = decodedChunk.descriptors[seriesIndex];
+    const binaryFields = [
+      "targetNaifId",
+      "centerNaifId",
+      "frameNaifId",
+      "spkDataType",
+      "recordCount",
+      "coefficientCountPerAxis",
+      "dataOffsetBytes",
+      "recordStrideBytes",
+    ];
+    if (
+      declared?.id !== definition.id ||
+      declared?.targetNaifId !== definition.targetNaifId ||
+      declared?.centerNaifId !== definition.centerNaifId ||
+      declared?.frameNaifId !== definition.frameNaifId ||
+      declared?.spkDataType !== definition.spkDataType ||
+      declared?.coefficientCountPerAxis !==
+        definition.expectedDegree + 1 ||
+      declared?.degree !== definition.expectedDegree ||
+      declared?.recordIntervalSeconds !==
+        definition.expectedRecordIntervalSeconds ||
+      declared?.sourceLastRecordIndex -
+        declared?.sourceFirstRecordIndex +
+        1 !==
+        declared?.recordCount ||
+      binaryFields.some(
+        (field) => declared?.[field] !== binary?.[field],
+      )
+    ) {
+      fail(
+        `DE442s chunk ${chunk.id} series ${definition.id}のdirectoryが不正`,
+      );
+      continue;
+    }
+
+    let previousRecordEnd = null;
+    let firstRecordStart = null;
+    let firstRecordEnd = null;
+    let lastRecordStart = null;
+    let lastRecordEnd = null;
+    for (
+      let recordIndex = 0;
+      recordIndex < binary.recordCount;
+      recordIndex += 1
+    ) {
+      const record = readDe442sChunkRecord(
+        decodedChunk,
+        binary,
+        recordIndex,
+      );
+      const recordStart =
+        record.midpointSecondsPastJ2000Tdb - record.radiusSeconds;
+      const recordEnd =
+        record.midpointSecondsPastJ2000Tdb + record.radiusSeconds;
+      if (
+        !Number.isFinite(record.midpointSecondsPastJ2000Tdb) ||
+        !Number.isFinite(record.radiusSeconds) ||
+        record.radiusSeconds * 2 !==
+          definition.expectedRecordIntervalSeconds ||
+        (previousRecordEnd !== null &&
+          recordStart !== previousRecordEnd) ||
+        record.coefficients.some(
+          (axis) =>
+            axis.length !== definition.expectedDegree + 1 ||
+            axis.some(
+              (coefficient) =>
+                !Number.isFinite(coefficient) ||
+                coefficient !== Math.fround(coefficient),
+            ),
+        )
+      ) {
+        fail(
+          `DE442s chunk ${chunk.id} series ${definition.id} ` +
+            `record ${recordIndex}が不正`,
+        );
+      }
+      if (recordIndex === 0) {
+        firstRecordStart = recordStart;
+        firstRecordEnd = recordEnd;
+      }
+      previousRecordEnd = recordEnd;
+      lastRecordStart = recordStart;
+      lastRecordEnd = recordEnd;
+
+      const usedRecordBytes =
+        16 + binary.coefficientCountPerAxis * 3 * 4;
+      const paddingStart =
+        binary.dataOffsetBytes +
+        recordIndex * binary.recordStrideBytes +
+        usedRecordBytes;
+      const paddingEnd =
+        binary.dataOffsetBytes +
+        (recordIndex + 1) * binary.recordStrideBytes;
+      for (
+        let paddingOffset = paddingStart;
+        paddingOffset < paddingEnd;
+        paddingOffset += 1
+      ) {
+        if (decodedChunk.buffer[paddingOffset] !== 0) {
+          fail(
+            `DE442s chunk ${chunk.id} series ${definition.id}のpaddingが非ゼロ`,
+          );
+          break;
+        }
+      }
+    }
+    if (
+      declared.firstRecordStartSecondsPastJ2000Tdb !==
+        firstRecordStart ||
+      declared.lastRecordEndSecondsPastJ2000Tdb !== lastRecordEnd ||
+      firstRecordStart > chunk.startSecondsPastJ2000Tdb ||
+      firstRecordEnd < chunk.startSecondsPastJ2000Tdb ||
+      lastRecordStart > chunk.endSecondsPastJ2000Tdb ||
+      lastRecordEnd < chunk.endSecondsPastJ2000Tdb
+    ) {
+      fail(
+        `DE442s chunk ${chunk.id} series ${definition.id}がchunk境界を覆わない`,
+      );
+    }
+  }
+}
+
+if (
+  de442sManifest.statistics?.totalChunkBytes !==
+    de442sTotalChunkBytes ||
+  de442sManifest.statistics?.totalChunkGzipBytes !==
+    de442sTotalChunkGzipBytes ||
+  de442sManifest.statistics?.maximumChunkBytes !==
+    de442sMaximumChunkBytes ||
+  de442sManifest.statistics?.maximumChunkGzipBytes !==
+    de442sMaximumChunkGzipBytes
+) {
+  fail("DE442s manifestのchunk統計が実ファイルと一致しない");
+}
+
+const de442sToleranceBySeries = new Map(
+  DE442S_SERIES.map((definition) => [
+    definition.id,
+    {
+      positionErrorKilometers:
+        definition.positionToleranceKilometers,
+      velocityErrorKilometersPerSecond:
+        definition.velocityToleranceKilometersPerSecond,
+    },
+  ]),
+);
+if (
+  de442sFixture.schemaVersion !== 1 ||
+  de442sFixture.model !== DE442S_MODEL ||
+  de442sFixture.sourceSha256 !== DE442S_SOURCE.sha256 ||
+  de442sFixture.oracle !==
+    "direct Float64 evaluation of the pinned JPL DE442s Type 2 records"
+) {
+  fail("DE442s比較fixtureの版またはoracleが不正");
+}
+for (const [seriesIndex, definition] of DE442S_SERIES.entries()) {
+  const tolerance = de442sFixture.tolerances?.[seriesIndex];
+  if (
+    tolerance?.seriesId !== definition.id ||
+    tolerance?.positionErrorKilometers !==
+      definition.positionToleranceKilometers ||
+    tolerance?.velocityErrorKilometersPerSecond !==
+      definition.velocityToleranceKilometersPerSecond
+  ) {
+    fail(`DE442s fixture ${definition.id}の許容誤差が不正`);
+  }
+}
+
+const de442sFixtureMaximumErrors = Object.fromEntries(
+  DE442S_SERIES.map(({ id }) => [
+    id,
+    {
+      positionErrorKilometers: 0,
+      velocityErrorKilometersPerSecond: 0,
+    },
+  ]),
+);
+function validateDe442sComparisonSeries(
+  comparisons,
+  chunk,
+  secondsPastJ2000Tdb,
+  caseId,
+) {
+  if (comparisons?.length !== DE442S_SERIES.length) {
+    fail(`DE442s fixture ${caseId}の系列数が不正`);
+    return;
+  }
+  const decodedChunk = de442sDecodedChunksById.get(chunk.id);
+  if (!decodedChunk) {
+    fail(`DE442s fixture ${caseId}のchunk ${chunk.id}がない`);
+    return;
+  }
+  for (const [seriesIndex, definition] of DE442S_SERIES.entries()) {
+    const comparison = comparisons[seriesIndex];
+    const vectors = [
+      comparison?.sourcePositionKilometers,
+      comparison?.sourceVelocityKilometersPerSecond,
+      comparison?.packedPositionKilometers,
+      comparison?.packedVelocityKilometersPerSecond,
+    ];
+    const actual = evaluateDe442sChunkSeries(
+      decodedChunk,
+      decodedChunk.descriptors[seriesIndex],
+      secondsPastJ2000Tdb,
+    );
+    const packedPositionDelta = vectorDistance(
+      comparison?.packedPositionKilometers ?? [],
+      actual.positionKilometers,
+    );
+    const packedVelocityDelta = vectorDistance(
+      comparison?.packedVelocityKilometersPerSecond ?? [],
+      actual.velocityKilometersPerSecond,
+    );
+    const computedPositionError = vectorDistance(
+      comparison?.sourcePositionKilometers ?? [],
+      comparison?.packedPositionKilometers ?? [],
+    );
+    const computedVelocityError = vectorDistance(
+      comparison?.sourceVelocityKilometersPerSecond ?? [],
+      comparison?.packedVelocityKilometersPerSecond ?? [],
+    );
+    const tolerance = de442sToleranceBySeries.get(definition.id);
+    if (
+      comparison?.seriesId !== definition.id ||
+      vectors.some(
+        (vector) =>
+          !Array.isArray(vector) ||
+          vector.length !== 3 ||
+          vector.some((component) => !Number.isFinite(component)),
+      ) ||
+      packedPositionDelta > 1e-7 ||
+      packedVelocityDelta > 1e-14 ||
+      Math.abs(
+        comparison.positionErrorKilometers - computedPositionError,
+      ) >
+        1e-12 * Math.max(1, computedPositionError) ||
+      Math.abs(
+        comparison.velocityErrorKilometersPerSecond -
+          computedVelocityError,
+      ) >
+        1e-12 * Math.max(1, computedVelocityError) ||
+      comparison.positionErrorKilometers >
+        tolerance.positionErrorKilometers ||
+      comparison.velocityErrorKilometersPerSecond >
+        tolerance.velocityErrorKilometersPerSecond
+    ) {
+      fail(`DE442s fixture ${caseId} series ${definition.id}が不正`);
+      continue;
+    }
+    de442sFixtureMaximumErrors[
+      definition.id
+    ].positionErrorKilometers = Math.max(
+      de442sFixtureMaximumErrors[definition.id]
+        .positionErrorKilometers,
+      comparison.positionErrorKilometers,
+    );
+    de442sFixtureMaximumErrors[
+      definition.id
+    ].velocityErrorKilometersPerSecond = Math.max(
+      de442sFixtureMaximumErrors[definition.id]
+        .velocityErrorKilometersPerSecond,
+      comparison.velocityErrorKilometersPerSecond,
+    );
+  }
+}
+
+const de442sExpectedBoundaryYears = [
+  ...de442sChunks.map((chunk) => chunk.startYear),
+  DE442S_END_YEAR,
+];
+let de442sBoundaryChunkComparisonCount = 0;
+if (
+  de442sFixture.boundaryCases?.length !==
+  de442sExpectedBoundaryYears.length
+) {
+  fail("DE442s fixtureの全chunk境界が揃っていない");
+}
+for (const [boundaryIndex, year] of de442sExpectedBoundaryYears.entries()) {
+  const boundary = de442sFixture.boundaryCases?.[boundaryIndex];
+  const julianDateTdb = gregorianJulianDateAtMidnight(year);
+  const secondsPastJ2000Tdb =
+    secondsPastJ2000FromJulianDate(julianDateTdb);
+  const expectedChunks = de442sChunks.filter(
+    (chunk) =>
+      secondsPastJ2000Tdb >= chunk.startSecondsPastJ2000Tdb &&
+      secondsPastJ2000Tdb <= chunk.endSecondsPastJ2000Tdb,
+  );
+  if (
+    boundary?.id !== `boundary-${year}` ||
+    boundary?.year !== year ||
+    boundary?.julianDateTdb !== julianDateTdb ||
+    boundary?.secondsPastJ2000Tdb !== secondsPastJ2000Tdb ||
+    boundary?.chunks?.length !== expectedChunks.length
+  ) {
+    fail(`DE442s fixture boundary-${year}の時刻またはchunk数が不正`);
+    continue;
+  }
+  de442sBoundaryChunkComparisonCount += boundary.chunks.length;
+  for (const [chunkIndex, expectedChunk] of expectedChunks.entries()) {
+    const chunkComparison = boundary.chunks[chunkIndex];
+    if (chunkComparison?.chunkId !== expectedChunk.id) {
+      fail(
+        `DE442s fixture boundary-${year}のchunk順が不正`,
+      );
+      continue;
+    }
+    validateDe442sComparisonSeries(
+      chunkComparison.series,
+      expectedChunk,
+      secondsPastJ2000Tdb,
+      `${boundary.id}/${expectedChunk.id}`,
+    );
+  }
+  if (
+    boundary.chunks.length === 2 &&
+    JSON.stringify(boundary.chunks[0].series) !==
+      JSON.stringify(boundary.chunks[1].series)
+  ) {
+    fail(`DE442s fixture boundary-${year}の左右chunk評価が異なる`);
+  }
+}
+
+const de442sExpectedSamples = [
+  ["sample-1900-midyear", gregorianJulianDateAtMidnight(1900, 7, 1) + 0.25],
+  ["sample-1919-eclipse-era", gregorianJulianDateAtMidnight(1919, 5, 29) + 0.5],
+  ["sample-1950-start", gregorianJulianDateAtMidnight(1950)],
+  ["sample-1970-start", gregorianJulianDateAtMidnight(1970)],
+  ["sample-j2000", gregorianJulianDateAtMidnight(2000) + 0.5],
+  ["sample-2026-eclipse-era", gregorianJulianDateAtMidnight(2026, 8, 12) + 0.5],
+  ["sample-2050-midyear", gregorianJulianDateAtMidnight(2050, 7, 1) + 0.75],
+  ["sample-2099-final-day", gregorianJulianDateAtMidnight(2099, 12, 31) + 0.5],
+  [
+    "sample-before-coverage-end",
+    gregorianJulianDateAtMidnight(DE442S_END_YEAR) -
+      1 / SECONDS_PER_DAY,
+  ],
+];
+if (
+  de442sFixture.sampleCases?.length !== de442sExpectedSamples.length
+) {
+  fail("DE442s fixtureの固定sample数が不正");
+}
+for (const [sampleIndex, [id, julianDateTdb]] of de442sExpectedSamples.entries()) {
+  const sample = de442sFixture.sampleCases?.[sampleIndex];
+  const secondsPastJ2000Tdb =
+    secondsPastJ2000FromJulianDate(julianDateTdb);
+  const expectedChunk = de442sChunks.find(
+    (chunk) =>
+      secondsPastJ2000Tdb >= chunk.startSecondsPastJ2000Tdb &&
+      (secondsPastJ2000Tdb < chunk.endSecondsPastJ2000Tdb ||
+        chunk.endYear === DE442S_END_YEAR),
+  );
+  if (
+    sample?.id !== id ||
+    sample?.julianDateTdb !== julianDateTdb ||
+    sample?.secondsPastJ2000Tdb !== secondsPastJ2000Tdb ||
+    sample?.chunkId !== expectedChunk?.id
+  ) {
+    fail(`DE442s fixture ${id}の時刻またはchunkが不正`);
+    continue;
+  }
+  validateDe442sComparisonSeries(
+    sample.series,
+    expectedChunk,
+    secondsPastJ2000Tdb,
+    id,
+  );
+}
+
+for (const [seriesIndex, definition] of DE442S_SERIES.entries()) {
+  const maximum =
+    de442sFixture.summary?.maximumErrorsBySeries?.[seriesIndex];
+  const computed = de442sFixtureMaximumErrors[definition.id];
+  const gridMaximum =
+    de442sFixture.summary?.quantizationGrid
+      ?.maximumErrorsBySeries?.[seriesIndex];
+  const tolerance = de442sToleranceBySeries.get(definition.id);
+  if (
+    maximum?.seriesId !== definition.id ||
+    Math.abs(
+      maximum?.positionErrorKilometers -
+        computed.positionErrorKilometers,
+    ) > 1e-15 ||
+    Math.abs(
+      maximum?.velocityErrorKilometersPerSecond -
+        computed.velocityErrorKilometersPerSecond,
+    ) > 1e-18 ||
+    gridMaximum?.seriesId !== definition.id ||
+    !Number.isFinite(gridMaximum?.positionErrorKilometers) ||
+    !Number.isFinite(
+      gridMaximum?.velocityErrorKilometersPerSecond,
+    ) ||
+    gridMaximum.positionErrorKilometers <
+      maximum.positionErrorKilometers ||
+    gridMaximum.velocityErrorKilometersPerSecond <
+      maximum.velocityErrorKilometersPerSecond ||
+    gridMaximum.positionErrorKilometers >
+      tolerance.positionErrorKilometers ||
+    gridMaximum.velocityErrorKilometersPerSecond >
+      tolerance.velocityErrorKilometersPerSecond
+  ) {
+    fail(`DE442s fixture ${definition.id}の最大誤差統計が不正`);
+  }
+}
+if (
+  de442sFixture.summary?.boundaryCount !==
+    de442sExpectedBoundaryYears.length ||
+  de442sFixture.summary?.boundaryChunkComparisonCount !==
+    de442sBoundaryChunkComparisonCount ||
+  de442sFixture.summary?.sampleCount !==
+    de442sExpectedSamples.length ||
+  de442sFixture.summary?.quantizationGrid?.rule !==
+    "each source record clipped to artifact coverage at start, midpoint, and end" ||
+  de442sFixture.summary?.quantizationGrid?.evaluationCount !== 82_602
+) {
+  fail("DE442s fixtureの件数またはdense検証規則が不正");
+}
+
 if (!process.exitCode) {
   console.log(
     `共有データOK: ${catalog.stars.length}恒星 / ${names.stars.length}固有名 / ` +
@@ -1502,6 +2144,7 @@ if (!process.exitCode) {
       `${diurnalAberrationIds.size}日周光行差fixture / ` +
       `${solarLightDeflectionIds.size}太陽光偏向fixture / ` +
       `${solarPositionIds.size}太陽位置fixture / ` +
-      `${retainedEphemerisTerms}項地球暦`,
+      `${retainedEphemerisTerms}項地球暦 / ` +
+      `${de442sChunks.length} DE442s chunk`,
   );
 }

@@ -55,6 +55,13 @@ public enum IERSEarthOrientationSharedResource:
     case manifest = "iers-finals2000a-eop.v1"
 }
 
+public enum DE442SEphemerisSharedResource:
+    String, CaseIterable, Sendable
+{
+    case manifest = "de442s-manifest.v1"
+    case comparisonFixture = "de442s-ephemeris.v1"
+}
+
 public enum SharedResourceError: LocalizedError, Sendable {
     case missing(SharedResource)
     case missingIERSDUT1(IERSDUT1SharedResource)
@@ -62,6 +69,11 @@ public enum SharedResourceError: LocalizedError, Sendable {
         IERSEarthOrientationSharedResource
     )
     case missingIERSEarthOrientationChunk(Int)
+    case missingDE442SEphemeris(
+        DE442SEphemerisSharedResource
+    )
+    case invalidDE442SEphemerisChunkName(String)
+    case missingDE442SEphemerisChunk(String)
 
     public var errorDescription: String? {
         switch self {
@@ -73,6 +85,12 @@ public enum SharedResourceError: LocalizedError, Sendable {
             "IERS地球姿勢データ「\(resource.rawValue).json」を読み込めませんでした。"
         case let .missingIERSEarthOrientationChunk(startMjdUtc):
             "IERS地球姿勢chunk「\(startMjdUtc).v1.json」を読み込めませんでした。"
+        case let .missingDE442SEphemeris(resource):
+            "DE442s共有暦「\(resource.rawValue).json」を読み込めませんでした。"
+        case let .invalidDE442SEphemerisChunkName(fileName):
+            "DE442s共有暦chunk名「\(fileName)」が不正です。"
+        case let .missingDE442SEphemerisChunk(fileName):
+            "DE442s共有暦chunk「\(fileName)」を読み込めませんでした。"
         }
     }
 }
@@ -160,6 +178,72 @@ public enum SharedResources {
                 .missingIERSEarthOrientationChunk(
                     startMjdUtc
                 )
+        }
+        return url
+    }
+
+    public static func de442sEphemerisData(
+        for resource: DE442SEphemerisSharedResource
+    ) throws -> Data {
+        try Data(
+            contentsOf: de442sEphemerisURL(for: resource)
+        )
+    }
+
+    public static func de442sEphemerisURL(
+        for resource: DE442SEphemerisSharedResource
+    ) throws -> URL {
+        guard let url = resourceBundle.url(
+            forResource: resource.rawValue,
+            withExtension: "json"
+        ) else {
+            throw SharedResourceError
+                .missingDE442SEphemeris(resource)
+        }
+        return url
+    }
+
+    /**
+     Resolves a manifest-declared five-year DE442s chunk.
+
+     Only a basename such as `2025-2030.v1.bin` is accepted. This prevents a
+     malformed manifest value from escaping the bundled `chunks` directory.
+     */
+    public static func de442sEphemerisChunkData(
+        named fileName: String
+    ) throws -> Data {
+        try Data(
+            contentsOf: de442sEphemerisChunkURL(
+                named: fileName
+            )
+        )
+    }
+
+    public static func de442sEphemerisChunkURL(
+        named fileName: String
+    ) throws -> URL {
+        let fileURL = URL(fileURLWithPath: fileName)
+        guard
+            fileURL.lastPathComponent == fileName,
+            fileURL.pathExtension == "bin",
+            fileURL.deletingPathExtension()
+                .lastPathComponent
+                .hasSuffix(".v1"),
+            !fileName.isEmpty
+        else {
+            throw SharedResourceError
+                .invalidDE442SEphemerisChunkName(fileName)
+        }
+        let resourceName = fileURL
+            .deletingPathExtension()
+            .lastPathComponent
+        guard let url = resourceBundle.url(
+            forResource: resourceName,
+            withExtension: "bin",
+            subdirectory: "chunks"
+        ) else {
+            throw SharedResourceError
+                .missingDE442SEphemerisChunk(fileName)
         }
         return url
     }

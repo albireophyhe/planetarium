@@ -29,6 +29,8 @@
     "data:fetch:dut1": "npm run data:fetch:eop",
     "data:build:dut1": "npm run data:build:eop",
     "data:check:dut1": "npm run data:check:eop",
+    "data:build:de442s": "node script/build_de442s_ephemeris.mjs",
+    "data:check:de442s": "node script/build_de442s_ephemeris.mjs --check",
     "data:validate": "node script/validate_schemas.mjs && node script/validate_data.mjs && npm run data:test:eop && npm run data:check:eop",
     "scripts:lint": "eslint script && bash -n script/*.sh",
     "privacy:check": "node script/check_privacy.mjs",

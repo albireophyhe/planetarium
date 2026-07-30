@@ -77,6 +77,14 @@ const contracts = [
       "shared/ephemeris/truncated-earth-heliocentric.v1.json",
     schema:
       "shared/schema/truncated-earth-heliocentric.schema.json"
+  },
+  {
+    data: "shared/ephemeris/de442s/de442s-manifest.v1.json",
+    schema: "shared/schema/de442s-ephemeris.schema.json"
+  },
+  {
+    data: "shared/fixtures/de442s-ephemeris.v1.json",
+    schema: "shared/schema/de442s-ephemeris-fixture.schema.json"
   }
 ];
 

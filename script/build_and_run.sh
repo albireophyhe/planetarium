@@ -50,7 +50,11 @@ open_app() {
 
 verify_staged_bundle() (
   local actual_resources_file
+  local actual_sha256
+  local actual_size
   local excluded_path
+  local expected_sha256
+  local expected_size
   local expected_resources_file
   local inventory_dir
   local resource_path
@@ -91,6 +95,7 @@ verify_staged_bundle() (
     constellations.v1.json \
     star-names.v1.json \
     astro-test-vectors.v1.json \
+    de442s-ephemeris.v1.json \
     sofa-diurnal-aberration.v1.json \
     sofa-solar-light-deflection.v1.json \
     sofa-solar-position.v1.json
@@ -100,6 +105,47 @@ verify_staged_bundle() (
       '.schemaVersion == 1' \
       "$PACKAGED_RESOURCE_BUNDLE/$resource_name" >/dev/null
   done
+
+  resource_name="de442s-manifest.v1.json"
+  test -s "$PACKAGED_RESOURCE_BUNDLE/$resource_name"
+  /usr/bin/jq -e \
+    '.schemaVersion == 1
+      and .model == "jpl-de442s-type2-float32"
+      and .source.sha256 == "54d97562a5b094d298b1b8eafa5a2e17e3e010ce85e1a366d07f003ad159323c"
+      and .coverage.startJulianDateTdb == 2415020.5
+      and .coverage.endJulianDateTdb == 2488434.5
+      and (.chunks | length) == 41
+      and ([.chunks[].byteLength] | add)
+        == .statistics.totalChunkBytes' \
+    "$PACKAGED_RESOURCE_BUNDLE/$resource_name" >/dev/null
+
+  /usr/bin/jq -e \
+    '.schemaVersion == 1
+      and .model == "jpl-de442s-type2-float32"
+      and .sourceSha256 == "54d97562a5b094d298b1b8eafa5a2e17e3e010ce85e1a366d07f003ad159323c"
+      and .summary.boundaryCount == 42
+      and .summary.boundaryChunkComparisonCount == 82
+      and .summary.sampleCount == 9
+      and .summary.quantizationGrid.evaluationCount == 82602' \
+    "$PACKAGED_RESOURCE_BUNDLE/de442s-ephemeris.v1.json" >/dev/null
+
+  while IFS=$'\t' read -r resource_name expected_size expected_sha256; do
+    resource_path="$PACKAGED_RESOURCE_BUNDLE/chunks/$resource_name"
+    test -s "$resource_path"
+    actual_size="$(/usr/bin/stat -f '%z' "$resource_path")"
+    [[ "$actual_size" == "$expected_size" ]]
+    actual_sha256="$(
+      /usr/bin/shasum -a 256 "$resource_path" |
+        /usr/bin/awk '{ print $1 }'
+    )"
+    [[ "$actual_sha256" == "$expected_sha256" ]]
+  done < <(
+    /usr/bin/jq -r \
+      '.chunks[]
+        | [(.file | split("/")[-1]), .byteLength, .sha256]
+        | @tsv' \
+      "$PACKAGED_RESOURCE_BUNDLE/de442s-manifest.v1.json"
+  )
 
   for resource_name in \
     bright-stars.v2.json \
@@ -196,6 +242,7 @@ verify_staged_bundle() (
         -o -name 'finals2000A.snapshot.v1.json' \
         -o -name 'readme.finals2000A' \
         -o -name 'checksums.sha512' \
+        -o -name 'de442s.bsp' \
       \) \
       -print \
       -quit
@@ -217,6 +264,8 @@ verify_staged_bundle() (
       "$PACKAGED_RESOURCE_BUNDLE_NAME/bright-stars.v2.json" \
       "$PACKAGED_RESOURCE_BUNDLE_NAME/cities.v1.json" \
       "$PACKAGED_RESOURCE_BUNDLE_NAME/constellations.v1.json" \
+      "$PACKAGED_RESOURCE_BUNDLE_NAME/de442s-ephemeris.v1.json" \
+      "$PACKAGED_RESOURCE_BUNDLE_NAME/de442s-manifest.v1.json" \
       "$PACKAGED_RESOURCE_BUNDLE_NAME/iers-finals2000a-eop.v1.json" \
       "$PACKAGED_RESOURCE_BUNDLE_NAME/sofa-diurnal-aberration.v1.json" \
       "$PACKAGED_RESOURCE_BUNDLE_NAME/sofa-solar-light-deflection.v1.json" \
@@ -229,7 +278,15 @@ verify_staged_bundle() (
     done < <(
       /usr/bin/jq -r \
         '.chunks[].file | split("/")[-1]' \
-        "$PACKAGED_RESOURCE_BUNDLE/iers-finals2000a-eop.v1.json"
+      "$PACKAGED_RESOURCE_BUNDLE/iers-finals2000a-eop.v1.json"
+    )
+    while IFS= read -r resource_name; do
+      printf '%s\n' \
+        "$PACKAGED_RESOURCE_BUNDLE_NAME/chunks/$resource_name"
+    done < <(
+      /usr/bin/jq -r \
+        '.chunks[].file | split("/")[-1]' \
+        "$PACKAGED_RESOURCE_BUNDLE/de442s-manifest.v1.json"
     )
   } | LC_ALL=C sort >"$expected_resources_file"
 
