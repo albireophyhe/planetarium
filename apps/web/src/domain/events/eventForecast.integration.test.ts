@@ -143,6 +143,7 @@ describe("bundled event forecast end to end", () => {
     );
     const earthOrientationDates: number[] = [];
     const earthOrientationProvenanceDates: number[] = [];
+    const earthOrientationUncertaintyDates: number[] = [];
     const circumstances = calculateLocalSolarEclipse(
       ephemeris,
       candidate.summary,
@@ -166,6 +167,20 @@ describe("bundled event forecast end to end", () => {
             polarMotionQuality: "mixed",
           };
         },
+        earthOrientationReportedUncertaintyAt: (date) => {
+          earthOrientationUncertaintyDates.push(date.getTime());
+          return {
+            combinedPathMeters: 0.5,
+            dut1PathMeters: 0.4,
+            dut1ReportedErrorSeconds: 0.000_86,
+            polarMotionPathMeters: 0.1,
+            semantics:
+              "iers-reported-error-linear-envelope",
+          };
+        },
+        earthRotationPathUncertaintyKilometersAt: () =>
+          0.000_5,
+        eopIdAt: () => "maximum-eop",
         heightMeters: 0,
         locationSource: "manual",
       },
@@ -185,10 +200,17 @@ describe("bundled event forecast end to end", () => {
     expect(earthOrientationProvenanceDates).toEqual([
       circumstances!.maximum.instantUtc.getTime(),
     ]);
+    expect(earthOrientationUncertaintyDates).toEqual([
+      circumstances!.maximum.instantUtc.getTime(),
+    ]);
+    expect(circumstances!.uncertainty.earthOrientation).toMatchObject({
+      combinedPathMeters: 0.5,
+    });
     expect(circumstances!.provenance).toMatchObject({
       dut1Quality: "observed",
       eopRetrievedAt: "2026-07-29T04:05:06.000Z",
       eopSourceSha256: "e".repeat(64),
+      eopId: "maximum-eop",
       polarMotionQuality: "mixed",
     });
     const contacts = new Map(
@@ -248,6 +270,7 @@ describe("bundled event forecast end to end", () => {
     );
     const earthOrientationDates: number[] = [];
     const earthOrientationProvenanceDates: number[] = [];
+    const earthOrientationUncertaintyDates: number[] = [];
     const circumstances = calculateLocalLunarEclipse(
       ephemeris,
       candidate.summary,
@@ -271,6 +294,17 @@ describe("bundled event forecast end to end", () => {
             polarMotionQuality: "predicted",
           };
         },
+        earthOrientationReportedUncertaintyAt: (date) => {
+          earthOrientationUncertaintyDates.push(date.getTime());
+          return {
+            combinedPathMeters: 0.6,
+            dut1PathMeters: 0.5,
+            dut1ReportedErrorSeconds: 0.001,
+            polarMotionPathMeters: 0.1,
+            semantics:
+              "iers-reported-error-linear-envelope",
+          };
+        },
         heightMeters: 0,
         locationSource: "bundled-city",
       },
@@ -288,6 +322,12 @@ describe("bundled event forecast end to end", () => {
     expect(earthOrientationProvenanceDates).toEqual([
       circumstances!.maximum.instantUtc.getTime(),
     ]);
+    expect(earthOrientationUncertaintyDates).toEqual([
+      circumstances!.maximum.instantUtc.getTime(),
+    ]);
+    expect(circumstances!.uncertainty.earthOrientation).toMatchObject({
+      combinedPathMeters: 0.6,
+    });
     expect(circumstances!.provenance).toMatchObject({
       dut1Quality: "predicted",
       eopRetrievedAt: "2026-07-29T04:05:06.000Z",
@@ -319,6 +359,33 @@ describe("bundled event forecast end to end", () => {
       320.2,
       0,
     );
+    expect(
+      circumstances!.contacts.every(
+        (contact) => contact.lunarShadow !== undefined,
+      ),
+    ).toBe(true);
+    const maximumShadow =
+      circumstances!.maximum.lunarShadow!;
+    const moonRadius =
+      circumstances!.maximum.bodies.moon!
+        .angularRadiusRadians!;
+    expect(
+      maximumShadow.penumbralAngularRadiusRadians,
+    ).toBeGreaterThan(
+      maximumShadow.umbralAngularRadiusRadians,
+    );
+    expect(
+      maximumShadow.umbralAngularRadiusRadians,
+    ).toBeGreaterThan(moonRadius);
+    expect(
+      maximumShadow.centerSeparationRadians,
+    ).toBeLessThan(
+      maximumShadow.umbralAngularRadiusRadians -
+        moonRadius,
+    );
+    expect(
+      maximumShadow.centerPositionAngleRadians,
+    ).not.toBeNull();
   });
 
   it("reproduces the documented 2017-03-05 Aldebaran graze region", async () => {

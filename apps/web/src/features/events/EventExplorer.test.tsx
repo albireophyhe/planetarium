@@ -157,6 +157,13 @@ const SOLAR_CIRCUMSTANCES: LocalCircumstances = {
     ],
     observerLocationMeters: 20,
     pathKilometers: 1.5,
+    earthOrientation: {
+      combinedPathMeters: 0.46,
+      dut1PathMeters: 0.35,
+      dut1ReportedErrorSeconds: 0.00075,
+      polarMotionPathMeters: 0.11,
+      semantics: "iers-reported-error-linear-envelope",
+    },
     tier: "uncertain",
     timingSeconds: 0.8,
   },
@@ -308,10 +315,19 @@ describe("EventExplorer", () => {
     ).toBeInTheDocument();
     expect(
       screen.getAllByText("2026/08/12 20:30:12"),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
     expect(
       screen.getAllByText("2026/08/12 18:30:12 UTC"),
     ).toHaveLength(2);
+    expect(
+      screen.getByRole("heading", { name: "相対配置" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", {
+        name: "2026年8月12日 皆既日食、最大の相対配置",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("角度比例")).toBeInTheDocument();
     expect(
       screen.getByText(
         "保守的な工学上の幅（統計的な信頼区間ではありません）",
@@ -319,6 +335,11 @@ describe("EventExplorer", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("不確実性あり")).toBeInTheDocument();
     expect(screen.getByText("±1.5 km")).toBeInTheDocument();
+    expect(screen.getByText("±0.000750秒")).toBeInTheDocument();
+    expect(screen.getByText("±0.46 m")).toBeInTheDocument();
+    expect(
+      screen.getByText(/DUT1 0\.35 m ＋ xp\/yp 0\.11 m/),
+    ).toBeInTheDocument();
     expect(screen.getByText("地平線下")).toBeInTheDocument();
     expect(
       screen.getAllByText("高度 +8.2°・方位 276.0°"),
@@ -355,6 +376,11 @@ describe("EventExplorer", () => {
     );
     expect(onGoToContact).toHaveBeenCalledWith(SOLAR_C4);
     expect(
+      screen.getByRole("img", {
+        name: "2026年8月12日 皆既日食、部分食終了（C4）の相対配置",
+      }),
+    ).toBeInTheDocument();
+    expect(
       screen.getByText(
         "観測日時を2026/08/12 21:27:18に変更しました。元の日時に戻せます。",
       ),
@@ -372,6 +398,11 @@ describe("EventExplorer", () => {
         name: "最大時刻を空に表示",
       }),
     ).toHaveFocus();
+    expect(
+      screen.getByRole("img", {
+        name: "2026年8月12日 皆既日食、最大の相対配置",
+      }),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByText("計算と再現情報"));
     expect(screen.getByText("event-core-v1.0.0")).toBeInTheDocument();
@@ -713,7 +744,7 @@ describe("EventExplorer", () => {
     expect(
       screen.queryByText("太陽を直接見ないでください"),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("本影食分")).toBeInTheDocument();
+    expect(screen.getAllByText("本影食分")).toHaveLength(2);
   });
 
   it("identifies the magnitude convention for a penumbral eclipse", () => {
@@ -741,7 +772,7 @@ describe("EventExplorer", () => {
       />,
     );
 
-    expect(screen.getByText("半影食分")).toBeInTheDocument();
+    expect(screen.getAllByText("半影食分")).toHaveLength(2);
     expect(screen.queryByText("本影食分")).not.toBeInTheDocument();
   });
 });

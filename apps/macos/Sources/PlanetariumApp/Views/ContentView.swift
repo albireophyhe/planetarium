@@ -149,20 +149,82 @@ struct ContentView: View {
     }
 
     private var observationDatePicker: some View {
-        DatePicker(
-            "観測日時",
-            selection: $store.observationDate,
-            in: observationDateRange,
-            displayedComponents: [.date, .hourAndMinute]
+        HStack(spacing: 8) {
+            DatePicker(
+                "観測日時",
+                selection: $store.observationDate,
+                in: observationDateRange,
+                displayedComponents:
+                    [.date, .hourAndMinute]
+            )
+            .labelsHidden()
+            .font(SkyTypography.data)
+            .environment(
+                \.timeZone,
+                TimeZone(
+                    identifier:
+                        store.location
+                        .timeZoneIdentifier
+                )
+                ?? .current
+            )
+            .help("観測地点の日時を編集")
+            .accessibilityLabel("観測日時")
+
+            Stepper(
+                value: observationSecond,
+                in: 0 ... 59,
+                step: 1
+            ) {
+                Text(
+                    "\(displayedObservationSecond, specifier: "%02d")秒"
+                )
+                .monospacedDigit()
+            }
+            .fixedSize()
+            .help("観測時刻の秒を1秒単位で編集")
+            .accessibilityLabel("観測時刻の秒")
+            .accessibilityValue(
+                "\(displayedObservationSecond)秒"
+            )
+        }
+    }
+
+    private var displayedObservationSecond: Int {
+        var calendar =
+            Calendar(identifier: .gregorian)
+        calendar.timeZone =
+            TimeZone(
+                identifier:
+                    store.location
+                    .timeZoneIdentifier
+            )
+            ?? TimeZone(secondsFromGMT: 0)!
+        return calendar.component(
+            .second,
+            from: store.observationDate
         )
-        .labelsHidden()
-        .font(SkyTypography.data)
-        .environment(
-            \.timeZone,
-            TimeZone(identifier: store.location.timeZoneIdentifier) ?? .current
+    }
+
+    private var observationSecond: Binding<Int> {
+        Binding(
+            get: {
+                displayedObservationSecond
+            },
+            set: { second in
+                store.observationDate =
+                    ObservationConstraints
+                    .settingSecond(
+                        second,
+                        in:
+                            store
+                            .observationDate,
+                        timeZoneIdentifier:
+                            store.location
+                            .timeZoneIdentifier
+                    )
+            }
         )
-        .help("観測地点の日時を編集")
-        .accessibilityLabel("観測日時")
     }
 
     private var observationDateRange: ClosedRange<Date> {

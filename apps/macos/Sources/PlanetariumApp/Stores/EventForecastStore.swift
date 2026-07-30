@@ -746,7 +746,7 @@ actor SharedAsyncResource<Value: Sendable> {
     }
 }
 
-private actor EventForecastEngine {
+actor EventForecastEngine {
     private let resource = SharedAsyncResource {
         try await Task.detached(
             priority: .userInitiated
@@ -968,31 +968,26 @@ private actor EventForecastEngine {
         ) == year
     }
 
-    private static func options(
+    static func options(
         for candidate: EclipseCandidateV1,
         location: ObservingLocation,
         service: IERSEarthOrientationServiceV1
     ) throws -> LocalEclipseOptionsV1 {
-        let estimate = try service.lookup(
-            at: candidate.canonicalEpochUTC
-        )
-        let fallback = estimate == nil
-            ? try EventEarthRotationModelV1.fallback(
-                at: candidate.canonicalEpochUTC
-            )
-            : nil
+        let eventEarthRotationAt:
+            @Sendable (Date) throws
+                -> EventEarthRotationContextV1 =
+            { date in
+                try eventEarthRotationContext(
+                    at: date,
+                    candidateKind: candidate.kind,
+                    service: service
+                )
+            }
         let earthOrientationAt:
             @Sendable (Date) throws
                 -> EarthOrientationOptionsV2 =
             { date in
-                if let estimate =
-                    try service.lookup(at: date)
-                {
-                    return estimate
-                        .earthOrientationOptionsV2
-                }
-                return try EventEarthRotationModelV1
-                    .fallback(at: date)
+                try eventEarthRotationAt(date)
                     .earthOrientation
             }
         let source: EventLocationSourceV1
@@ -1005,67 +1000,83 @@ private actor EventForecastEngine {
             source = .bundledCity
         }
         return LocalEclipseOptionsV1(
-            deltaTModel:
-                fallback?.deltaTModel
-                ?? "IERS-EOP-and-bundled-leap-second-history",
-            earthOrientation:
-                fallback?.earthOrientation
-                ?? estimate?.earthOrientationOptionsV2
-                ?? EarthOrientationOptionsV2(),
             earthOrientationAt:
                 earthOrientationAt,
-            eopID:
-                fallback?.eopID
-                ?? estimate.map(eopID)
-                ?? "IERS EOP収録外",
-            eopSourceSHA256:
-                estimate == nil
-                ? nil
-                : service.source.sourceSha256,
-            eopRetrievedAt:
-                estimate == nil
-                ? nil
-                : service.source.retrievedAt,
-            eopDUT1Quality:
-                estimate.map {
-                    $0.dut1.source == .observed
-                    ? .observed
-                    : .predicted
-                }
-                ?? .outsideCoverage,
-            eopPolarMotionQuality:
-                estimate.map {
-                    $0.polarMotion.source == .observed
-                    ? .observed
-                    : .predicted
-                }
-                ?? .outsideCoverage,
-            earthRotationPathUncertaintyKilometers:
-                fallback?
-                    .pathUncertaintyKilometers,
+            eventEarthRotationAt:
+                eventEarthRotationAt,
             heightMeters:
                 location.heightMeters,
             horizontalAccuracyMeters:
                 location
                     .horizontalAccuracyMeters,
             locationSource: source,
-            // The IERS reported error is only one contributor. It must not
-            // be presented as the total eclipse-contact uncertainty.
-            timingUncertaintySeconds:
-                fallback.map {
-                    $0.deltaTUncertaintySeconds
-                    + (
-                        candidate.kind == .lunarEclipse
-                        ? 10
-                        : 0
+            timeScaleContributors: [],
+            timeScaleWarnings: []
+        )
+    }
+
+    private static func eventEarthRotationContext(
+        at date: Date,
+        candidateKind: EclipseCandidateKindV1,
+        service: IERSEarthOrientationServiceV1
+    ) throws -> EventEarthRotationContextV1 {
+        if let estimate = try service.lookup(at: date) {
+            return EventEarthRotationContextV1(
+                earthOrientation:
+                    estimate.earthOrientationOptionsV2,
+                eopID: eopID(estimate),
+                eopSourceSHA256:
+                    service.source.sourceSha256,
+                eopRetrievedAt:
+                    service.source.retrievedAt,
+                eopDUT1Quality:
+                    estimate.dut1.source == .observed
+                    ? .observed
+                    : .predicted,
+                eopPolarMotionQuality:
+                    estimate.polarMotion.source
+                        == .observed
+                    ? .observed
+                    : .predicted,
+                deltaTModel:
+                    "IERS-EOP-and-bundled-leap-second-history",
+                uncertainty:
+                    .iersReported(
+                        EventEarthRotationModelV1
+                            .reportedUncertainty(
+                                for: estimate
+                            )
                     )
-                },
-            timeScaleContributors:
-                fallback?.dominantContributors
-                ?? [],
-            timeScaleWarnings:
-                fallback?.warnings
-                ?? []
+            )
+        }
+
+        let fallback =
+            try EventEarthRotationModelV1
+            .fallback(at: date)
+        return EventEarthRotationContextV1(
+            earthOrientation:
+                fallback.earthOrientation,
+            eopID: fallback.eopID,
+            eopDUT1Quality: .outsideCoverage,
+            eopPolarMotionQuality:
+                .outsideCoverage,
+            deltaTModel: fallback.deltaTModel,
+            uncertainty:
+                .model(
+                    pathKilometers:
+                        fallback
+                        .pathUncertaintyKilometers
+                ),
+            timingUncertaintySeconds:
+                fallback.deltaTUncertaintySeconds
+                + (
+                    candidateKind == .lunarEclipse
+                    ? 10
+                    : 0
+                ),
+            dominantContributors:
+                fallback.dominantContributors,
+            warnings: fallback.warnings
         )
     }
 

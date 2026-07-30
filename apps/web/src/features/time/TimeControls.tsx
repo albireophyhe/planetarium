@@ -156,6 +156,7 @@ export function TimeControls({
           max={dateTimeMaximum}
           min={dateTimeMinimum}
           onChange={(event) => onDateTimeChange(event.target.value)}
+          step="1"
           type="datetime-local"
           value={dateTimeInputValue}
         />

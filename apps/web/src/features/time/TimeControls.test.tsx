@@ -8,7 +8,7 @@ describe("TimeControls", () => {
       <>
         <p id="observation-time-error">日時エラー</p>
         <TimeControls
-          dateTimeInputValue="2026-07-29T12:00"
+          dateTimeInputValue="2026-07-29T12:00:00"
           dateTimeMaximum="2100-12-31T23:59"
           dateTimeMinimum="1900-01-01T00:00"
           direction={1}
@@ -31,6 +31,7 @@ describe("TimeControls", () => {
     );
 
     const input = screen.getByLabelText("観測日時（UTC）");
+    expect(input).toHaveAttribute("step", "1");
     expect(input).toHaveAttribute("min", "1900-01-01T00:00");
     expect(input).toHaveAttribute("max", "2100-12-31T23:59");
     expect(input).toHaveAttribute("aria-invalid", "true");

@@ -32,6 +32,8 @@ const readJson = async (relativePath) =>
 const [
   catalog,
   catalogLock,
+  renderCatalog,
+  renderCatalogLock,
   catalogV2,
   catalogLockV2,
   names,
@@ -53,6 +55,8 @@ const [
 ] = await Promise.all([
   readJson("shared/catalog/bright-stars.v1.json"),
   readJson("shared/catalog/bright-stars.lock.v1.json"),
+  readJson("shared/catalog/render-stars.v1.json"),
+  readJson("shared/catalog/render-stars.lock.v1.json"),
   readJson("shared/catalog/bright-stars.v2.json"),
   readJson("shared/catalog/bright-stars.lock.v2.json"),
   readJson("shared/catalog/star-names.v1.json"),
@@ -161,6 +165,71 @@ if (
   catalogLock.lastHR !== catalog.stars.at(-1)?.[0]
 ) {
   fail("星表再現性ロックが現在の生成物と不一致です");
+}
+
+const expectedRequiredRenderHrs = [
+  ...new Set([
+    ...names.stars.map(({ hr }) => hr),
+    ...constellations.constellations.flatMap(({ segments }) =>
+      segments.flatMap(([startHr, endHr]) => [startHr, endHr]),
+    ),
+  ]),
+].sort((first, second) => first - second);
+const requiredRenderHrSet = new Set(expectedRequiredRenderHrs);
+const expectedRenderStars = catalog.stars.filter(
+  ([hr, , , , vMagnitude]) =>
+    vMagnitude <= 5 || requiredRenderHrSet.has(hr),
+);
+const renderCatalogContentSha256 = createHash("sha256")
+  .update(JSON.stringify(renderCatalog))
+  .digest("hex");
+const namesContentSha256 = createHash("sha256")
+  .update(JSON.stringify(names.stars))
+  .digest("hex");
+const constellationsContentSha256 = createHash("sha256")
+  .update(JSON.stringify(constellations.constellations))
+  .digest("hex");
+if (
+  renderCatalog.schemaVersion !== 1 ||
+  renderCatalog.purpose !== "web-initial-render-fallback" ||
+  renderCatalog.selection?.algorithm !==
+    "vMagnitude <= magnitudeLimit || requiredHrs.has(hr)" ||
+  renderCatalog.selection?.magnitudeLimit !== 5 ||
+  JSON.stringify(renderCatalog.selection?.requiredHrs) !==
+    JSON.stringify(expectedRequiredRenderHrs) ||
+  JSON.stringify(renderCatalog.columns) !==
+    JSON.stringify(expectedColumns) ||
+  JSON.stringify(renderCatalog.stars) !==
+    JSON.stringify(expectedRenderStars)
+) {
+  fail("初期描画星表が現在の選択規則と一致しません");
+}
+if (
+  renderCatalog.source?.catalogContentSha256 !==
+    catalogLock.contentSha256 ||
+  renderCatalog.source?.namedStarsContentSha256 !==
+    namesContentSha256 ||
+  renderCatalog.source?.constellationsContentSha256 !==
+    constellationsContentSha256
+) {
+  fail("初期描画星表の入力ハッシュが不一致です");
+}
+if (
+  renderCatalogLock.schemaVersion !== 1 ||
+  renderCatalogLock.artifact !==
+    "shared/catalog/render-stars.v1.json" ||
+  renderCatalogLock.canonicalization !==
+    "UTF-8 JSON.stringify(catalog)" ||
+  renderCatalogLock.algorithm !== "sha256" ||
+  renderCatalogLock.contentSha256 !==
+    renderCatalogContentSha256 ||
+  renderCatalogLock.sourceCatalogContentSha256 !==
+    catalogLock.contentSha256 ||
+  renderCatalogLock.starCount !== renderCatalog.stars.length ||
+  renderCatalogLock.firstHR !== renderCatalog.stars[0]?.[0] ||
+  renderCatalogLock.lastHR !== renderCatalog.stars.at(-1)?.[0]
+) {
+  fail("初期描画星表の再現性ロックが生成物と不一致です");
 }
 
 const expectedColumnsV2 = [

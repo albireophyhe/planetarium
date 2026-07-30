@@ -1,12 +1,14 @@
 import { bench, describe } from "vitest";
 import {
   calculateLightweightApparentStarPositionsWithContextV2,
-  constellations,
   createApparentPositionContextV2,
-  namedStars,
   type ApparentPositionOptionsV2,
   type ObservingLocation,
 } from "../domain";
+import {
+  constellations,
+  namedStars,
+} from "../domain/catalogMetadata";
 import { precisionStars } from "../domain/precisionData";
 import { selectRenderableStars } from "./renderCatalogPolicy";
 

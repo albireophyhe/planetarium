@@ -854,6 +854,161 @@ final class EventForecastStoreTests:
     }
 
     @MainActor
+    func testManualHeightReachesEventForecastLoaderAndCacheKey()
+        async throws
+    {
+        let recorder = EventForecastLocationRecorder()
+        let seaLevel = try ObservationConstraints
+            .validatedLocation(
+                id: "custom",
+                name: "指定地点",
+                latitude: 19.8207,
+                longitude: -155.4681,
+                timeZoneIdentifier:
+                    "Pacific/Honolulu"
+            )
+        let summit = try ObservationConstraints
+            .validatedLocation(
+                id: "custom",
+                name: "指定地点",
+                latitude: 19.8207,
+                longitude: -155.4681,
+                timeZoneIdentifier:
+                    "Pacific/Honolulu",
+                heightMeters: 4_205
+            )
+        let store = EventForecastStore(
+            initialYear: 2026,
+            dependencies: EventForecastDependencies {
+                year, location in
+                await recorder.record(
+                    year: year,
+                    location: location
+                )
+                return []
+            }
+        )
+
+        store.activate(
+            location: seaLevel,
+            observationDate:
+                date("2026-01-01T00:00:00Z")
+        )
+        try await waitUntil {
+            store.phase == .empty
+        }
+        store.reload(location: summit)
+        try await waitUntil {
+            store.phase == .empty
+        }
+
+        let received = await recorder.locations
+        XCTAssertEqual(
+            received.map(\.heightMeters),
+            [0, 4_205]
+        )
+        XCTAssertTrue(
+            received.allSatisfy {
+                $0.id == "custom"
+            }
+        )
+    }
+
+    func testLiveEventContextFollowsSolvedInstantAcrossEOPCoverageBoundary()
+        throws
+    {
+        let service =
+            try IERSEarthOrientationServiceV1
+            .loadBundled()
+        let canonical =
+            date("2026-08-12T18:13:00Z")
+        let candidate = EclipseCandidateV1(
+            id: "test-maximum-context",
+            kind: .solarEclipse,
+            classificationHint: "partial",
+            maximumJulianDateTDB: 2_461_000,
+            searchStartJulianDateTDB:
+                2_460_999.5,
+            searchEndJulianDateTDB:
+                2_461_000.5,
+            canonicalEpochUTC: canonical,
+            dataVersion: "test",
+            targetStarHR: nil,
+            targetLabel: nil
+        )
+        let options =
+            try EventForecastEngine.options(
+                for: candidate,
+                location: tokyo,
+                service: service
+            )
+        let finalIERS =
+            try options
+            .resolvedEventEarthRotation(
+                at:
+                    EventEarthRotationModelV1
+                    .eopLastSampleUTC
+            )
+        let outside =
+            try options
+            .resolvedEventEarthRotation(
+                at:
+                    EventEarthRotationModelV1
+                    .eopLastSampleUTC
+                    .addingTimeInterval(0.001)
+            )
+
+        XCTAssertNotNil(
+            finalIERS.uncertainty.iersReported
+        )
+        XCTAssertNotNil(
+            finalIERS.uncertainty.pathKilometers
+        )
+        XCTAssertNotNil(finalIERS.eopSourceSHA256)
+        XCTAssertNotNil(finalIERS.eopRetrievedAt)
+        XCTAssertEqual(
+            finalIERS.eopDUT1Quality,
+            .predicted
+        )
+        XCTAssertEqual(
+            finalIERS.eopPolarMotionQuality,
+            .predicted
+        )
+        XCTAssertNil(
+            outside.uncertainty.iersReported
+        )
+        guard case .model =
+            outside.uncertainty
+        else {
+            return XCTFail(
+                "Expected the outside-coverage model"
+            )
+        }
+        XCTAssertNotNil(
+            outside.uncertainty.pathKilometers
+        )
+        XCTAssertNil(outside.eopSourceSHA256)
+        XCTAssertNil(outside.eopRetrievedAt)
+        XCTAssertEqual(
+            outside.eopDUT1Quality,
+            .outsideCoverage
+        )
+        XCTAssertEqual(
+            outside.eopPolarMotionQuality,
+            .outsideCoverage
+        )
+        XCTAssertNotEqual(
+            finalIERS.eopID,
+            outside.eopID
+        )
+        XCTAssertNotEqual(
+            canonical,
+            EventEarthRotationModelV1
+                .eopLastSampleUTC
+        )
+    }
+
+    @MainActor
     func testForecastCacheEvictsLeastRecentlyUsedYear()
         async throws
     {
@@ -1690,5 +1845,16 @@ private actor EventForecastLoadCounter {
 
     func count(for year: Int) -> Int {
         counts[year, default: 0]
+    }
+}
+
+private actor EventForecastLocationRecorder {
+    private(set) var locations: [ObservingLocation] = []
+
+    func record(
+        year _: Int,
+        location: ObservingLocation
+    ) {
+        locations.append(location)
     }
 }

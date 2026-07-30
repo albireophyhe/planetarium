@@ -42,6 +42,8 @@ struct EventForecastInspectorView: View {
                     solarSafety
                 }
 
+                EventSceneView(item: item)
+
                 switch item {
                 case let .eclipse(forecast):
                     eclipseMaximumSection(forecast)
@@ -645,6 +647,53 @@ struct EventForecastInspectorView: View {
                         }
                         ?? "不明"
                 )
+                if let earthOrientation =
+                    uncertainty.earthOrientation
+                {
+                    EventMetricRow(
+                        label: "IERS DUT1公表誤差",
+                        value:
+                            "±"
+                            + AstronomicalFormatting
+                            .decimal(
+                                earthOrientation
+                                    .dut1ReportedErrorSeconds,
+                                fractionDigits: 6
+                            )
+                            + "秒"
+                    )
+                    EventMetricRow(
+                        label: "IERS地表経路成分",
+                        value:
+                            "±"
+                            + AstronomicalFormatting
+                            .decimal(
+                                earthOrientation
+                                    .combinedPathMeters,
+                                fractionDigits: 2
+                            )
+                            + " m"
+                    )
+                    Text(
+                        "DUT1 "
+                            + AstronomicalFormatting
+                            .decimal(
+                                earthOrientation
+                                    .dut1PathMeters,
+                                fractionDigits: 2
+                            )
+                            + " m ＋ xp/yp "
+                            + AstronomicalFormatting
+                            .decimal(
+                                earthOrientation
+                                    .polarMotionPathMeters,
+                                fractionDigits: 2
+                            )
+                            + " m。IERS公表誤差の線形包絡で、1σや総合時刻誤差ではありません。"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
 
                 ForEach(
                     uncertainty.dominantContributors,

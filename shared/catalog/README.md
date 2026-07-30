@@ -39,6 +39,20 @@ NASA Open Data Portalはこのデータセットをpublic accessかつ米国政�
 - 出典: https://heasarc.gsfc.nasa.gov/W3Browse/catalog/bsc5p.html
 - 項目規約: https://cdsarc.cds.unistra.fr/ftp/cats/V/50/ReadMe
 
+### Web初期描画用の派生星表
+
+`render-stars.v1.json`は、完全なv1星表からWeb版の初期描画に必要な行だけを
+決定的に抽出した派生物です。完全なv2精密星表の非同期読み込みと配布契約は
+変更しません。
+
+- 選択: `Vmag <= 5`、または固有名・星座線の端点として参照されるHR
+- 順序と列: `bright-stars.v1.json`と同じHR昇順・8列
+- 生成: `npm run data:build:render`
+- 再現性確認: `npm run data:check:render`
+- 入力固定: 完全星表、固有名、星座線のSHA-256をartifactへ記録
+- 出力固定: `render-stars.lock.v1.json`が末尾改行を除くcanonical JSONの
+  SHA-256、件数、先頭・末尾HRを保持
+
 ## 固有名
 
 `star-names.v1.json`は、肉眼でよく使う恒星のIAU英語名と、プロジェクトで用意した日本語表記の小さな対応表です。座標と等級は重複保持せずHR番号でBSC5Pへ結合します。

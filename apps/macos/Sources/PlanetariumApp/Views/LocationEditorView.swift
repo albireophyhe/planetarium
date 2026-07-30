@@ -1,11 +1,30 @@
+import Foundation
 import PlanetariumCore
 import SwiftUI
+
+enum LocationCoordinateInput {
+    static func text(for value: Double) -> String {
+        value.formatted(
+            .number
+                .locale(
+                    Locale(
+                        identifier: "en_US_POSIX"
+                    )
+                )
+                .grouping(.never)
+                .precision(
+                    .fractionLength(0...8)
+                )
+        )
+    }
+}
 
 struct LocationEditorView: View {
     private enum InputField: Hashable {
         case name
         case latitude
         case longitude
+        case height
         case timeZone
     }
 
@@ -16,18 +35,28 @@ struct LocationEditorView: View {
     @State private var name: String
     @State private var latitude: String
     @State private var longitude: String
+    @State private var heightMeters: String
     @State private var timeZoneIdentifier: String
     @State private var validationMessage: String?
 
     init(store: SkyStore) {
         self.store = store
         _name = State(initialValue: store.location.name)
-        _latitude = State(initialValue: store.location.latitude.formatted(
-            .number.precision(.fractionLength(4))
-        ))
-        _longitude = State(initialValue: store.location.longitude.formatted(
-            .number.precision(.fractionLength(4))
-        ))
+        _latitude = State(
+            initialValue: LocationCoordinateInput
+                .text(for: store.location.latitude)
+        )
+        _longitude = State(
+            initialValue: LocationCoordinateInput
+                .text(for: store.location.longitude)
+        )
+        _heightMeters = State(
+            initialValue: store.location.heightMeters.formatted(
+                .number
+                    .grouping(.never)
+                    .precision(.fractionLength(0...2))
+            )
+        )
         _timeZoneIdentifier = State(initialValue: store.location.timeZoneIdentifier)
     }
 
@@ -37,7 +66,7 @@ struct LocationEditorView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("観測地点")
                         .font(SkyTypography.brand)
-                    Text("都市を選ぶか、緯度・経度を直接入力します。")
+                    Text("都市を選ぶか、緯度・経度とWGS84楕円体高を直接入力します。")
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -78,6 +107,11 @@ struct LocationEditorView: View {
                     .focused($focusedField, equals: .longitude)
                     .accessibilityIdentifier("location-longitude")
                     .accessibilityHint("マイナス180から180まで。小数点はピリオドを使用します。")
+                TextField("WGS84楕円体高（m）", text: $heightMeters)
+                    .font(SkyTypography.data)
+                    .focused($focusedField, equals: .height)
+                    .accessibilityIdentifier("location-height")
+                    .accessibilityHint("海抜標高ではなくWGS84楕円体からの高さです。マイナス500から10000メートルまで。")
                 TextField("タイムゾーン", text: $timeZoneIdentifier)
                     .textContentType(.none)
                     .focused($focusedField, equals: .timeZone)
@@ -96,7 +130,7 @@ struct LocationEditorView: View {
 
             HStack(alignment: .center, spacing: 10) {
                 Label(
-                    "現在地はボタンを押した時だけ取得し、座標を保存・外部送信しません。",
+                    "現在地はボタンを押した時だけ取得します。座標と楕円体高は保存・外部送信しません。",
                     systemImage: "hand.raised"
                 )
                 .font(.caption)
@@ -118,7 +152,7 @@ struct LocationEditorView: View {
             }
         }
         .padding(22)
-        .frame(width: 560, height: 520)
+        .frame(width: 580, height: 570)
     }
 
     private func apply() {
@@ -128,13 +162,15 @@ struct LocationEditorView: View {
                 name: name,
                 latitudeText: latitude,
                 longitudeText: longitude,
-                timeZoneIdentifier: timeZoneIdentifier
+                timeZoneIdentifier: timeZoneIdentifier,
+                heightText: heightMeters
             )
             try store.setCustomLocation(
                 name: validated.name,
                 latitude: validated.latitude,
                 longitude: validated.longitude,
-                timeZoneIdentifier: validated.timeZoneIdentifier
+                timeZoneIdentifier: validated.timeZoneIdentifier,
+                heightMeters: validated.heightMeters
             )
             dismiss()
         } catch let error as ObservationValidationError {
@@ -144,6 +180,8 @@ struct LocationEditorView: View {
                 focusedField = .latitude
             case .invalidLongitudeNumber, .invalidLongitude:
                 focusedField = .longitude
+            case .invalidHeightNumber, .invalidHeight:
+                focusedField = .height
             case .invalidTimeZone:
                 focusedField = .timeZone
             }

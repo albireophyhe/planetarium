@@ -34,7 +34,7 @@ export function observationInputRange(timeZone: string) {
     minimumInstant.getTime()
   ) {
     minimum = formatZonedDateTimeInput(
-      new Date(minimumInstant.getTime() + 60_000),
+      new Date(minimumInstant.getTime() + 1_000),
       timeZone,
     );
   }

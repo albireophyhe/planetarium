@@ -21,7 +21,9 @@ enum LocationServiceError: LocalizedError {
 struct DeviceLocationFix: Hashable, Sendable {
     let latitude: Double
     let longitude: Double
+    let heightMeters: Double?
     let horizontalAccuracyMeters: Double?
+    let verticalAccuracyMeters: Double?
 }
 
 @MainActor
@@ -42,7 +44,7 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
 
         let manager = CLLocationManager()
         manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        manager.desiredAccuracy = kCLLocationAccuracyBest
         self.manager = manager
 
         switch manager.authorizationStatus {
@@ -84,13 +86,26 @@ final class LocationService: NSObject, @preconcurrency CLLocationManagerDelegate
                 && location.horizontalAccuracy >= 0
                 ? location.horizontalAccuracy
                 : nil
+        let verticalAccuracy =
+            location.verticalAccuracy.isFinite
+                && location.verticalAccuracy >= 0
+                ? location.verticalAccuracy
+                : nil
+        let heightMeters =
+            verticalAccuracy != nil
+                && location.ellipsoidalAltitude.isFinite
+                ? location.ellipsoidalAltitude
+                : nil
         finish(
             .success(
                 DeviceLocationFix(
                     latitude: coordinate.latitude,
                     longitude: coordinate.longitude,
+                    heightMeters: heightMeters,
                     horizontalAccuracyMeters:
-                        horizontalAccuracy
+                        horizontalAccuracy,
+                    verticalAccuracyMeters:
+                        verticalAccuracy
                 )
             )
         )

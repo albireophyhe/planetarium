@@ -448,10 +448,44 @@ final class LocalLunarOccultationTests:
                             earthOrientationAt: { _ in
                                 eop
                             },
+                            eventEarthRotationAt:
+                                { instant in
+                                    let stamp = String(
+                                        Int(
+                                            instant
+                                                .timeIntervalSince1970
+                                                .rounded()
+                                        )
+                                    )
+                                    return EventEarthRotationContextV1(
+                                        earthOrientation:
+                                            eop,
+                                        eopID:
+                                            "maximum-\(stamp)",
+                                        eopSourceSHA256:
+                                            "source-\(stamp)",
+                                        eopRetrievedAt:
+                                            "retrieved-\(stamp)",
+                                        eopDUT1Quality:
+                                            .predicted,
+                                        eopPolarMotionQuality:
+                                            .mixed,
+                                        deltaTModel:
+                                            "delta-\(stamp)",
+                                        uncertainty:
+                                            .model(
+                                                pathKilometers:
+                                                    0.000_432_501
+                                            ),
+                                        timingUncertaintySeconds:
+                                            eop
+                                            .dut1UncertaintySeconds
+                                    )
+                                },
                             eopID:
                                 "bundled-iers-eop-v1",
                             earthRotationPathUncertaintyKilometers:
-                                2,
+                                0.000_432_501,
                             heightMeters: 170,
                             horizontalAccuracyMeters:
                                 1_000,
@@ -486,7 +520,7 @@ final class LocalLunarOccultationTests:
                     horizontalAccuracyMeters:
                         1_000,
                     earthRotationPathUncertaintyKilometers:
-                        2
+                        0.000_432_501
                 )
                 * circumstances.maximum.moon
                     .distanceKilometers
@@ -517,6 +551,37 @@ final class LocalLunarOccultationTests:
             circumstances.provenance
                 .limbProfileID
         )
+        let maximumStamp = String(
+            Int(
+                circumstances.maximum.instantUTC
+                    .timeIntervalSince1970
+                    .rounded()
+            )
+        )
+        XCTAssertEqual(
+            circumstances.provenance.eopID,
+            "maximum-\(maximumStamp)"
+        )
+        XCTAssertEqual(
+            circumstances.provenance
+                .eopSourceSHA256,
+            "source-\(maximumStamp)"
+        )
+        XCTAssertEqual(
+            circumstances.provenance
+                .eopRetrievedAt,
+            "retrieved-\(maximumStamp)"
+        )
+        XCTAssertEqual(
+            circumstances.provenance
+                .eopDUT1Quality,
+            .predicted
+        )
+        XCTAssertEqual(
+            circumstances.provenance
+                .eopPolarMotionQuality,
+            .mixed
+        )
         XCTAssertTrue(
             circumstances.warnings
                 .joined(separator: " ")
@@ -537,12 +602,16 @@ final class LocalLunarOccultationTests:
             circumstances.uncertainty
                 .dominantContributors
                 .joined(separator: " ")
-                .contains("地球回転の経路不確かさ")
+                .contains(
+                    "地球回転・姿勢モデルによる経路幅"
+                )
         )
         XCTAssertTrue(
             circumstances.warnings
                 .joined(separator: " ")
-                .contains("経路±2.00 km")
+                .contains(
+                    "地球回転・姿勢モデルによる経路±0.433 m"
+                )
         )
         XCTAssertTrue(
             circumstances.warnings

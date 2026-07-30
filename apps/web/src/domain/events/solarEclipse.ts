@@ -25,6 +25,7 @@ import type {
   EventBodyPosition,
   EventContact,
   EventEarthOrientationProvenanceOptions,
+  EventEarthOrientationReportedUncertainty,
   EventEphemerisSearchOptions,
   EventEphemerisProvider,
   EventObserverContext,
@@ -61,6 +62,7 @@ export interface SolarEclipseGeometry {
   readonly magnitude: number;
   readonly obscuration: number;
   readonly boundaryUncertaintyRadians: number;
+  readonly earthRotationPathUncertaintyKilometers: number | null;
   readonly boundaryUncertain: boolean;
   readonly uncertainBoundary:
     | "external"
@@ -78,6 +80,15 @@ export interface LocalSolarEclipseOptions
   ) => EarthOrientationOptions | undefined;
   readonly eopId?: string;
   readonly earthRotationPathUncertaintyKilometers?: number | null;
+  readonly earthRotationPathUncertaintyKilometersAt?: (
+    date: Date,
+  ) => number | null | undefined;
+  readonly earthOrientationReportedUncertainty?:
+    | EventEarthOrientationReportedUncertainty
+    | null;
+  readonly earthOrientationReportedUncertaintyAt?: (
+    date: Date,
+  ) => EventEarthOrientationReportedUncertainty | null | undefined;
   readonly heightMeters?: number;
   readonly horizontalAccuracyMeters?: number | null;
   readonly locationSource?: EventObserverContext["locationSource"];
@@ -272,6 +283,7 @@ export function solveSolarEclipseGeometry(
   options: Pick<
     LocalSolarEclipseOptions,
     | "earthRotationPathUncertaintyKilometers"
+    | "earthRotationPathUncertaintyKilometersAt"
     | "halfWindowMilliseconds"
     | "horizontalAccuracyMeters"
     | "scanStepMilliseconds"
@@ -320,10 +332,20 @@ export function solveSolarEclipseGeometry(
     ROOT_TIME_TOLERANCE_MILLISECONDS,
   );
   const maximum = sampleAt(minimum.argument);
+  const maximumEarthRotationPathUncertaintyKilometers =
+    options.earthRotationPathUncertaintyKilometersAt
+      ? options.earthRotationPathUncertaintyKilometersAt(
+          new Date(maximum.instantMilliseconds),
+        )
+      : options.earthRotationPathUncertaintyKilometers;
+  validateOptionalUncertainty(
+    maximumEarthRotationPathUncertaintyKilometers,
+    "Earth-rotation path uncertainty at solar maximum",
+  );
   const boundaryUncertaintyRadians =
     solarEclipseBoundaryUncertaintyRadians(
       maximum.moon.distanceKilometers,
-      options.earthRotationPathUncertaintyKilometers,
+      maximumEarthRotationPathUncertaintyKilometers,
       options.horizontalAccuracyMeters,
     );
   const maximumExternalClearance = externalClearance(maximum);
@@ -353,6 +375,8 @@ export function solveSolarEclipseGeometry(
         moonRadius,
       ),
       boundaryUncertaintyRadians,
+      earthRotationPathUncertaintyKilometers:
+        maximumEarthRotationPathUncertaintyKilometers ?? null,
       boundaryUncertain: true,
       uncertainBoundary: "external",
     };
@@ -378,10 +402,20 @@ export function solveSolarEclipseGeometry(
     ROOT_TIME_TOLERANCE_MILLISECONDS,
   );
   const internalMaximum = sampleAt(internalMinimum.argument);
+  const internalEarthRotationPathUncertaintyKilometers =
+    options.earthRotationPathUncertaintyKilometersAt
+      ? options.earthRotationPathUncertaintyKilometersAt(
+          new Date(internalMaximum.instantMilliseconds),
+        )
+      : options.earthRotationPathUncertaintyKilometers;
+  validateOptionalUncertainty(
+    internalEarthRotationPathUncertaintyKilometers,
+    "Earth-rotation path uncertainty at solar internal maximum",
+  );
   const internalBoundaryUncertaintyRadians =
     solarEclipseBoundaryUncertaintyRadians(
       internalMaximum.moon.distanceKilometers,
-      options.earthRotationPathUncertaintyKilometers,
+      internalEarthRotationPathUncertaintyKilometers,
       options.horizontalAccuracyMeters,
     );
   const partialCentralBoundaryUncertain =
@@ -437,6 +471,10 @@ export function solveSolarEclipseGeometry(
       partialCentralBoundaryUncertain
         ? internalBoundaryUncertaintyRadians
         : boundaryUncertaintyRadians,
+    earthRotationPathUncertaintyKilometers:
+      (partialCentralBoundaryUncertain
+        ? internalEarthRotationPathUncertaintyKilometers
+        : maximumEarthRotationPathUncertaintyKilometers) ?? null,
     boundaryUncertain: partialCentralBoundaryUncertain,
     uncertainBoundary: partialCentralBoundaryUncertain
       ? "partial-central"
@@ -612,7 +650,10 @@ export function calculateLocalSolarEclipse(
     ephemerisId: ephemeris.id,
     ephemerisSourceSha256: ephemeris.sourceSha256,
     ...earthOrientationProvenance,
-    eopId: options.eopId ?? "caller-or-assumed",
+    eopId:
+      options.eopIdAt?.(maximumDate) ??
+      options.eopId ??
+      "caller-or-assumed",
     deltaTModel:
       options.deltaTModel ??
       "existing UTC-TAI-TT and caller DUT1",
@@ -624,6 +665,12 @@ export function calculateLocalSolarEclipse(
   const maximumEarthOrientation =
     options.earthOrientationAt?.(maximumDate) ??
     options.earthOrientation;
+  const maximumEarthOrientationReportedUncertainty =
+    options.earthOrientationReportedUncertaintyAt
+      ? options.earthOrientationReportedUncertaintyAt(
+          maximumDate,
+        ) ?? null
+      : options.earthOrientationReportedUncertainty ?? null;
   const timeScaleNotices = eventTimeScaleNotices(
     maximumDate,
     maximumEarthOrientation,
@@ -649,11 +696,12 @@ export function calculateLocalSolarEclipse(
       timingSeconds: timingUncertaintySeconds,
       pathKilometers:
         BASE_PATH_UNCERTAINTY_KILOMETERS +
-        (options.earthRotationPathUncertaintyKilometers ??
-          0) +
+        (geometry.earthRotationPathUncertaintyKilometers ?? 0) +
         (options.horizontalAccuracyMeters ?? 0) / 1_000,
       observerLocationMeters:
         options.horizontalAccuracyMeters ?? null,
+      earthOrientation:
+        maximumEarthOrientationReportedUncertainty,
       dominantContributors: Object.freeze([
         "平均月縁（地形未使用）",
         ...(maximumEarthOrientation?.dut1Seconds === undefined
@@ -663,10 +711,9 @@ export function calculateLocalSolarEclipse(
         options.horizontalAccuracyMeters === undefined
           ? ["観測地点の水平精度が不明"]
           : ["観測地点の水平精度を境界帯へ線形加算"]),
-        ...(options.earthRotationPathUncertaintyKilometers === null ||
-        options.earthRotationPathUncertaintyKilometers === undefined
+        ...(geometry.earthRotationPathUncertaintyKilometers === null
           ? []
-          : ["ΔTによる地球回転の経路不確かさを境界帯へ線形加算"]),
+          : ["地球回転・姿勢モデルの経路幅を境界帯へ線形加算"]),
         "実月縁地形±6 km・既知の観測地点水平精度・地球回転経路を線形加算した総境界幅",
         ...timeScaleNotices.dominantContributors,
         ...(options.timeScaleContributors ?? []),

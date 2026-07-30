@@ -106,23 +106,32 @@ export function LocationDialog({
       (position) => {
         const resolvedTimeZone =
           Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+        const altitude = position.coords.altitude;
+        const heightIsAvailable = altitude !== null;
+        const resolvedHeightMeters =
+          altitude === null ? 0 : Math.round(altitude);
+        const verticalAccuracy =
+          position.coords.altitudeAccuracy;
         setName("現在地");
-        setHeightMeters(
-          String(
-            position.coords.altitude === null
-              ? 0
-              : Math.round(position.coords.altitude),
-          ),
-        );
+        setHeightMeters(String(resolvedHeightMeters));
         setHorizontalAccuracyMeters(position.coords.accuracy);
-        setLatitude(position.coords.latitude.toFixed(5));
+        setLatitude(position.coords.latitude.toFixed(6));
         setLocationSource("device-geolocation");
-        setLongitude(position.coords.longitude.toFixed(5));
+        setLongitude(position.coords.longitude.toFixed(6));
         setTimeZone(resolvedTimeZone);
         setRequestingLocation(false);
         setNotice({
           kind: "info",
-          message: `現在地を取得しました（水平精度 ±${position.coords.accuracy.toFixed(0)} m）。この座標はサーバーへ送信せず、既定では保存しません。`,
+          message:
+            `現在地を取得しました（水平精度 ±${position.coords.accuracy.toFixed(0)} m・` +
+            (heightIsAvailable
+              ? `WGS84楕円体高 ${resolvedHeightMeters} m${
+                  verticalAccuracy === null
+                    ? ""
+                    : `、垂直精度 ±${verticalAccuracy.toFixed(0)} m`
+                }`
+              : "楕円体高は取得できず0 m近似") +
+            "）。この座標はサーバーへ送信せず、既定では保存しません。",
         });
       },
       (error) => {
@@ -258,7 +267,7 @@ export function LocationDialog({
                   markManualInput();
                   setLatitude(event.target.value);
                 }}
-                step="0.0001"
+                step="0.000001"
                 type="number"
                 value={latitude}
               />
@@ -273,7 +282,7 @@ export function LocationDialog({
                   markManualInput();
                   setLongitude(event.target.value);
                 }}
-                step="0.0001"
+                step="0.000001"
                 type="number"
                 value={longitude}
               />

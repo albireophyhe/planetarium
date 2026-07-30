@@ -145,6 +145,50 @@ final class ObservationConstraintsTests: XCTestCase {
         }
     }
 
+    func testSettingSecondPreservesTheMinuteAndUsesWholeSeconds() {
+        let startingDate = Date(
+            timeIntervalSince1970:
+                1_783_484_096.789
+        )
+        let result =
+            ObservationConstraints
+            .settingSecond(
+                7,
+                in: startingDate,
+                timeZoneIdentifier:
+                    "Asia/Tokyo"
+            )
+
+        XCTAssertEqual(
+            result.timeIntervalSince1970,
+            1_783_484_047.789,
+            accuracy: 0.000_1
+        )
+    }
+
+    func testSettingSecondClampsTheInputAndSupportedDateRange() {
+        XCTAssertEqual(
+            ObservationConstraints.settingSecond(
+                -1,
+                in:
+                    ObservationConstraints
+                    .minimumDate,
+                timeZoneIdentifier: "UTC"
+            ),
+            ObservationConstraints.minimumDate
+        )
+        XCTAssertEqual(
+            ObservationConstraints.settingSecond(
+                60,
+                in:
+                    ObservationConstraints
+                    .maximumDate,
+                timeZoneIdentifier: "UTC"
+            ),
+            ObservationConstraints.maximumDate
+        )
+    }
+
     func testValidatedLocationNormalizesNameAndTimeZone() throws {
         let location = try ObservationConstraints.validatedLocation(
             id: "custom",
@@ -158,6 +202,28 @@ final class ObservationConstraintsTests: XCTestCase {
         XCTAssertEqual(location.timeZoneIdentifier, "Asia/Tokyo")
         XCTAssertEqual(location.latitude, 35.6812)
         XCTAssertEqual(location.longitude, 139.7671)
+        XCTAssertEqual(
+            location.heightMeters,
+            0,
+            "既存呼び出しは楕円体高0 mとして後方互換を保つ"
+        )
+    }
+
+    func testValidatedLocationRetainsWGS84EllipsoidHeight() throws {
+        let location = try ObservationConstraints.validatedLocation(
+            id: "summit",
+            name: "山頂",
+            latitude: 19.8207,
+            longitude: -155.4681,
+            timeZoneIdentifier: "Pacific/Honolulu",
+            heightMeters: 4_205.25
+        )
+
+        XCTAssertEqual(location.heightMeters, 4_205.25)
+        XCTAssertTrue(
+            ObservationConstraints.supportedHeightMeters
+                .contains(location.heightMeters)
+        )
     }
 
     func testValidatedLocationRejectsNonFiniteAndOutOfRangeCoordinates() {
@@ -197,6 +263,24 @@ final class ObservationConstraintsTests: XCTestCase {
                 timeZoneIdentifier: "UTC"
             )
         }
+        for invalidHeight in [
+            -500.000_1,
+            10_000.000_1,
+            .nan,
+            .infinity,
+            -.infinity,
+        ] {
+            assertLocationError(.invalidHeight) {
+                try ObservationConstraints.validatedLocation(
+                    id: "invalid",
+                    name: "Invalid",
+                    latitude: 0,
+                    longitude: 0,
+                    timeZoneIdentifier: "UTC",
+                    heightMeters: invalidHeight
+                )
+            }
+        }
     }
 
     func testValidatedLocationRejectsUnknownTimeZone() {
@@ -217,12 +301,14 @@ final class ObservationConstraintsTests: XCTestCase {
             name: " Test ",
             latitudeText: " −３５.５ ",
             longitudeText: " １３９.７ ",
-            timeZoneIdentifier: " UTC "
+            timeZoneIdentifier: " UTC ",
+            heightText: " −４３０.５ "
         )
 
         XCTAssertEqual(location.name, "Test")
         XCTAssertEqual(location.latitude, -35.5)
         XCTAssertEqual(location.longitude, 139.7)
+        XCTAssertEqual(location.heightMeters, -430.5)
         XCTAssertEqual(location.timeZoneIdentifier, "UTC")
     }
 
@@ -243,6 +329,16 @@ final class ObservationConstraintsTests: XCTestCase {
                 latitudeText: "0",
                 longitudeText: "139,7",
                 timeZoneIdentifier: "UTC"
+            )
+        }
+        assertLocationError(.invalidHeightNumber) {
+            try ObservationConstraints.validatedLocation(
+                id: "invalid",
+                name: "Invalid",
+                latitudeText: "0",
+                longitudeText: "0",
+                timeZoneIdentifier: "UTC",
+                heightText: "1,234"
             )
         }
     }
@@ -266,6 +362,32 @@ final class ObservationConstraintsTests: XCTestCase {
                 timeZoneIdentifier: "Not/A_Zone"
             )
         }
+        assertLocationError(.invalidHeight) {
+            try ObservationConstraints.validatedLocation(
+                id: "invalid",
+                name: "Invalid",
+                latitudeText: "35",
+                longitudeText: "139",
+                timeZoneIdentifier: "UTC",
+                heightText: "10000.1"
+            )
+        }
+    }
+
+    func testCityPresetExplicitlyUsesZeroEllipsoidHeight() {
+        let city = City(
+            id: "test-city",
+            name: "Test City",
+            nameJa: "テスト市",
+            latitude: 35,
+            longitude: 139,
+            timeZone: "Asia/Tokyo"
+        )
+
+        let location = ObservingLocation(city: city)
+
+        XCTAssertEqual(location.heightMeters, 0)
+        XCTAssertNil(location.horizontalAccuracyMeters)
     }
 
     private func assertLocationError(

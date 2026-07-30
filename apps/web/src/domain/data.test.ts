@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-  calculateStarPosition,
   cities,
   constellations,
   namedStarByHR,
   namedStars,
   starByHR,
   stars
-} from "./index";
+} from "./data";
+import { calculateStarPosition } from "./index";
 
 describe("catalogue adapters", () => {
   it("loads the complete naked-eye catalogue into indexed records", () => {

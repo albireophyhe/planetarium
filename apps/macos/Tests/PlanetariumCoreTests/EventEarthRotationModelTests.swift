@@ -4,6 +4,54 @@ import Testing
 
 struct EventEarthRotationModelTests {
     @Test
+    func iersReportedErrorsRemainSeparateEventComponents() {
+        let arcsecondsToRadians =
+            Double.pi / (180 * 3_600)
+        let estimate = IERSEarthOrientationEstimateV1(
+            dut1: IERSDUT1EstimateV1(
+                dut1Seconds: 0,
+                source: .predicted,
+                uncertaintySeconds: 0.000_701
+            ),
+            polarMotion: IERSPolarMotionEstimateV1(
+                xpRadians: 0,
+                ypRadians: 0,
+                xpReportedErrorRadians:
+                    0.001_819 * arcsecondsToRadians,
+                ypReportedErrorRadians:
+                    0.001_624 * arcsecondsToRadians,
+                source: .predicted,
+                usesPrediction: true
+            )
+        )
+        let result = EventEarthRotationModelV1
+            .reportedUncertainty(for: estimate)
+
+        #expect(
+            abs(
+                result.dut1PathMeters
+                - 0.326_035_871
+            ) < 0.000_001
+        )
+        #expect(
+            abs(
+                result.polarMotionPathMeters
+                - 0.106_464_724
+            ) < 0.000_001
+        )
+        #expect(
+            abs(
+                result.combinedPathMeters
+                - 0.432_500_595
+            ) < 0.000_001
+        )
+        #expect(
+            result.semantics
+                == "iers-reported-error-linear-envelope"
+        )
+    }
+
+    @Test
     func historicalPolynomialMatchesPublishedPieces()
         throws
     {

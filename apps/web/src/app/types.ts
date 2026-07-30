@@ -21,6 +21,9 @@ export type StarViewModel = {
   decRad: number;
   diurnalAberrationMode: DiurnalAberrationMode | null;
   englishName: string;
+  geometricAltitudeDeg: number;
+  geometricAzimuthDefined: boolean;
+  geometricAzimuthDeg: number;
   hr: number;
   japaneseName: string;
   parallaxArcsec: number | null;

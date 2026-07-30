@@ -432,6 +432,80 @@ final class SkyStoreEarthOrientationIntegrationTests:
     }
 
     @MainActor
+    func testManualEllipsoidHeightReachesPreciseStarAndSunPipeline()
+        throws
+    {
+        let provider = try RecordingEOPProvider()
+        let date = try XCTUnwrap(
+            ISO8601DateFormatter().date(
+                from: "2026-07-29T00:00:00Z"
+            )
+        )
+        let store = SkyStore(
+            earthOrientationServiceLoader: {
+                provider
+            },
+            now: date
+        )
+        store.useStandardAtmosphericRefraction = false
+
+        try store.setCustomLocation(
+            name: "マウナケア",
+            latitude: 19.8207,
+            longitude: -155.4681,
+            timeZoneIdentifier: "Pacific/Honolulu",
+            heightMeters: 4_205
+        )
+
+        XCTAssertEqual(store.location.heightMeters, 4_205)
+        let estimate = try XCTUnwrap(
+            store.currentEarthOrientationEstimate
+        )
+        let options = ApparentPositionOptionsV2(
+            earthOrientation:
+                estimate.earthOrientationOptionsV2,
+            diurnalAberration:
+                .wgs84Observer(
+                    heightMeters: 4_205
+                ),
+            refraction: .disabled
+        )
+        let expectedStars = try Astronomy.renderV2(
+            catalog: store.catalog,
+            at: date,
+            location: store.location,
+            options: options
+        )
+        let actualFirst = try XCTUnwrap(
+            store.renderedStars.first
+        )
+        let expectedFirst = try XCTUnwrap(
+            expectedStars.first
+        )
+        XCTAssertEqual(
+            actualFirst.horizontal.altitude,
+            expectedFirst.horizontal.altitude,
+            accuracy: 1e-15
+        )
+        XCTAssertEqual(
+            actualFirst.horizontal.azimuth,
+            expectedFirst.horizontal.azimuth,
+            accuracy: 1e-15
+        )
+
+        let expectedContext =
+            try Astronomy.createApparentPositionContextV2(
+                at: date,
+                location: store.location,
+                options: options
+            )
+        XCTAssertEqual(
+            store.sunState,
+            try Sun.state(context: expectedContext)
+        )
+    }
+
+    @MainActor
     private func makeEmptyStore(now: Date) throws -> SkyStore {
         let provider = try RecordingEOPProvider()
         return SkyStore(

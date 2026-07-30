@@ -32,14 +32,11 @@ export {
   julianDate,
   precessJ2000
 } from "./coordinates";
-export {
-  cities,
-  constellations,
-  namedStarByHR,
-  namedStars,
-  starByHR,
-  stars
-} from "./data";
+// The complete 8,404-star v1 catalogue is intentionally not re-exported
+// here: importing this application-facing barrel must not put the full JSON
+// on the initial render path. Consumers that need the complete legacy
+// catalogue can import the stable `./data` module explicitly. Lightweight
+// metadata lives in `./catalogMetadata`.
 export type {
   PrecisionStarCatalogV2
 } from "./precisionDataLoader";

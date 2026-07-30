@@ -1,0 +1,408 @@
+.event-scene {
+  --event-scene-canvas: #020914;
+  --event-scene-moon-light: #e7e9ed;
+  --event-scene-moon-dark: #8c96a7;
+  --event-scene-penumbra: rgba(94, 108, 132, 0.22);
+  --event-scene-penumbra-line: rgba(164, 181, 207, 0.64);
+  --event-scene-sun-core: #fff7c7;
+  --event-scene-sun-edge: #f5aa38;
+  --event-scene-umbra: rgba(25, 28, 39, 0.78);
+  --event-scene-umbra-line: rgba(205, 119, 116, 0.74);
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  container-type: inline-size;
+  margin: 17px 0 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.event-scene__header {
+  align-items: flex-start;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 12px 13px 10px;
+}
+
+.event-scene__header h3 {
+  font-size: 15px;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.event-scene__header p {
+  color: var(--text-muted);
+  font-family: var(--font-data);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.45;
+  margin: 3px 0 0;
+}
+
+.event-scene__fidelity {
+  color: var(--success);
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  padding-top: 2px;
+}
+
+.event-scene--schematic .event-scene__fidelity {
+  color: #ffd29a;
+}
+
+.event-scene--unavailable .event-scene__fidelity {
+  color: var(--text-muted);
+}
+
+.event-scene__viewport {
+  background:
+    radial-gradient(
+      circle at 50% 46%,
+      rgba(38, 73, 116, 0.2),
+      transparent 57%
+    ),
+    var(--event-scene-canvas);
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+
+.event-scene__viewport svg {
+  display: block;
+  height: auto;
+  max-height: 300px;
+  min-height: 170px;
+  overflow: visible;
+  width: 100%;
+}
+
+.event-scene__sun-core {
+  stop-color: var(--event-scene-sun-core);
+}
+
+.event-scene__sun-edge {
+  stop-color: var(--event-scene-sun-edge);
+}
+
+.event-scene__moon-light {
+  stop-color: var(--event-scene-moon-light);
+}
+
+.event-scene__moon-dark {
+  stop-color: var(--event-scene-moon-dark);
+}
+
+.event-scene__sun-halo {
+  fill: rgba(255, 208, 100, 0.15);
+}
+
+.event-scene__sun {
+  stroke: rgba(255, 244, 195, 0.84);
+  stroke-width: 1.2;
+}
+
+.event-scene__moon {
+  stroke: rgba(241, 245, 251, 0.48);
+  stroke-width: 1;
+}
+
+.event-scene__limb {
+  fill: none;
+  stroke: rgba(236, 242, 251, 0.74);
+  stroke-width: 1;
+}
+
+.event-scene__penumbra {
+  fill: var(--event-scene-penumbra);
+  stroke: var(--event-scene-penumbra-line);
+  stroke-dasharray: 5 4;
+  stroke-width: 1.15;
+}
+
+.event-scene__umbra {
+  fill: var(--event-scene-umbra);
+  stroke: var(--event-scene-umbra-line);
+  stroke-width: 1.25;
+}
+
+.event-scene__penumbra-on-moon {
+  fill: rgba(100, 91, 93, 0.34);
+}
+
+.event-scene__umbra-on-moon {
+  fill: rgba(56, 22, 26, 0.84);
+}
+
+.event-scene__shadow-center {
+  fill: #e5a4a0;
+  stroke: var(--event-scene-canvas);
+  stroke-width: 1;
+}
+
+.event-scene__star {
+  color: var(--star);
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+.event-scene__star circle {
+  stroke-width: 1;
+}
+
+.event-scene__star path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 1.35;
+}
+
+.event-scene__star--hidden {
+  color: #30435f;
+  fill: transparent;
+  opacity: 0.96;
+  stroke-dasharray: 3 2;
+}
+
+.event-scene__star--hidden path {
+  stroke-width: 1.8;
+}
+
+.event-scene__schematic {
+  opacity: 0.84;
+}
+
+.event-scene__schematic-mark {
+  fill: none;
+  stroke: var(--line-strong);
+  stroke-dasharray: 3 5;
+  stroke-width: 1;
+}
+
+.event-scene__schematic-label,
+.event-scene__unavailable text {
+  fill: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+}
+
+.event-scene__unavailable circle {
+  fill: rgba(27, 45, 69, 0.32);
+  stroke: var(--line-strong);
+  stroke-dasharray: 6 6;
+  stroke-width: 1.2;
+}
+
+.event-scene__unavailable path {
+  fill: none;
+  stroke: var(--line-strong);
+  stroke-linecap: round;
+  stroke-width: 1;
+}
+
+.event-scene figcaption {
+  padding: 11px 13px 13px;
+}
+
+.event-scene__summary {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px 18px;
+  justify-content: space-between;
+}
+
+.event-scene__summary > p {
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.55;
+  margin: 0;
+  max-width: 62ch;
+}
+
+.event-scene__legend {
+  align-items: center;
+  color: var(--text-muted);
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  font-size: 10px;
+  gap: 6px 11px;
+  justify-content: flex-end;
+  list-style: none;
+  margin: 1px 0 0;
+  padding: 0;
+}
+
+.event-scene__legend li {
+  align-items: center;
+  display: inline-flex;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.event-scene__swatch {
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  display: inline-block;
+  height: 9px;
+  width: 9px;
+}
+
+.event-scene__swatch--sun {
+  background: var(--event-scene-sun-edge);
+  border-color: #fff0b5;
+}
+
+.event-scene__swatch--moon {
+  background: var(--event-scene-moon-dark);
+  border-color: #dce3ec;
+}
+
+.event-scene__swatch--penumbra {
+  background: rgba(119, 135, 157, 0.54);
+  border-style: dashed;
+}
+
+.event-scene__swatch--umbra {
+  background: #30252e;
+  border-color: #b27174;
+}
+
+.event-scene__swatch--star {
+  background: var(--star);
+  border-color: var(--star);
+  box-shadow: 0 0 4px var(--star);
+  height: 6px;
+  width: 6px;
+}
+
+.event-scene__metrics {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 8px 13px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 10px 0 0;
+  padding: 10px 0 0;
+}
+
+.event-scene__metrics > div {
+  min-width: 0;
+}
+
+.event-scene__metrics dt {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.event-scene__metrics dd {
+  font-family: var(--font-data);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.event-scene__orientation,
+.event-scene__scale-note {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.5;
+  margin: 9px 0 0;
+}
+
+.event-scene__scale-note {
+  margin-top: 3px;
+}
+
+.app-shell--night .event-scene {
+  --event-scene-canvas: #050000;
+  --event-scene-moon-light: #c76f68;
+  --event-scene-moon-dark: #6e2825;
+  --event-scene-penumbra: rgba(157, 55, 50, 0.16);
+  --event-scene-penumbra-line: rgba(213, 97, 89, 0.54);
+  --event-scene-sun-core: #e7857c;
+  --event-scene-sun-edge: #9d312b;
+  --event-scene-umbra: rgba(22, 2, 2, 0.82);
+  --event-scene-umbra-line: rgba(217, 88, 80, 0.66);
+}
+
+.app-shell--night .event-scene__star--hidden {
+  color: #280504;
+}
+
+@container (max-width: 520px) {
+  .event-scene__header {
+    padding-inline: 11px;
+  }
+
+  .event-scene__viewport svg {
+    min-height: 145px;
+  }
+
+  .event-scene figcaption {
+    padding-inline: 11px;
+  }
+
+  .event-scene__summary {
+    display: grid;
+  }
+
+  .event-scene__legend {
+    justify-content: flex-start;
+  }
+
+  .event-scene__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 340px) {
+  .event-scene__header {
+    display: grid;
+    gap: 4px;
+  }
+
+  .event-scene__fidelity {
+    justify-self: start;
+  }
+
+  .event-scene__metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .event-scene {
+    border-width: 2px;
+  }
+
+  .event-scene__limb,
+  .event-scene__penumbra,
+  .event-scene__umbra {
+    stroke-width: 2;
+  }
+}
+
+@media (forced-colors: active) {
+  .event-scene,
+  .event-scene__viewport {
+    background: Canvas;
+    border-color: CanvasText;
+    forced-color-adjust: none;
+  }
+
+  .event-scene__moon,
+  .event-scene__penumbra,
+  .event-scene__sun,
+  .event-scene__umbra {
+    fill: Canvas;
+    stroke: CanvasText;
+  }
+
+  .event-scene__star,
+  .event-scene__unavailable path,
+  .event-scene__unavailable circle {
+    color: CanvasText;
+    stroke: CanvasText;
+  }
+}

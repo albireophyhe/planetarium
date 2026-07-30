@@ -856,7 +856,13 @@ public extension Astronomy {
                 catalog: star,
                 name: catalog.namesByHR[star.hr],
                 horizontal: position.observedHorizontal,
-                projection: position.projection
+                projection: position.projection,
+                apparentEquatorial:
+                    position.apparentEquatorial,
+                geometricHorizontal:
+                    position.geometricHorizontal,
+                observedHorizontal:
+                    position.observedHorizontal
             )
         }
     }

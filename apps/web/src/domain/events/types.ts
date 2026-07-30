@@ -76,6 +76,21 @@ export interface EventBodyPosition {
   readonly distanceKilometers: number | null;
 }
 
+/**
+ * Mean-shadow geometry for a lunar eclipse in the CIRS tangent plane.
+ *
+ * The center position angle is measured eastward from celestial north at
+ * the Moon. Radii and separation use the same Danjon 1.01 shadow convention
+ * as the contact solver, so a renderer can reproduce the solved geometry
+ * without estimating it from eclipse magnitude.
+ */
+export interface LunarShadowGeometry {
+  readonly centerSeparationRadians: number;
+  readonly centerPositionAngleRadians: number | null;
+  readonly penumbralAngularRadiusRadians: number;
+  readonly umbralAngularRadiusRadians: number;
+}
+
 export type EventSolarSystemBody = "sun" | "moon";
 
 export interface ApparentBodyState {
@@ -101,6 +116,8 @@ export interface EventContact {
   readonly bodies: Readonly<
     Partial<Record<"sun" | "moon" | "target", EventBodyPosition>>
   >;
+  /** Present for lunar-eclipse contacts computed by the v1 solver. */
+  readonly lunarShadow?: LunarShadowGeometry;
   readonly aboveHorizon: boolean;
   /**
    * Contact point around the reference disc, in radians [0, 2π), measured
@@ -117,7 +134,22 @@ export interface ForecastUncertainty {
   readonly timingSeconds: number | null;
   readonly pathKilometers: number | null;
   readonly observerLocationMeters: number | null;
+  /**
+   * IERS-published EOP error components. These are a linear reported-error
+   * envelope, not a total event-timing uncertainty or confidence interval.
+   */
+  readonly earthOrientation?:
+    | EventEarthOrientationReportedUncertainty
+    | null;
   readonly dominantContributors: readonly string[];
+}
+
+export interface EventEarthOrientationReportedUncertainty {
+  readonly dut1ReportedErrorSeconds: number;
+  readonly dut1PathMeters: number;
+  readonly polarMotionPathMeters: number;
+  readonly combinedPathMeters: number;
+  readonly semantics: "iers-reported-error-linear-envelope";
 }
 
 export type EventEarthOrientationQuality =
@@ -134,6 +166,7 @@ export interface EventEarthOrientationProvenance {
 }
 
 export interface EventEarthOrientationProvenanceOptions {
+  readonly eopIdAt?: (date: Date) => string | undefined;
   readonly eopSourceSha256?: string | null;
   readonly eopRetrievedAt?: string | null;
   readonly dut1Quality?: EventEarthOrientationQuality;

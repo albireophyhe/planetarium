@@ -154,6 +154,41 @@ final class LocalEclipseSolversTests:
         XCTAssertNil(
             circumstances.provenance.limbProfileID
         )
+        let maximumStamp = String(
+            Int(
+                circumstances.maximum.instantUTC
+                    .timeIntervalSince1970
+                    .rounded()
+            )
+        )
+        XCTAssertEqual(
+            circumstances.provenance.eopID,
+            "maximum-\(maximumStamp)"
+        )
+        XCTAssertEqual(
+            circumstances.provenance
+                .eopSourceSHA256,
+            "source-\(maximumStamp)"
+        )
+        XCTAssertEqual(
+            circumstances.provenance
+                .eopRetrievedAt,
+            "retrieved-\(maximumStamp)"
+        )
+        XCTAssertEqual(
+            circumstances.provenance
+                .eopDUT1Quality,
+            .predicted
+        )
+        XCTAssertEqual(
+            circumstances.provenance
+                .eopPolarMotionQuality,
+            .mixed
+        )
+        XCTAssertEqual(
+            circumstances.provenance.deltaTModel,
+            "delta-\(maximumStamp)"
+        )
     }
 
     /**
@@ -242,6 +277,67 @@ final class LocalEclipseSolversTests:
         XCTAssertNil(
             circumstances.maximum
                 .positionAngleRadians
+        )
+        XCTAssertTrue(
+            circumstances.contacts.allSatisfy {
+                $0.lunarShadow != nil
+            }
+        )
+        let maximumShadow = try XCTUnwrap(
+            circumstances.maximum.lunarShadow
+        )
+        let moonRadius = try XCTUnwrap(
+            circumstances.maximum.moon
+        ).angularRadiusRadians
+        XCTAssertGreaterThan(
+            maximumShadow
+                .penumbralAngularRadiusRadians,
+            maximumShadow
+                .umbralAngularRadiusRadians
+        )
+        XCTAssertGreaterThan(
+            maximumShadow.umbralAngularRadiusRadians,
+            moonRadius
+        )
+        XCTAssertLessThan(
+            maximumShadow.centerSeparationRadians,
+            maximumShadow.umbralAngularRadiusRadians
+                - moonRadius
+        )
+        XCTAssertNotNil(
+            maximumShadow.centerPositionAngleRadians
+        )
+        XCTAssertNil(
+            circumstances.uncertainty.pathKilometers
+        )
+        XCTAssertNotNil(
+            circumstances.uncertainty
+                .earthOrientation
+        )
+        let contributors =
+            circumstances.uncertainty
+            .dominantContributors
+            .joined(separator: " ")
+        XCTAssertTrue(
+            contributors.contains(
+                "地表経路の境界帯へは加算しない"
+            )
+        )
+        XCTAssertFalse(
+            contributors.contains(
+                "境界帯へ1回だけ線形加算"
+            )
+        )
+        let lunarMaximumStamp = String(
+            Int(
+                circumstances.maximum.instantUTC
+                    .timeIntervalSince1970
+                    .rounded()
+            )
+        )
+        XCTAssertEqual(
+            circumstances.provenance.eopID,
+            "maximum-\(lunarMaximumStamp)"
         )
     }
 
@@ -584,6 +680,317 @@ final class LocalEclipseSolversTests:
         )
     }
 
+    func testSolarBoundaryContextUsesSolvedMaximumAcrossUTCDay()
+        async throws
+    {
+        let dayBoundary =
+            utcDate("2026-08-13T00:00:00Z")
+        let candidateCenter =
+            dayBoundary
+            .addingTimeInterval(-120)
+            .timeIntervalSinceReferenceDate
+        let solvedCenter =
+            dayBoundary
+            .addingTimeInterval(120)
+            .timeIntervalSinceReferenceDate
+        let reported =
+            EventEOPReportedUncertaintyV1(
+                dut1ReportedErrorSeconds:
+                    0.000_701,
+                dut1PathMeters: 0.326_036,
+                polarMotionPathMeters:
+                    0.106_465,
+                combinedPathMeters: 0.432_501
+            )
+        let options = LocalEclipseOptionsV1(
+            eventEarthRotationAt: { instant in
+                if instant < dayBoundary {
+                    return EventEarthRotationContextV1(
+                        earthOrientation:
+                            EarthOrientationOptionsV2(),
+                        eopID: "before-day",
+                        eopDUT1Quality: .observed,
+                        eopPolarMotionQuality:
+                            .observed,
+                        deltaTModel: "before-day",
+                        uncertainty:
+                            .model(
+                                pathKilometers: 9
+                            )
+                    )
+                }
+                return EventEarthRotationContextV1(
+                    earthOrientation:
+                        EarthOrientationOptionsV2(),
+                    eopID: "after-day",
+                    eopSourceSHA256:
+                        "after-day-source",
+                    eopDUT1Quality: .predicted,
+                    eopPolarMotionQuality: .mixed,
+                    deltaTModel: "after-day",
+                    uncertainty:
+                        .iersReported(reported)
+                )
+            },
+            halfWindowSeconds: 600,
+            scanStepSeconds: 60
+        )
+        let moonDistanceKilometers = 384_400.0
+        let result =
+            try await LocalSolarEclipseV1
+            .solveGeometry(
+                candidateSecondsSinceReferenceDate:
+                    candidateCenter,
+                sampleAt:
+                    syntheticSolarPass(
+                        center: solvedCenter,
+                        minimumSeparationRadians:
+                            0.008_85,
+                        sunRadiusRadians:
+                            0.004_65,
+                        moonRadiusRadians:
+                            0.004_70,
+                        moonDistanceKilometers:
+                            moonDistanceKilometers
+                    ),
+                options: options
+            )
+        let geometry = try XCTUnwrap(result)
+
+        XCTAssertEqual(
+            geometry.maximum
+                .secondsSinceReferenceDate,
+            solvedCenter,
+            accuracy: 0.05
+        )
+        XCTAssertEqual(
+            geometry.earthRotation.eopID,
+            "after-day"
+        )
+        XCTAssertEqual(
+            geometry.earthRotation
+                .eopSourceSHA256,
+            "after-day-source"
+        )
+        XCTAssertEqual(
+            geometry.earthRotation
+                .eopDUT1Quality,
+            .predicted
+        )
+        XCTAssertEqual(
+            geometry.earthRotation
+                .eopPolarMotionQuality,
+            .mixed
+        )
+        XCTAssertEqual(
+            geometry.boundaryUncertaintyRadians,
+            (
+                6
+                + reported.combinedPathMeters
+                    / 1_000
+            ) / moonDistanceKilometers,
+            accuracy: 1e-15
+        )
+    }
+
+    func testStaticIERSComponentOverridesGenericPathWithoutDoubleAddition()
+        async throws
+    {
+        let reported =
+            EventEOPReportedUncertaintyV1(
+                dut1ReportedErrorSeconds: 0.001,
+                dut1PathMeters: 300,
+                polarMotionPathMeters: 200,
+                combinedPathMeters: 500
+            )
+        let moonDistanceKilometers = 384_400.0
+        let result =
+            try await LocalSolarEclipseV1
+            .solveGeometry(
+                candidateSecondsSinceReferenceDate:
+                    0,
+                sampleAt:
+                    syntheticSolarPass(
+                        center: 0,
+                        minimumSeparationRadians:
+                            0.008_85,
+                        sunRadiusRadians:
+                            0.004_65,
+                        moonRadiusRadians:
+                            0.004_70,
+                        moonDistanceKilometers:
+                            moonDistanceKilometers
+                    ),
+                options:
+                    LocalEclipseOptionsV1(
+                        earthRotationPathUncertaintyKilometers:
+                            8,
+                        earthOrientationReportedUncertainty:
+                            reported,
+                        halfWindowSeconds: 600,
+                        scanStepSeconds: 60
+                    )
+            )
+        let geometry = try XCTUnwrap(result)
+
+        XCTAssertEqual(
+            geometry.earthRotation
+                .uncertainty.pathKilometers,
+            0.5
+        )
+        XCTAssertEqual(
+            geometry.boundaryUncertaintyRadians,
+            (6 + 0.5) / moonDistanceKilometers,
+            accuracy: 1e-15
+        )
+    }
+
+    func testPartialCentralBoundaryUsesEarthRotationAtInternalMinimum()
+        async throws
+    {
+        let moonDistanceKilometers = 384_400.0
+        let sunRadius = 0.004_65
+        let centerSeparation = 0.000_5
+        let internalMinimum = 120.0
+        let internalClearance =
+            10 / moonDistanceKilometers
+        let curvature = 1e-8
+        let basePass = syntheticSolarPass(
+            center: 0,
+            minimumSeparationRadians:
+                centerSeparation,
+            sunRadiusRadians: sunRadius,
+            moonRadiusRadians: 0.004_8,
+            moonDistanceKilometers:
+                moonDistanceKilometers,
+            directionRateRadiansPerSecond:
+                2e-5
+        )
+        let sampleAt:
+            (Double) async throws
+                -> SolarDiscSampleV1 =
+            { instant in
+                let sample =
+                    try await basePass(instant)
+                let separation = atan2(
+                    sample.sun.icrfDirection
+                        .cross(
+                            sample.moon
+                                .icrfDirection
+                        ).length,
+                    max(
+                        -1,
+                        min(
+                            1,
+                            sample.sun
+                                .icrfDirection
+                                .dot(
+                                    sample.moon
+                                        .icrfDirection
+                                )
+                        )
+                    )
+                )
+                let clearance =
+                    internalClearance
+                    + curvature
+                        * pow(
+                            instant
+                                - internalMinimum,
+                            2
+                        )
+                let moonRadius =
+                    sunRadius
+                    + separation
+                    - clearance
+                return SolarDiscSampleV1(
+                    secondsSinceReferenceDate:
+                        instant,
+                    sun: sample.sun,
+                    moon:
+                        EclipseApparentBodyStateV1(
+                            body: .moon,
+                            tdbJulianDate:
+                                sample.moon
+                                .tdbJulianDate,
+                            lightTimeSeconds:
+                                sample.moon
+                                .lightTimeSeconds,
+                            distanceKilometers:
+                                sample.moon
+                                .distanceKilometers,
+                            angularRadiusRadians:
+                                moonRadius,
+                            icrfDirection:
+                                sample.moon
+                                .icrfDirection,
+                            cirsDirection:
+                                sample.moon
+                                .cirsDirection,
+                            horizontal:
+                                sample.moon
+                                .horizontal
+                        )
+                )
+            }
+        let options = LocalEclipseOptionsV1(
+            eventEarthRotationAt: { instant in
+                let pathKilometers: Double =
+                    instant
+                        .timeIntervalSinceReferenceDate
+                        < 60
+                    ? 0
+                    : 8
+                return EventEarthRotationContextV1(
+                    earthOrientation:
+                        EarthOrientationOptionsV2(),
+                    eopID:
+                        pathKilometers == 0
+                        ? "maximum"
+                        : "internal-minimum",
+                    deltaTModel: "test",
+                    uncertainty:
+                        .model(
+                            pathKilometers:
+                                pathKilometers
+                        )
+                )
+            },
+            halfWindowSeconds: 1_200,
+            scanStepSeconds: 60
+        )
+
+        let result =
+            try await LocalSolarEclipseV1
+            .solveGeometry(
+                candidateSecondsSinceReferenceDate:
+                    0,
+                sampleAt: sampleAt,
+                options: options
+            )
+        let geometry = try XCTUnwrap(result)
+
+        XCTAssertEqual(
+            geometry.maximum
+                .secondsSinceReferenceDate,
+            0,
+            accuracy: 0.05
+        )
+        XCTAssertEqual(
+            geometry.earthRotation.eopID,
+            "maximum"
+        )
+        XCTAssertEqual(
+            geometry.boundaryUncertaintyRadians,
+            14 / moonDistanceKilometers,
+            accuracy: 1e-15
+        )
+        XCTAssertEqual(
+            geometry.uncertainBoundary,
+            .partialCentral
+        )
+    }
+
     func testSyntheticPartialCentralBoundaryIsSymmetric()
         async throws
     {
@@ -894,11 +1301,48 @@ final class LocalEclipseSolversTests:
     ) throws -> LocalEclipseOptionsV1 {
         let service =
             try IERSEarthOrientationServiceV1.loadBundled()
+        let earthOrientation =
+            try service.earthOrientationOptionsV2(
+                at: date
+            )
+        let reported =
+            EventEOPReportedUncertaintyV1(
+                dut1ReportedErrorSeconds:
+                    0.000_701,
+                dut1PathMeters: 0.326_036,
+                polarMotionPathMeters:
+                    0.106_465,
+                combinedPathMeters: 0.432_501
+            )
         return LocalEclipseOptionsV1(
             earthOrientation:
-                try service.earthOrientationOptionsV2(
-                    at: date
-                ),
+                earthOrientation,
+            earthOrientationAt: { _ in
+                earthOrientation
+            },
+            eventEarthRotationAt: { instant in
+                let stamp = String(
+                    Int(
+                        instant.timeIntervalSince1970
+                            .rounded()
+                    )
+                )
+                return EventEarthRotationContextV1(
+                    earthOrientation:
+                        earthOrientation,
+                    eopID: "maximum-\(stamp)",
+                    eopSourceSHA256:
+                        "source-\(stamp)",
+                    eopRetrievedAt:
+                        "retrieved-\(stamp)",
+                    eopDUT1Quality: .predicted,
+                    eopPolarMotionQuality: .mixed,
+                    deltaTModel:
+                        "delta-\(stamp)",
+                    uncertainty:
+                        .iersReported(reported)
+                )
+            },
             eopID: "bundled-iers-eop-v1",
             heightMeters: 11,
             horizontalAccuracyMeters: 25,
@@ -944,7 +1388,9 @@ final class LocalEclipseSolversTests:
         minimumSeparationRadians: Double,
         sunRadiusRadians: Double,
         moonRadiusRadians: Double,
-        moonDistanceKilometers: Double
+        moonDistanceKilometers: Double,
+        directionRateRadiansPerSecond:
+            Double = 0.000_01
     ) -> (Double) async throws
         -> SolarDiscSampleV1
     {
@@ -957,7 +1403,9 @@ final class LocalEclipseSolversTests:
                         tan(
                             minimumSeparationRadians
                         ),
-                    z: seconds * 0.000_01
+                    z:
+                        seconds
+                        * directionRateRadiansPerSecond
                 ).normalized()
             )
             let sunDirection = Vector3D.unitX

@@ -318,6 +318,32 @@ describe("lunar-occultation geometry", () => {
     );
   });
 
+  it("resolves the Earth-rotation path envelope at closest approach", () => {
+    const candidate = Date.UTC(2100, 0, 1);
+    const physicalMaximum = candidate + 60_000;
+    const resolvedAt: number[] = [];
+    const result = solveLunarOccultationGeometry(
+      candidate,
+      syntheticPass(physicalMaximum, {
+        northOffsetRadians: 0,
+      }),
+      {
+        earthRotationPathUncertaintyKilometersAt: (date) => {
+          resolvedAt.push(date.getTime());
+          return 0.25;
+        },
+        halfWindowMilliseconds: 60 * 60 * 1_000,
+      },
+    );
+
+    expect(result?.earthRotationPathUncertaintyKilometers).toBe(0.25);
+    expect(resolvedAt).toHaveLength(1);
+    expect(resolvedAt[0]).toBeCloseTo(physicalMaximum, -1);
+    expect(Math.abs((resolvedAt[0] ?? 0) - candidate)).toBeGreaterThan(
+      50_000,
+    );
+  });
+
   it("supports cancellation and rejects non-finite or excessive ranges", () => {
     const center = Date.UTC(2028, 0, 1);
     let calls = 0;
@@ -475,7 +501,7 @@ describe("local lunar-occultation circumstances", () => {
         halfWindowMilliseconds: 15 * 60 * 1_000,
         scanStepMilliseconds: 10_000,
         horizontalAccuracyMeters: 5,
-        earthRotationPathUncertaintyKilometers: 2,
+        earthRotationPathUncertaintyKilometers: 0.000_465,
         timingUncertaintySeconds: 3,
       },
     );
@@ -502,7 +528,7 @@ describe("local lunar-occultation circumstances", () => {
       lunarOccultationBoundaryUncertaintyRadians(
         moonDistance,
         5,
-        2,
+        0.000_465,
       ) * moonDistance,
       9,
     );
@@ -536,10 +562,10 @@ describe("local lunar-occultation circumstances", () => {
     ).toContain("水平精度を境界帯");
     expect(
       result?.uncertainty.dominantContributors.join(" "),
-    ).toContain("地球回転の経路不確かさ");
+    ).toContain("地球回転・姿勢モデルの経路幅");
     expect(result?.warnings.join(" ")).toContain("参考予報");
     expect(result?.warnings.join(" ")).toContain("±11 km");
-    expect(result?.warnings.join(" ")).toContain("経路±2.00 km");
+    expect(result?.warnings.join(" ")).toContain("経路±0.47 m");
     expect(result?.warnings.join(" ")).toContain("総経路境界幅");
   });
 

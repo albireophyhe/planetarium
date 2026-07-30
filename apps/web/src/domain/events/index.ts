@@ -76,6 +76,7 @@ export type {
   EventEarthOrientationProvenance,
   EventEarthOrientationProvenanceOptions,
   EventEarthOrientationQuality,
+  EventEarthOrientationReportedUncertainty,
   EventEphemerisSearchOptions,
   EventEphemerisStateCoverage,
   EventEphemerisProvider,
@@ -90,6 +91,7 @@ export type {
   GeocentricEphemerisState,
   LocalCircumstances,
   LunarEclipseClassification,
+  LunarShadowGeometry,
   SolarEclipseClassification,
 } from "./types";
 export type {

@@ -313,6 +313,26 @@ final class SkyStore {
         selectedStarHR.flatMap { renderedStarsByHR[$0] }
     }
 
+    var selectedStarPointingPayload: String? {
+        guard let star = selectedStar,
+              let timeScales = currentTimeScales
+        else {
+            return nil
+        }
+        return StarPointingPayloadFormatter.payload(
+            for: star,
+            context: StarPointingPayloadContext(
+                observationDate: observationDate,
+                location: location,
+                timeScales: timeScales,
+                earthOrientationIdentifier:
+                    pointingEarthOrientationIdentifier,
+                refractionDescription:
+                    pointingRefractionDescription
+            )
+        )
+    }
+
     var selectedStarTrajectoryIsTruncated: Bool {
         guard showSelectedStarTrajectory,
               let first = selectedStarTrajectory.first,
@@ -767,16 +787,23 @@ final class SkyStore {
         name: String,
         latitude: Double,
         longitude: Double,
-        timeZoneIdentifier: String
+        timeZoneIdentifier: String,
+        heightMeters: Double = 0
     ) throws {
         location = try ObservationConstraints.validatedLocation(
             id: "custom",
             name: name,
             latitude: latitude,
             longitude: longitude,
-            timeZoneIdentifier: timeZoneIdentifier
+            timeZoneIdentifier: timeZoneIdentifier,
+            heightMeters: heightMeters
         )
-        statusMessage = "指定した地点へ移動しました。座標は保存・送信されません。"
+        let height = heightMeters.formatted(
+            .number.precision(.fractionLength(0...2))
+        )
+        statusMessage =
+            "指定した地点へ移動しました（WGS84楕円体高 \(height) m）。"
+            + "座標と楕円体高は保存・送信されません。"
         AppLog.ui.info("custom location applied")
     }
 
@@ -798,6 +825,8 @@ final class SkyStore {
                     longitude: fix.longitude,
                     timeZoneIdentifier:
                         TimeZone.current.identifier,
+                    heightMeters:
+                        fix.heightMeters ?? 0,
                     horizontalAccuracyMeters:
                         fix.horizontalAccuracyMeters
                 )
@@ -806,8 +835,19 @@ final class SkyStore {
                         "（水平精度 ±\(Int($0.rounded())) m）"
                     }
                     ?? ""
+                let altitudeText =
+                    fix.heightMeters.map {
+                        let height = Int($0.rounded())
+                        let accuracy =
+                            fix.verticalAccuracyMeters.map {
+                                "、垂直精度 ±\(Int($0.rounded())) m"
+                            }
+                            ?? ""
+                        return "（楕円体高 \(height) m\(accuracy)）"
+                    }
+                    ?? "（楕円体高は0 m近似）"
                 self.statusMessage =
-                    "現在地へ移動しました\(accuracyText)。"
+                    "現在地へ移動しました\(accuracyText)\(altitudeText)。"
                     + "座標は保存・送信されません。"
                 AppLog.location.info("location request succeeded")
             case let .failure(error):
@@ -1243,6 +1283,45 @@ final class SkyStore {
         currentTimeScales.flatMap {
             Astronomy.taiMinusUTCAssumptionV2(from: $0)
         }
+    }
+
+    private var pointingEarthOrientationIdentifier: String {
+        guard let estimate = currentEarthOrientationEstimate else {
+            return "未適用（DUT1=0 s、xp=yp=0の明示近似）"
+        }
+
+        let dut1Kind =
+            estimate.dut1.source == .observed
+            ? "observed"
+            : "predicted"
+        let polarMotionKind =
+            estimate.polarMotion.source == .observed
+            ? "observed"
+            : "predicted"
+
+        guard let source = iersEarthOrientationSourceSummary else {
+            return "IERS EOP（source IDなし、DUT1="
+                + dut1Kind
+                + "、xp/yp="
+                + polarMotionKind
+                + "）"
+        }
+
+        return source.title
+            + "; retrievedAt="
+            + source.retrievedAt
+            + "; sha256="
+            + source.sourceSha256
+            + "; DUT1="
+            + dut1Kind
+            + "; xp/yp="
+            + polarMotionKind
+    }
+
+    private var pointingRefractionDescription: String {
+        useStandardAtmosphericRefraction
+            ? "標準大気モデル（真空幾何高度5°以上で適用）"
+            : "なし（観測座標は真空幾何座標と同値）"
     }
 
     private func compactSeconds(_ seconds: Double) -> String {

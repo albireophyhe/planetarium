@@ -12,6 +12,8 @@ private struct LunarShadowSampleV1: Sendable {
 private struct LunarEclipseGeometryV1: Sendable {
     let classification: EclipseClassificationV1
     let maximum: LunarShadowSampleV1
+    let earthRotation:
+        EventEarthRotationContextV1
     let penumbralContacts: [LunarShadowSampleV1]
     let umbralContacts: [LunarShadowSampleV1]
     let totalContacts: [LunarShadowSampleV1]
@@ -211,6 +213,14 @@ public enum LocalLunarEclipseV1 {
         }
         let moonDiameter =
             2 * maximum.moon.angularRadiusRadians
+        let maximumEarthRotation =
+            try options.resolvedEventEarthRotation(
+                at: Date(
+                    timeIntervalSinceReferenceDate:
+                        maximum
+                        .secondsSinceReferenceDate
+                )
+            )
         let geometry = LunarEclipseGeometryV1(
             classification:
                 hasTotality
@@ -219,6 +229,7 @@ public enum LocalLunarEclipseV1 {
                     ? .partial
                     : .penumbral,
             maximum: maximum,
+            earthRotation: maximumEarthRotation,
             penumbralContacts:
                 try await endpointSamples(
                     penumbralTimes,
@@ -475,10 +486,10 @@ public enum LocalLunarEclipseV1 {
             throw LocalEclipseErrorV1
                 .contactsNotBracketed
         }
+        let maximumEarthRotation =
+            geometry.earthRotation
         let maximumEarthOrientation =
-            try options.resolvedEarthOrientation(
-                at: maximum.instantUTC
-            )
+            maximumEarthRotation.earthOrientation
         var contributors = [
             "Danjon法（影半径1.01倍）",
             "地球大気による影の境界は連続的",
@@ -486,6 +497,13 @@ public enum LocalLunarEclipseV1 {
         if maximumEarthOrientation.dut1Seconds == nil {
             contributors.append(
                 "UT1−UTCを0秒と仮定"
+            )
+        }
+        if maximumEarthRotation
+            .uncertainty.iersReported != nil
+        {
+            contributors.append(
+                "IERS公表誤差のDUT1・xp・yp成分を表示（地表経路の境界帯へは加算しない）"
             )
         }
         let timeScaleNotices =
@@ -501,7 +519,8 @@ public enum LocalLunarEclipseV1 {
         )
         contributors.append(
             contentsOf:
-                options.timeScaleContributors
+                maximumEarthRotation
+                .dominantContributors
         )
         return LocalEclipseCircumstancesV1(
             candidate: candidate,
@@ -523,13 +542,16 @@ public enum LocalLunarEclipseV1 {
             uncertainty: EclipseForecastUncertaintyV1(
                 tier: .uncertain,
                 timingSeconds:
-                    options
+                    maximumEarthRotation
                         .timingUncertaintySeconds
                     ?? 10,
                 pathKilometers: nil,
                 observerLocationMeters:
                     options
                         .horizontalAccuracyMeters,
+                earthOrientation:
+                    maximumEarthRotation
+                    .uncertainty.iersReported,
                 dominantContributors: contributors
             ),
             provenance: EclipseProvenanceV1(
@@ -538,16 +560,22 @@ public enum LocalLunarEclipseV1 {
                 ephemerisID: provider.id,
                 ephemerisSourceSHA256:
                     provider.sourceSHA256,
-                eopID: options.eopID,
+                eopID:
+                    maximumEarthRotation.eopID,
                 eopSourceSHA256:
-                    options.eopSourceSHA256,
+                    maximumEarthRotation
+                    .eopSourceSHA256,
                 eopRetrievedAt:
-                    options.eopRetrievedAt,
+                    maximumEarthRotation
+                    .eopRetrievedAt,
                 eopDUT1Quality:
-                    options.eopDUT1Quality,
+                    maximumEarthRotation
+                    .eopDUT1Quality,
                 eopPolarMotionQuality:
-                    options.eopPolarMotionQuality,
-                deltaTModel: options.deltaTModel,
+                    maximumEarthRotation
+                    .eopPolarMotionQuality,
+                deltaTModel:
+                    maximumEarthRotation.deltaTModel,
                 lunarRadiusModel:
                     "mean-spherical-limb",
                 limbProfileID: nil
@@ -558,7 +586,7 @@ public enum LocalLunarEclipseV1 {
                 "地形、建物、雲、視程は含みません。",
             ]
             + timeScaleNotices.warnings
-            + options.timeScaleWarnings
+            + maximumEarthRotation.warnings
         )
     }
 
@@ -591,6 +619,14 @@ public enum LocalLunarEclipseV1 {
         let contactPointIsAwayFromShadowCenter =
             phase == .lunarU2
             || phase == .lunarU3
+        let centerPositionAngleRadians =
+            EclipseContactPositionAngleV1
+            .radians(
+                referenceCenterDirection:
+                    sample.moon.cirsDirection,
+                otherCenterDirection:
+                    shadowCenterDirection
+            )
         return EclipseContactV1(
             phase: phase,
             instantUTC: Date(
@@ -604,6 +640,16 @@ public enum LocalLunarEclipseV1 {
                     pair.moon.angularRadiusRadians,
                 distanceKilometers:
                     pair.moon.distanceKilometers
+            ),
+            lunarShadow: LunarShadowGeometryV1(
+                centerSeparationRadians:
+                    sample.centerSeparationRadians,
+                centerPositionAngleRadians:
+                    centerPositionAngleRadians,
+                penumbralAngularRadiusRadians:
+                    sample.penumbralRadiusRadians,
+                umbralAngularRadiusRadians:
+                    sample.umbralRadiusRadians
             ),
             aboveHorizon:
                 moonHorizontal.altitude

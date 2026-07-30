@@ -107,19 +107,43 @@ enum SkyFormatting {
         return formatter.string(from: date)
     }
 
-    static func rightAscension(_ radians: Double) -> String {
-        AstronomicalFormatting.rightAscension(radians)
+    static func rightAscension(
+        _ radians: Double,
+        fractionDigits: Int = 1
+    ) -> String {
+        AstronomicalFormatting.rightAscension(
+            radians,
+            fractionDigits: fractionDigits
+        )
     }
 
-    static func declination(_ radians: Double) -> String {
-        AstronomicalFormatting.declination(radians)
+    static func declination(
+        _ radians: Double,
+        fractionDigits: Int = 1
+    ) -> String {
+        AstronomicalFormatting.declination(
+            radians,
+            fractionDigits: fractionDigits
+        )
     }
 
-    static func azimuth(_ radians: Double) -> String {
-        AstronomicalFormatting.azimuth(radians)
+    static func azimuth(
+        _ radians: Double,
+        fractionDigits: Int = 1
+    ) -> String {
+        AstronomicalFormatting.azimuth(
+            radians,
+            fractionDigits: fractionDigits
+        )
     }
 
-    static func azimuth(_ coordinates: HorizontalCoordinates) -> String {
-        AstronomicalFormatting.azimuth(coordinates)
+    static func azimuth(
+        _ coordinates: HorizontalCoordinates,
+        fractionDigits: Int = 1
+    ) -> String {
+        AstronomicalFormatting.azimuth(
+            coordinates,
+            fractionDigits: fractionDigits
+        )
     }
 }

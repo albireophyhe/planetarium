@@ -29,9 +29,31 @@ describe("astronomical formatting", () => {
     expect(formatDeclination(-1e-15)).toBe("+00° 00′ 00″");
   });
 
+  it("supports precision-pointing coordinate digits with carry", () => {
+    const rightAscensionHours =
+      12 + 34 / 60 + 56.789 / 3_600;
+    expect(
+      formatRightAscension(
+        (rightAscensionHours * Math.PI) / 12,
+        2,
+      ),
+    ).toBe("12h 34m 56.79s");
+
+    const declinationDegrees =
+      -(12 + 34 / 60 + 56.789 / 3_600);
+    expect(
+      formatDeclination(
+        (declinationDegrees * Math.PI) / 180,
+        1,
+      ),
+    ).toBe("−12° 34′ 56.8″");
+  });
+
   it("normalizes azimuth for labels and rounded full circles", () => {
     expect(formatAzimuthDegrees(359.7)).toBe("0°");
     expect(formatAzimuthDegrees(-45)).toBe("315°");
+    expect(formatAzimuthDegrees(359.9997, 3)).toBe("0.000°");
+    expect(formatAzimuthDegrees(-45.1254, 3)).toBe("314.875°");
     expect(azimuthCompassLabel(-45)).toBe("北西");
     expect(azimuthCompassLabel(360)).toBe("北");
   });
@@ -51,7 +73,9 @@ describe("astronomical formatting", () => {
 
   it("uses an explicit unavailable representation for non-finite values", () => {
     expect(formatRightAscension(Number.NaN)).toBe("—");
+    expect(formatRightAscension(1, 7)).toBe("—");
     expect(formatDeclination(Number.POSITIVE_INFINITY)).toBe("—");
+    expect(formatDeclination(1, -1)).toBe("—");
     expect(formatAzimuthDegrees(Number.NaN)).toBe("—");
     expect(formatDecimal(Number.NaN)).toBe("—");
     expect(formatDecimal(1, 7)).toBe("—");

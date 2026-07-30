@@ -18,23 +18,28 @@ import {
 import {
   calculateStarPosition,
   calculateApparentSunPositionWithContextV2,
-  cities,
   clampObservationDate,
-  constellations,
   formatZonedDateTime,
   formatZonedDateTimeInput,
   horizontalToProjection,
   loadIersEarthOrientationSnapshot,
-  namedStarByHR,
-  namedStars,
   radiansToDegrees,
-  stars,
   sunHorizontal,
   twilightPhase,
   type ApparentPositionOptionsV2,
   type IersEarthOrientationEstimateV1,
   type TwilightPhase,
 } from "../domain";
+import {
+  cities,
+  constellations,
+  namedStarByHR,
+  namedStars,
+} from "../domain/catalogMetadata";
+import {
+  renderStars,
+  requiredRenderStarHrs,
+} from "../domain/renderData";
 import { LocationDialog } from "../features/location/LocationDialog";
 import { LayerPanel } from "../features/settings/LayerPanel";
 import {
@@ -134,20 +139,9 @@ const CONSTELLATION_NAMES = new Map(
   ]),
 );
 
-const REQUIRED_RENDER_STAR_HRS = new Set<number>([
-  ...namedStars.map((star) => star.hr),
-  ...constellations.flatMap((constellation) =>
-    constellation.segments.flatMap(([startHr, endHr]) => [
-      startHr,
-      endHr,
-    ]),
-  ),
-]);
+const REQUIRED_RENDER_STAR_HRS = requiredRenderStarHrs;
 
-const FALLBACK_RENDER_STARS = selectRenderableStars(
-  stars,
-  REQUIRED_RENDER_STAR_HRS,
-);
+const FALLBACK_RENDER_STARS = renderStars;
 
 type DrawError = {
   message: string;
@@ -196,10 +190,21 @@ function cityToLocation(): ObserverLocation {
 function apparentPositionOptionsWithEarthOrientation(
   base: ApparentPositionOptionsV2,
   estimate: IersEarthOrientationEstimateV1 | null,
+  heightMeters: number,
 ): ApparentPositionOptionsV2 {
+  const observerBase: ApparentPositionOptionsV2 =
+    base.diurnalAberration === false
+      ? base
+      : {
+          ...base,
+          diurnalAberration: {
+            ...base.diurnalAberration,
+            heightMeters,
+          },
+        };
   if (!estimate) {
     return {
-      ...base,
+      ...observerBase,
       earthOrientation: {
         polarMotion: {
           source: "assumed-zero",
@@ -210,7 +215,7 @@ function apparentPositionOptionsWithEarthOrientation(
     };
   }
   return {
-    ...base,
+    ...observerBase,
     earthOrientation: {
       dut1Seconds: estimate.dut1.seconds,
       dut1Source:
@@ -382,10 +387,12 @@ export function App() {
     return apparentPositionOptionsWithEarthOrientation(
       base,
       currentEarthOrientationEstimate,
+      location.heightMeters,
     );
   }, [
     currentEarthOrientationEstimate,
     layers.atmosphericRefraction,
+    location.heightMeters,
   ]);
 
   const precisionFrame = useMemo(
@@ -427,6 +434,14 @@ export function App() {
           bvColor: star.bvColor,
           calculationModel: "v2" as const,
           diurnalAberrationMode: position.diurnalAberrationMode,
+          geometricAltitudeDeg: radiansToDegrees(
+            position.geometricHorizontal.altitude,
+          ),
+          geometricAzimuthDefined:
+            position.geometricHorizontal.azimuthDefined,
+          geometricAzimuthDeg: radiansToDegrees(
+            position.geometricHorizontal.azimuth,
+          ),
           hr: star.hr,
           parallaxArcsec: star.parallaxArcsec,
           pmDecArcsecPerYear: star.pmDecArcsecPerYear,
@@ -458,6 +473,14 @@ export function App() {
         bvColor: star.bvColor,
         calculationModel: "v1" as const,
         diurnalAberrationMode: null,
+        geometricAltitudeDeg: radiansToDegrees(
+          result.horizontal.altitude,
+        ),
+        geometricAzimuthDefined:
+          result.horizontal.azimuthDefined,
+        geometricAzimuthDeg: radiansToDegrees(
+          result.horizontal.azimuth,
+        ),
         hr: star.hr,
         parallaxArcsec: null,
         pmDecArcsecPerYear: null,
@@ -501,6 +524,10 @@ export function App() {
         diurnalAberrationMode: calculated.diurnalAberrationMode,
         englishName:
           named?.name ?? calculated.star.catalogName ?? `HR ${calculated.hr}`,
+        geometricAltitudeDeg: calculated.geometricAltitudeDeg,
+        geometricAzimuthDefined:
+          calculated.geometricAzimuthDefined,
+        geometricAzimuthDeg: calculated.geometricAzimuthDeg,
         hr: calculated.hr,
         japaneseName: fallbackName,
         parallaxArcsec: calculated.parallaxArcsec,
@@ -574,6 +601,7 @@ export function App() {
           date.getTime(),
           location.latitude,
           location.longitude,
+          location.heightMeters,
           location.timeZone,
           layers.atmosphericRefraction ? "refracted" : "geometric",
         ].join("|")
@@ -606,6 +634,7 @@ export function App() {
           await lookupIersEarthOrientationAt(sampleDate).catch(
             () => null,
           ),
+          location.heightMeters,
         ),
     )
       .then((track) => {
@@ -1105,6 +1134,8 @@ export function App() {
                 />
                 <StarDetails
                   earthOrientationEstimate={currentEarthOrientationEstimate}
+                  location={location}
+                  observationDate={date}
                   star={selectedStar}
                   timeScales={precisionFrame?.context.timeScales ?? null}
                 />

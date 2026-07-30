@@ -56,6 +56,7 @@ import type {
   EventBodyPosition,
   EventContact,
   EventEarthOrientationProvenanceOptions,
+  EventEarthOrientationReportedUncertainty,
   EventEphemerisSearchOptions,
   EventEphemerisProvider,
   EventObserverContext,
@@ -108,6 +109,7 @@ export interface LunarOccultationGeometry {
   readonly limbContacts: readonly LunarOccultationSample[];
   readonly minimumClearanceRadians: number;
   readonly boundaryUncertaintyRadians: number;
+  readonly earthRotationPathUncertaintyKilometers: number | null;
   readonly boundaryUncertain: boolean;
   readonly numericallyTangent: boolean;
 }
@@ -121,6 +123,15 @@ export interface LocalLunarOccultationOptions
     date: Date,
   ) => EarthOrientationOptions | undefined;
   readonly earthRotationPathUncertaintyKilometers?: number | null;
+  readonly earthRotationPathUncertaintyKilometersAt?: (
+    date: Date,
+  ) => number | null | undefined;
+  readonly earthOrientationReportedUncertainty?:
+    | EventEarthOrientationReportedUncertainty
+    | null;
+  readonly earthOrientationReportedUncertaintyAt?: (
+    date: Date,
+  ) => EventEarthOrientationReportedUncertainty | null | undefined;
   readonly eopId?: string;
   readonly heightMeters?: number;
   readonly horizontalAccuracyMeters?: number | null;
@@ -394,6 +405,7 @@ export function solveLunarOccultationGeometry(
   options: Pick<
     LocalLunarOccultationOptions,
     | "earthRotationPathUncertaintyKilometers"
+    | "earthRotationPathUncertaintyKilometersAt"
     | "halfWindowMilliseconds"
     | "horizontalAccuracyMeters"
     | "scanStepMilliseconds"
@@ -450,12 +462,22 @@ export function solveLunarOccultationGeometry(
   );
   checkCancelled(options.shouldCancel);
   const maximum = sampleAt(minimum.argument);
+  const maximumEarthRotationPathUncertaintyKilometers =
+    options.earthRotationPathUncertaintyKilometersAt
+      ? options.earthRotationPathUncertaintyKilometersAt(
+          new Date(maximum.instantMilliseconds),
+        )
+      : options.earthRotationPathUncertaintyKilometers;
+  validateOptionalUncertainty(
+    maximumEarthRotationPathUncertaintyKilometers,
+    "Earth-rotation path uncertainty at occultation maximum",
+  );
   const minimumClearanceRadians = clearance(maximum);
   const boundaryUncertaintyRadians =
     lunarOccultationBoundaryUncertaintyRadians(
       maximum.moon.distanceKilometers,
       options.horizontalAccuracyMeters,
-      options.earthRotationPathUncertaintyKilometers,
+      maximumEarthRotationPathUncertaintyKilometers,
     );
   if (minimumClearanceRadians > boundaryUncertaintyRadians) {
     return null;
@@ -472,6 +494,8 @@ export function solveLunarOccultationGeometry(
       limbContacts: Object.freeze([maximum]),
       minimumClearanceRadians,
       boundaryUncertaintyRadians,
+      earthRotationPathUncertaintyKilometers:
+        maximumEarthRotationPathUncertaintyKilometers ?? null,
       boundaryUncertain: true,
       numericallyTangent,
     };
@@ -516,6 +540,8 @@ export function solveLunarOccultationGeometry(
     ),
     minimumClearanceRadians,
     boundaryUncertaintyRadians,
+    earthRotationPathUncertaintyKilometers:
+      maximumEarthRotationPathUncertaintyKilometers ?? null,
     boundaryUncertain: false,
     numericallyTangent,
   };
@@ -533,6 +559,14 @@ export function lunarLimbPositionAngleRadians(
     moonDirection,
     targetDirection,
   );
+}
+
+function formatEarthRotationPathUncertainty(
+  kilometers: number,
+): string {
+  return kilometers < 0.01
+    ? `${(kilometers * 1_000).toFixed(2)} m`
+    : `${kilometers.toFixed(3)} km`;
 }
 
 function moonBodyPosition(
@@ -779,7 +813,10 @@ export function calculateLocalLunarOccultation(
     ephemerisId: ephemeris.id,
     ephemerisSourceSha256: ephemeris.sourceSha256,
     ...earthOrientationProvenance,
-    eopId: options.eopId ?? "caller-or-assumed",
+    eopId:
+      options.eopIdAt?.(maximum.instantUtc) ??
+      options.eopId ??
+      "caller-or-assumed",
     deltaTModel:
       options.deltaTModel ??
       "existing UTC-TAI-TT and caller DUT1",
@@ -792,6 +829,12 @@ export function calculateLocalLunarOccultation(
   const maximumEarthOrientation =
     options.earthOrientationAt?.(maximum.instantUtc) ??
     options.earthOrientation;
+  const maximumEarthOrientationReportedUncertainty =
+    options.earthOrientationReportedUncertaintyAt
+      ? options.earthOrientationReportedUncertaintyAt(
+          maximum.instantUtc,
+        ) ?? null
+      : options.earthOrientationReportedUncertainty ?? null;
   const timeScaleNotices = eventTimeScaleNotices(
     maximum.instantUtc,
     maximumEarthOrientation,
@@ -821,6 +864,8 @@ export function calculateLocalLunarOccultation(
       pathKilometers: boundaryEnvelopeKilometers,
       observerLocationMeters:
         options.horizontalAccuracyMeters ?? null,
+      earthOrientation:
+        maximumEarthOrientationReportedUncertainty,
       dominantContributors: Object.freeze([
         "BSC5P J2000 FK5恒星位置（星ごとの共分散なし、位置分解能2.5″を境界帯へ反映）",
         "平均球面月縁（LOLA・かぐや地形未使用、月地形±11 kmを境界帯へ反映）",
@@ -839,10 +884,9 @@ export function calculateLocalLunarOccultation(
         options.horizontalAccuracyMeters === undefined
           ? ["観測地点の水平精度が不明"]
           : ["観測地点の水平精度を境界帯へ線形加算"]),
-        ...(options.earthRotationPathUncertaintyKilometers === null ||
-        options.earthRotationPathUncertaintyKilometers === undefined
+        ...(geometry.earthRotationPathUncertaintyKilometers === null
           ? []
-          : ["ΔTによる地球回転の経路不確かさを境界帯へ線形加算"]),
+          : ["地球回転・姿勢モデルの経路幅を境界帯へ線形加算"]),
         "経路値は月地形・暦・星表・地点・地球回転を線形加算した総境界幅",
         ...timeScaleNotices.dominantContributors,
         ...(options.timeScaleContributors ?? []),
@@ -852,7 +896,7 @@ export function calculateLocalLunarOccultation(
     warnings: Object.freeze([
       "明るい恒星を対象にした参考予報です。精密な望遠鏡時刻測定には使用しないでください。",
       "潜入・出現は平均月縁との幾何学的接触で、月面地形による数秒規模の差を含みません。",
-      `境界判定は月地形±11 km、DE442s月位置係数量子化約24.5 m、BSC5P位置分解能2.5″、既知の観測地点水平精度${options.earthRotationPathUncertaintyKilometers === null || options.earthRotationPathUncertaintyKilometers === undefined ? "" : `、ΔTによる経路±${options.earthRotationPathUncertaintyKilometers.toFixed(2)} km`}を保守的に線形加算します。`,
+      `境界判定は月地形±11 km、DE442s月位置係数量子化約24.5 m、BSC5P位置分解能2.5″、既知の観測地点水平精度${geometry.earthRotationPathUncertaintyKilometers === null ? "" : `、地球回転・姿勢モデルによる経路±${formatEarthRotationPathUncertainty(geometry.earthRotationPathUncertaintyKilometers)}`}を保守的に線形加算します。`,
       `最接近時の総経路境界幅は約±${boundaryEnvelopeKilometers.toFixed(2)} kmです。`,
       "大気差、地形、建物、雲、視程は含みません。",
       ...(geometry.boundaryUncertain

@@ -227,14 +227,17 @@ export function formatZonedDateTime(
   }).format(date);
 }
 
-/** HTML datetime-local compatible value (minute precision). */
+/** HTML datetime-local compatible value (whole-second precision). */
 export function formatZonedDateTimeInput(
   date: Date,
   timeZone: string
 ): string {
-  const { year, month, day, hour, minute } = numericParts(date, timeZone);
+  const { year, month, day, hour, minute, second } = numericParts(
+    date,
+    timeZone
+  );
   const pad = (value: number): string => String(value).padStart(2, "0");
   return `${String(year).padStart(4, "0")}-${pad(month)}-${pad(day)}T${pad(
     hour
-  )}:${pad(minute)}`;
+  )}:${pad(minute)}:${pad(second)}`;
 }

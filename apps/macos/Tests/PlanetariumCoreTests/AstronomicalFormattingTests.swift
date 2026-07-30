@@ -17,6 +17,14 @@ final class AstronomicalFormattingTests: XCTestCase {
             ),
             "23h 00m 00.0s"
         )
+        XCTAssertEqual(
+            AstronomicalFormatting.rightAscension(
+                (23 + 59.0 / 60 + 59.996 / 3_600)
+                    * .pi / 12,
+                fractionDigits: 2
+            ),
+            "00h 00m 00.00s"
+        )
     }
 
     func testDeclinationCarriesRoundedSecondsIntoDegrees() {
@@ -31,6 +39,16 @@ final class AstronomicalFormattingTests: XCTestCase {
         XCTAssertEqual(
             AstronomicalFormatting.declination(-0.0),
             "+00° 00′ 00.0″"
+        )
+        XCTAssertEqual(
+            AstronomicalFormatting.declination(
+                Angles.radians(
+                    fromDegrees:
+                        -(12 + 59.0 / 60 + 59.996 / 3_600)
+                ),
+                fractionDigits: 2
+            ),
+            "−13° 00′ 00.00″"
         )
     }
 
@@ -50,6 +68,13 @@ final class AstronomicalFormattingTests: XCTestCase {
                 Angles.radians(fromDegrees: 359.96)
             ),
             "北 0.0°"
+        )
+        XCTAssertEqual(
+            AstronomicalFormatting.azimuth(
+                Angles.radians(fromDegrees: -45.1254),
+                fractionDigits: 3
+            ),
+            "北西 314.875°"
         )
     }
 

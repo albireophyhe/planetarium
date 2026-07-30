@@ -23,6 +23,7 @@ import type {
   EventBodyPosition,
   EventContact,
   EventEarthOrientationProvenanceOptions,
+  EventEarthOrientationReportedUncertainty,
   EventEphemerisSearchOptions,
   EventEphemerisProvider,
   EventObserverContext,
@@ -66,6 +67,12 @@ export interface LocalLunarEclipseOptions
     date: Date,
   ) => EarthOrientationOptions | undefined;
   readonly eopId?: string;
+  readonly earthOrientationReportedUncertainty?:
+    | EventEarthOrientationReportedUncertainty
+    | null;
+  readonly earthOrientationReportedUncertaintyAt?: (
+    date: Date,
+  ) => EventEarthOrientationReportedUncertainty | null | undefined;
   readonly heightMeters?: number;
   readonly horizontalAccuracyMeters?: number | null;
   readonly locationSource?: EventObserverContext["locationSource"];
@@ -396,10 +403,24 @@ export function calculateLocalLunarEclipse(
     );
     const contactPointIsAwayFromShadowCenter =
       phase === "lunar-u2" || phase === "lunar-u3";
+    const centerPositionAngleRadians =
+      eclipseContactPositionAngleRadians(
+        sample.moon.cirsDirection,
+        shadowCenterDirection,
+      );
     return {
       phase,
       instantUtc: new Date(sample.instantMilliseconds),
       bodies: { moon: moonBodyPosition(moon) },
+      lunarShadow: {
+        centerSeparationRadians:
+          sample.centerSeparationRadians,
+        centerPositionAngleRadians,
+        penumbralAngularRadiusRadians:
+          sample.penumbralRadiusRadians,
+        umbralAngularRadiusRadians:
+          sample.umbralRadiusRadians,
+      },
       aboveHorizon:
         moon.horizontal.altitude + moon.angularRadiusRadians > 0,
       positionAngleRadians:
@@ -513,7 +534,10 @@ export function calculateLocalLunarEclipse(
     ephemerisId: ephemeris.id,
     ephemerisSourceSha256: ephemeris.sourceSha256,
     ...earthOrientationProvenance,
-    eopId: options.eopId ?? "caller-or-assumed",
+    eopId:
+      options.eopIdAt?.(maximumDate) ??
+      options.eopId ??
+      "caller-or-assumed",
     deltaTModel:
       options.deltaTModel ??
       "existing UTC-TAI-TT and caller DUT1",
@@ -523,6 +547,12 @@ export function calculateLocalLunarEclipse(
   const maximumEarthOrientation =
     options.earthOrientationAt?.(maximumDate) ??
     options.earthOrientation;
+  const maximumEarthOrientationReportedUncertainty =
+    options.earthOrientationReportedUncertaintyAt
+      ? options.earthOrientationReportedUncertaintyAt(
+          maximumDate,
+        ) ?? null
+      : options.earthOrientationReportedUncertainty ?? null;
   const timeScaleNotices = eventTimeScaleNotices(
     maximumDate,
     maximumEarthOrientation,
@@ -553,6 +583,8 @@ export function calculateLocalLunarEclipse(
       pathKilometers: null,
       observerLocationMeters:
         options.horizontalAccuracyMeters ?? null,
+      earthOrientation:
+        maximumEarthOrientationReportedUncertainty,
       dominantContributors: Object.freeze([
         "Danjon法（影半径1.01倍）",
         "地球大気による影の境界は連続的",

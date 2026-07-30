@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "artifact": "shared/catalog/render-stars.v1.json",
+  "canonicalization": "UTF-8 JSON.stringify(catalog)",
+  "algorithm": "sha256",
+  "contentSha256": "9c3bcd041ad931c24005f8ecbf76fb3c0c273a92bbf3b9caa1861366a7752b5d",
+  "sourceCatalogContentSha256": "d80785e3c05206f2988a0369825a1cad6d0249784246c9050df449e816e54b42",
+  "starCount": 1630,
+  "firstHR": 3,
+  "lastHR": 9103
+}

@@ -9,6 +9,8 @@ struct SolarDiscSampleV1: Sendable {
 struct SolarEclipseGeometryV1: Sendable {
     let classification: EclipseClassificationV1
     let maximum: SolarDiscSampleV1
+    let earthRotation:
+        EventEarthRotationContextV1
     let externalContacts: [SolarDiscSampleV1]
     let internalContacts: [SolarDiscSampleV1]
     let magnitude: Double
@@ -307,6 +309,8 @@ public enum LocalSolarEclipseV1 {
             classification:
                 EclipseClassificationV1,
             maximum: SolarDiscSampleV1,
+            earthRotation:
+                EventEarthRotationContextV1,
             externalContacts:
                 [SolarDiscSampleV1],
             internalContacts:
@@ -325,6 +329,7 @@ public enum LocalSolarEclipseV1 {
             return SolarEclipseGeometryV1(
                 classification: classification,
                 maximum: maximum,
+                earthRotation: earthRotation,
                 externalContacts:
                     externalContacts,
                 internalContacts:
@@ -369,13 +374,21 @@ public enum LocalSolarEclipseV1 {
                         options.shouldCancel
                 )
         let maximum = try await sampleAt(maximumInstant)
+        let maximumEarthRotation =
+            try options.resolvedEventEarthRotation(
+                at: Date(
+                    timeIntervalSinceReferenceDate:
+                        maximum
+                        .secondsSinceReferenceDate
+                )
+            )
         let boundaryUncertainty =
             try boundaryUncertaintyRadians(
                 moonDistanceKilometers:
                     maximum.moon.distanceKilometers,
                 earthRotationPathUncertaintyKilometers:
-                    options
-                    .earthRotationPathUncertaintyKilometers,
+                    maximumEarthRotation
+                    .uncertainty.pathKilometers,
                 horizontalAccuracyMeters:
                     options.horizontalAccuracyMeters
             )
@@ -392,6 +405,8 @@ public enum LocalSolarEclipseV1 {
             return makeGeometry(
                 classification: .partial,
                 maximum: maximum,
+                earthRotation:
+                    maximumEarthRotation,
                 externalContacts: [maximum],
                 internalContacts: [],
                 hasInternalContacts: false,
@@ -438,11 +453,32 @@ public enum LocalSolarEclipseV1 {
             try await internalClearanceAt(
                 internalMinimum
             )
+        let internalMaximum =
+            try await sampleAt(internalMinimum)
+        let internalEarthRotation =
+            try options.resolvedEventEarthRotation(
+                at: Date(
+                    timeIntervalSinceReferenceDate:
+                        internalMaximum
+                        .secondsSinceReferenceDate
+                )
+            )
+        let internalBoundaryUncertainty =
+            try boundaryUncertaintyRadians(
+                moonDistanceKilometers:
+                    internalMaximum.moon
+                    .distanceKilometers,
+                earthRotationPathUncertaintyKilometers:
+                    internalEarthRotation
+                    .uncertainty.pathKilometers,
+                horizontalAccuracyMeters:
+                    options.horizontalAccuracyMeters
+            )
         let nominalHasInternalContacts =
             internalMinimumValue < 0
         let uncertainInternalBoundary =
             abs(internalMinimumValue)
-                <= boundaryUncertainty
+                <= internalBoundaryUncertainty
         let hasInternalContacts =
             nominalHasInternalContacts
                 && !uncertainInternalBoundary
@@ -478,6 +514,7 @@ public enum LocalSolarEclipseV1 {
         return makeGeometry(
             classification: classification,
             maximum: maximum,
+            earthRotation: maximumEarthRotation,
             externalContacts:
                 externalContacts,
             internalContacts:
@@ -488,7 +525,9 @@ public enum LocalSolarEclipseV1 {
             hasInternalContacts:
                 nominalHasInternalContacts,
             boundaryUncertaintyRadians:
-                boundaryUncertainty,
+                uncertainInternalBoundary
+                ? internalBoundaryUncertainty
+                : boundaryUncertainty,
             uncertainBoundary:
                 uncertainInternalBoundary
                 ? .partialCentral
@@ -558,10 +597,10 @@ public enum LocalSolarEclipseV1 {
                 )
             )
         }
+        let maximumEarthRotation =
+            geometry.earthRotation
         let maximumEarthOrientation =
-            try options.resolvedEarthOrientation(
-                at: maximum.instantUTC
-            )
+            maximumEarthRotation.earthOrientation
         let hasDUT1 =
             maximumEarthOrientation.dut1Seconds != nil
         var contributors = ["平均月縁（地形未使用）"]
@@ -579,12 +618,16 @@ public enum LocalSolarEclipseV1 {
                 "観測地点の水平精度を境界帯へ線形加算"
             )
         }
-        if options
-            .earthRotationPathUncertaintyKilometers
-            != nil
-        {
+        switch maximumEarthRotation.uncertainty {
+        case .none:
+            break
+        case .iersReported:
             contributors.append(
-                "ΔTによる地球回転の経路不確かさを境界帯へ線形加算"
+                "IERS公表誤差から換算した地表経路幅を境界帯へ1回だけ線形加算"
+            )
+        case .model:
+            contributors.append(
+                "地球回転・姿勢モデルによる経路幅を境界帯へ線形加算"
             )
         }
         contributors.append(
@@ -594,7 +637,7 @@ public enum LocalSolarEclipseV1 {
             try EventTimeScaleNoticesV1.resolve(
                 at: maximum.instantUTC,
                 earthOrientation:
-                    maximumEarthOrientation
+                maximumEarthOrientation
             )
         contributors.append(
             contentsOf:
@@ -603,7 +646,8 @@ public enum LocalSolarEclipseV1 {
         )
         contributors.append(
             contentsOf:
-                options.timeScaleContributors
+                maximumEarthRotation
+                .dominantContributors
         )
         return LocalEclipseCircumstancesV1(
             candidate: candidate,
@@ -622,7 +666,8 @@ public enum LocalSolarEclipseV1 {
             uncertainty: EclipseForecastUncertaintyV1(
                 tier: .uncertain,
                 timingSeconds:
-                    options.timingUncertaintySeconds,
+                    maximumEarthRotation
+                    .timingUncertaintySeconds,
                 pathKilometers:
                     geometry
                     .boundaryUncertaintyRadians
@@ -631,6 +676,9 @@ public enum LocalSolarEclipseV1 {
                 observerLocationMeters:
                     options
                         .horizontalAccuracyMeters,
+                earthOrientation:
+                    maximumEarthRotation
+                    .uncertainty.iersReported,
                 dominantContributors: contributors
             ),
             provenance: EclipseProvenanceV1(
@@ -639,16 +687,22 @@ public enum LocalSolarEclipseV1 {
                 ephemerisID: provider.id,
                 ephemerisSourceSHA256:
                     provider.sourceSHA256,
-                eopID: options.eopID,
+                eopID:
+                    maximumEarthRotation.eopID,
                 eopSourceSHA256:
-                    options.eopSourceSHA256,
+                    maximumEarthRotation
+                    .eopSourceSHA256,
                 eopRetrievedAt:
-                    options.eopRetrievedAt,
+                    maximumEarthRotation
+                    .eopRetrievedAt,
                 eopDUT1Quality:
-                    options.eopDUT1Quality,
+                    maximumEarthRotation
+                    .eopDUT1Quality,
                 eopPolarMotionQuality:
-                    options.eopPolarMotionQuality,
-                deltaTModel: options.deltaTModel,
+                    maximumEarthRotation
+                    .eopPolarMotionQuality,
+                deltaTModel:
+                    maximumEarthRotation.deltaTModel,
                 lunarRadiusModel:
                     "mean-spherical-limb",
                 limbProfileID: nil
@@ -670,7 +724,7 @@ public enum LocalSolarEclipseV1 {
                 geometry.uncertainBoundary
             )
             + timeScaleNotices.warnings
-            + options.timeScaleWarnings,
+            + maximumEarthRotation.warnings,
             uncertainBoundary:
                 geometry.uncertainBoundary
         )

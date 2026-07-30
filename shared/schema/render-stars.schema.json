@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planetarium.local/schema/render-stars.v1.json",
+  "title": "Planetarium Initial Render Star Catalog",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "purpose",
+    "epoch",
+    "units",
+    "columns",
+    "selection",
+    "source",
+    "stars"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "purpose": { "const": "web-initial-render-fallback" },
+    "epoch": { "const": "J2000.0" },
+    "units": {
+      "type": "object",
+      "required": ["ra", "dec", "vMagnitude", "bvColor"],
+      "properties": {
+        "ra": { "const": "radian" },
+        "dec": { "const": "radian" },
+        "vMagnitude": { "const": "mag" },
+        "bvColor": { "const": "mag" }
+      },
+      "additionalProperties": false
+    },
+    "columns": {
+      "type": "array",
+      "prefixItems": [
+        { "const": "hr" },
+        { "const": "hd" },
+        { "const": "raRad" },
+        { "const": "decRad" },
+        { "const": "vMagnitude" },
+        { "const": "bvColor" },
+        { "const": "catalogName" },
+        { "const": "spectralType" }
+      ],
+      "minItems": 8,
+      "maxItems": 8,
+      "items": false
+    },
+    "selection": {
+      "type": "object",
+      "required": ["algorithm", "magnitudeLimit", "requiredHrs"],
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": {
+          "const": "vMagnitude <= magnitudeLimit || requiredHrs.has(hr)"
+        },
+        "magnitudeLimit": { "const": 5 },
+        "requiredHrs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "catalogArtifact",
+        "catalogContentSha256",
+        "namedStarsArtifact",
+        "namedStarsContentSha256",
+        "constellationsArtifact",
+        "constellationsContentSha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "catalogArtifact": {
+          "const": "shared/catalog/bright-stars.v1.json"
+        },
+        "catalogContentSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "namedStarsArtifact": {
+          "const": "shared/catalog/star-names.v1.json"
+        },
+        "namedStarsContentSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "constellationsArtifact": {
+          "const": "shared/catalog/constellations.v1.json"
+        },
+        "constellationsContentSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "stars": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          { "type": "integer", "minimum": 1 },
+          {
+            "anyOf": [
+              { "type": "integer", "minimum": 1 },
+              { "type": "null" }
+            ]
+          },
+          {
+            "type": "number",
+            "minimum": 0,
+            "exclusiveMaximum": 6.283185307179586
+          },
+          {
+            "type": "number",
+            "minimum": -1.5707963267948966,
+            "maximum": 1.5707963267948966
+          },
+          { "type": "number", "minimum": -2, "maximum": 6.5 },
+          {
+            "anyOf": [
+              { "type": "number" },
+              { "type": "null" }
+            ]
+          },
+          {
+            "anyOf": [
+              { "type": "string", "minLength": 1 },
+              { "type": "null" }
+            ]
+          },
+          {
+            "anyOf": [
+              { "type": "string", "minLength": 1 },
+              { "type": "null" }
+            ]
+          }
+        ],
+        "minItems": 8,
+        "maxItems": 8,
+        "items": false
+      }
+    }
+  }
+}

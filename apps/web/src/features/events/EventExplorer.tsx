@@ -31,6 +31,7 @@ import type {
   EventVisibility,
   LocalCircumstances,
 } from "../../domain/events/types";
+import { EventScene } from "./EventScene";
 
 export type EventExplorerStatus =
   | "loading"
@@ -696,6 +697,8 @@ function EventDetails({
   const titleId = useId();
   const safetyTitleId = useId();
   const maximumActionRef = useRef<HTMLButtonElement>(null);
+  const [sceneSample, setSceneSample] =
+    useState<EventContact | null>(null);
   const [actionAnnouncement, setActionAnnouncement] = useState<{
     id: number;
     text: string;
@@ -734,6 +737,7 @@ function EventDetails({
     }));
   };
   const showContactOnSky = (contact: EventContact) => {
+    setSceneSample(contact);
     onGoToContact(contact);
     announceAction(
       `観測日時を${formatDateTime(contact.instantUtc, localTimeZone)}に変更しました。元の日時に戻せます。`,
@@ -856,10 +860,16 @@ function EventDetails({
         ) : null}
       </dl>
 
+      <EventScene
+        circumstances={circumstances}
+        sample={sceneSample}
+      />
+
       <div className="event-details__primary-actions">
         <button
           className="event-action event-action--primary"
           onClick={() => {
+            setSceneSample(null);
             onGoToMaximum(circumstances.maximum);
             announceAction(
               `観測日時を${formatDateTime(circumstances.maximum.instantUtc, localTimeZone)}に変更しました。元の日時に戻せます。`,
@@ -875,6 +885,7 @@ function EventDetails({
           <button
             className="event-action event-action--secondary"
             onClick={() => {
+              setSceneSample(null);
               onRestoreObservationTime();
               announceAction("元の観測日時に戻しました。");
               maximumActionRef.current?.focus();
@@ -971,6 +982,42 @@ function EventDetails({
               )}
             </dd>
           </div>
+          {uncertainty.earthOrientation ? (
+            <>
+              <div>
+                <dt>IERS DUT1公表誤差</dt>
+                <dd>
+                  {formatOptionalNumber(
+                    uncertainty.earthOrientation
+                      .dut1ReportedErrorSeconds,
+                    "秒",
+                    6,
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>IERS地表経路成分</dt>
+                <dd>
+                  {formatOptionalNumber(
+                    uncertainty.earthOrientation.combinedPathMeters,
+                    " m",
+                    2,
+                  )}
+                  <small>
+                    DUT1{" "}
+                    {uncertainty.earthOrientation.dut1PathMeters.toFixed(
+                      2,
+                    )}{" "}
+                    m ＋ xp/yp{" "}
+                    {uncertainty.earthOrientation.polarMotionPathMeters.toFixed(
+                      2,
+                    )}{" "}
+                    m
+                  </small>
+                </dd>
+              </div>
+            </>
+          ) : null}
         </dl>
         {uncertainty.dominantContributors.length > 0 ? (
           <div className="event-accuracy__contributors">

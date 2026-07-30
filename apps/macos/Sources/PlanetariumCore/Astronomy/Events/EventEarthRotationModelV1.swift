@@ -16,6 +16,33 @@ public struct EventEarthRotationFallbackV1:
     public let warnings: [String]
 }
 
+public struct EventEOPReportedUncertaintyV1:
+    Hashable, Sendable
+{
+    public let dut1ReportedErrorSeconds: Double
+    public let dut1PathMeters: Double
+    public let polarMotionPathMeters: Double
+    public let combinedPathMeters: Double
+    public let semantics: String
+
+    public init(
+        dut1ReportedErrorSeconds: Double,
+        dut1PathMeters: Double,
+        polarMotionPathMeters: Double,
+        combinedPathMeters: Double,
+        semantics: String =
+            "iers-reported-error-linear-envelope"
+    ) {
+        self.dut1ReportedErrorSeconds =
+            dut1ReportedErrorSeconds
+        self.dut1PathMeters = dut1PathMeters
+        self.polarMotionPathMeters =
+            polarMotionPathMeters
+        self.combinedPathMeters = combinedPathMeters
+        self.semantics = semantics
+    }
+}
+
 public enum EventEarthRotationModelErrorV1:
     LocalizedError,
     Equatable,
@@ -35,6 +62,8 @@ public enum EventEarthRotationModelV1 {
     private static let ttMinusTAISeconds = 32.184
     private static let earthEquatorialRotationKilometersPerSecond =
         0.465_101_1
+    private static let earthEquatorialRadiusKilometers =
+        6_378.137
     private static let nasaDeltaTLunarAcceleration =
         -26.0
     private static let de44xLunarAcceleration =
@@ -57,6 +86,45 @@ public enum EventEarthRotationModelV1 {
 
     private static let eopAnchorReportedErrorSeconds =
         0.025_410
+
+    /**
+     Converts IERS error columns into an explicit linear surface envelope.
+
+     The source does not define a confidence level or covariance for these
+     columns, so this value is not a statistical sigma or total event error.
+     */
+    public static func reportedUncertainty(
+        for estimate: IERSEarthOrientationEstimateV1
+    ) -> EventEOPReportedUncertaintyV1 {
+        let dut1Seconds =
+            abs(estimate.dut1.uncertaintySeconds)
+        let dut1PathMeters =
+            dut1Seconds
+            * earthEquatorialRotationKilometersPerSecond
+            * 1_000
+        let polarMotionPathMeters =
+            (
+                abs(
+                    estimate.polarMotion
+                        .xpReportedErrorRadians
+                )
+                + abs(
+                    estimate.polarMotion
+                        .ypReportedErrorRadians
+                )
+            )
+            * earthEquatorialRadiusKilometers
+            * 1_000
+        return EventEOPReportedUncertaintyV1(
+            dut1ReportedErrorSeconds: dut1Seconds,
+            dut1PathMeters: dut1PathMeters,
+            polarMotionPathMeters:
+                polarMotionPathMeters,
+            combinedPathMeters:
+                dut1PathMeters
+                + polarMotionPathMeters
+        )
+    }
 
     /**
      Decimal-year convention used by NASA's ΔT polynomials:

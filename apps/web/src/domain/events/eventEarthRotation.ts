@@ -2,9 +2,12 @@ import {
   resolveTimeScales,
   type EarthOrientationOptions,
 } from "../precision";
+import type { IersEarthOrientationEstimateV1 } from "../earthOrientation";
+import type { EventEarthOrientationReportedUncertainty } from "./types";
 
 const TT_MINUS_TAI_SECONDS = 32.184;
 const EARTH_EQUATORIAL_ROTATION_KILOMETERS_PER_SECOND = 0.465_101_1;
+const EARTH_EQUATORIAL_RADIUS_KILOMETERS = 6_378.137;
 const NASA_DELTA_T_LUNAR_ACCELERATION_ARCSECONDS_PER_CENTURY_SQUARED =
   -26;
 const DE44X_LUNAR_ACCELERATION_ARCSECONDS_PER_CENTURY_SQUARED =
@@ -44,6 +47,52 @@ export type EventEarthRotationFallback = {
   readonly dominantContributors: readonly string[];
   readonly warnings: readonly string[];
 };
+
+/**
+ * Converts the IERS-published error columns into explicit event components.
+ *
+ * The source does not define these columns as a statistical sigma and does
+ * not publish covariance here, so absolute xp/yp surface displacements are
+ * added linearly to the DUT1 equatorial displacement.
+ */
+export function eventEarthOrientationReportedUncertainty(
+  estimate: IersEarthOrientationEstimateV1,
+): EventEarthOrientationReportedUncertainty {
+  const dut1ReportedErrorSeconds = Math.abs(
+    estimate.dut1.reportedErrorSeconds,
+  );
+  const xpReportedErrorRadians = Math.abs(
+    estimate.polarMotion.xpReportedErrorRadians,
+  );
+  const ypReportedErrorRadians = Math.abs(
+    estimate.polarMotion.ypReportedErrorRadians,
+  );
+  if (
+    !Number.isFinite(dut1ReportedErrorSeconds) ||
+    !Number.isFinite(xpReportedErrorRadians) ||
+    !Number.isFinite(ypReportedErrorRadians)
+  ) {
+    throw new RangeError(
+      "IERS reported errors must be finite",
+    );
+  }
+  const dut1PathMeters =
+    dut1ReportedErrorSeconds *
+    EARTH_EQUATORIAL_ROTATION_KILOMETERS_PER_SECOND *
+    1_000;
+  const polarMotionPathMeters =
+    (xpReportedErrorRadians + ypReportedErrorRadians) *
+    EARTH_EQUATORIAL_RADIUS_KILOMETERS *
+    1_000;
+  return Object.freeze({
+    dut1ReportedErrorSeconds,
+    dut1PathMeters,
+    polarMotionPathMeters,
+    combinedPathMeters:
+      dut1PathMeters + polarMotionPathMeters,
+    semantics: "iers-reported-error-linear-envelope",
+  });
+}
 
 function assertValidDate(date: Date): void {
   if (!Number.isFinite(date.getTime())) {

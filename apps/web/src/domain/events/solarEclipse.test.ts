@@ -112,6 +112,29 @@ describe("solar-eclipse geometry", () => {
     expect(result?.obscuration).toBeLessThan(1);
   });
 
+  it("resolves the Earth-rotation path envelope at the solved maximum", () => {
+    const candidate = Date.UTC(2027, 1, 6, 16);
+    const physicalMaximum = candidate + 60_000;
+    const resolvedAt: number[] = [];
+    const result = solveSolarEclipseGeometry(
+      candidate,
+      linearPass(physicalMaximum, 0.004_8),
+      {
+        earthRotationPathUncertaintyKilometersAt: (date) => {
+          resolvedAt.push(date.getTime());
+          return 5;
+        },
+        halfWindowMilliseconds: 2 * 60 * 60 * 1_000,
+      },
+    );
+
+    expect(result?.earthRotationPathUncertaintyKilometers).toBe(5);
+    expect(resolvedAt[0]).toBeCloseTo(physicalMaximum, -1);
+    expect(Math.abs((resolvedAt[0] ?? 0) - candidate)).toBeGreaterThan(
+      50_000,
+    );
+  });
+
   it("brackets a sub-scan-step central phase near the path edge", () => {
     const candidate = Date.UTC(2039, 5, 21, 17);
     const physicalCenter = candidate + 60_000;

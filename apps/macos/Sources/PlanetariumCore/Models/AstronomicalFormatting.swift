@@ -30,48 +30,84 @@ public enum AstronomicalFormatting {
         )
     }
 
-    public static func rightAscension(_ radians: Double) -> String {
+    public static func rightAscension(
+        _ radians: Double,
+        fractionDigits requestedFractionDigits: Int = 1
+    ) -> String {
         guard radians.isFinite else { return "—" }
-        let tenthsPerDay = 24 * 60 * 60 * 10
-        let rawTenths = (
-            Angles.normalizedRadians(radians) * 12 / .pi * 60 * 60 * 10
+        let fractionDigits =
+            min(max(requestedFractionDigits, 0), 9)
+        let scale = Int(pow(10, Double(fractionDigits)))
+        let unitsPerDay = 24 * 60 * 60 * scale
+        let rawUnits = (
+            Angles.normalizedRadians(radians) * 12 / .pi * 60 * 60
+                * Double(scale)
         ).rounded()
-        let totalTenths = Int(rawTenths) % tenthsPerDay
-        let hours = totalTenths / (60 * 60 * 10)
-        let minutes = totalTenths / (60 * 10) % 60
-        let seconds = Double(totalTenths % (60 * 10)) / 10
-        return String(format: "%02dh %02dm %04.1fs", hours, minutes, seconds)
-    }
-
-    public static func declination(_ radians: Double) -> String {
-        guard radians.isFinite else { return "—" }
-        let degreesValue = Angles.degrees(fromRadians: radians)
-        let rawTenths = (abs(degreesValue) * 60 * 60 * 10).rounded()
-        guard rawTenths <= Double(Int.max) else { return "—" }
-
-        let totalTenths = Int(rawTenths)
-        let sign = degreesValue < 0 ? "−" : "+"
-        let degrees = totalTenths / (60 * 60 * 10)
-        let minutes = totalTenths / (60 * 10) % 60
-        let seconds = Double(totalTenths % (60 * 10)) / 10
+        let totalUnits = Int(rawUnits) % unitsPerDay
+        let hours = totalUnits / (60 * 60 * scale)
+        let minutes = totalUnits / (60 * scale) % 60
+        let seconds =
+            Double(totalUnits % (60 * scale)) / Double(scale)
+        let secondsWidth =
+            fractionDigits == 0 ? 2 : fractionDigits + 3
         return String(
-            format: "%@%02d° %02d′ %04.1f″",
-            sign,
-            degrees,
+            format: "%02dh %02dm %0*.*fs",
+            hours,
             minutes,
+            secondsWidth,
+            fractionDigits,
             seconds
         )
     }
 
-    public static func azimuth(_ radians: Double) -> String {
+    public static func declination(
+        _ radians: Double,
+        fractionDigits requestedFractionDigits: Int = 1
+    ) -> String {
         guard radians.isFinite else { return "—" }
-        let tenthsPerCircle = 360 * 10
-        let roundedTenths = Int(
+        let fractionDigits =
+            min(max(requestedFractionDigits, 0), 9)
+        let scale = Int(pow(10, Double(fractionDigits)))
+        let degreesValue = Angles.degrees(fromRadians: radians)
+        let rawUnits = (
+            abs(degreesValue) * 60 * 60 * Double(scale)
+        ).rounded()
+        guard rawUnits <= Double(Int.max) else { return "—" }
+
+        let totalUnits = Int(rawUnits)
+        let sign = degreesValue < 0 ? "−" : "+"
+        let degrees = totalUnits / (60 * 60 * scale)
+        let minutes = totalUnits / (60 * scale) % 60
+        let seconds =
+            Double(totalUnits % (60 * scale)) / Double(scale)
+        let secondsWidth =
+            fractionDigits == 0 ? 2 : fractionDigits + 3
+        return String(
+            format: "%@%02d° %02d′ %0*.*f″",
+            sign,
+            degrees,
+            minutes,
+            secondsWidth,
+            fractionDigits,
+            seconds
+        )
+    }
+
+    public static func azimuth(
+        _ radians: Double,
+        fractionDigits requestedFractionDigits: Int = 1
+    ) -> String {
+        guard radians.isFinite else { return "—" }
+        let fractionDigits =
+            min(max(requestedFractionDigits, 0), 9)
+        let scale = Int(pow(10, Double(fractionDigits)))
+        let unitsPerCircle = 360 * scale
+        let roundedUnits = Int(
             (Angles.normalizedDegrees(
                 Angles.degrees(fromRadians: radians)
-            ) * 10).rounded()
-        ) % tenthsPerCircle
-        let degrees = Double(roundedTenths) / 10
+            ) * Double(scale)).rounded()
+        ) % unitsPerCircle
+        let degrees = Double(roundedUnits) / Double(scale)
 
         let direction: String
         switch degrees {
@@ -84,11 +120,24 @@ public enum AstronomicalFormatting {
         case 292.5..<337.5: direction = "北西"
         default: direction = "北"
         }
-        return "\(direction) \(String(format: "%.1f", degrees))°"
+        return direction
+            + " "
+            + String(
+                format: "%.*f",
+                fractionDigits,
+                degrees
+            )
+            + "°"
     }
 
-    public static func azimuth(_ coordinates: HorizontalCoordinates) -> String {
+    public static func azimuth(
+        _ coordinates: HorizontalCoordinates,
+        fractionDigits: Int = 1
+    ) -> String {
         guard coordinates.azimuthIsDefined else { return "不定" }
-        return azimuth(coordinates.azimuth)
+        return azimuth(
+            coordinates.azimuth,
+            fractionDigits: fractionDigits
+        )
     }
 }

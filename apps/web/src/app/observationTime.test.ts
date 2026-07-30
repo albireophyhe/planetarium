@@ -9,16 +9,16 @@ import {
 describe("observation time UI safeguards", () => {
   it("provides timezone-local input bounds for the supported instants", () => {
     expect(observationInputRange("UTC")).toEqual({
-      maximum: "2100-12-31T23:59",
-      minimum: "1900-01-01T00:00",
+      maximum: "2100-12-31T23:59:59",
+      minimum: "1900-01-01T00:00:00",
     });
   });
 
   it.each([
-    ["Europe/Paris", "1900-01-01T00:10", "1900-01-01T00:09"],
-    ["Asia/Colombo", "1900-01-01T05:20", "1900-01-01T05:19"],
+    ["Europe/Paris", "1900-01-01T00:09:21", "1900-01-01T00:09:20"],
+    ["Asia/Colombo", "1900-01-01T05:19:32", "1900-01-01T05:19:31"],
   ])(
-    "ceils the minimum local minute for historical sub-minute offsets in %s",
+    "preserves the minimum local second for historical sub-minute offsets in %s",
     (timeZone, expectedMinimum, precedingMinute) => {
       const range = observationInputRange(timeZone);
       expect(range.minimum).toBe(expectedMinimum);

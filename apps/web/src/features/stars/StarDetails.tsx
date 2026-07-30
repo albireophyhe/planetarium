@@ -1,5 +1,9 @@
+import { useState } from "react";
 import { ChevronDownIcon } from "lucide-react";
-import type { StarViewModel } from "../../app/types";
+import type {
+  ObserverLocation,
+  StarViewModel,
+} from "../../app/types";
 import type {
   IersEarthOrientationEstimateV1,
   ResolvedTimeScales,
@@ -12,9 +16,12 @@ import {
   formatRightAscension,
   formatSignedDegrees,
 } from "../../app/astronomicalFormatting";
+import { buildStarPointingPayload } from "./starPointingPayload";
 
 type StarDetailsProps = {
   earthOrientationEstimate?: IersEarthOrientationEstimateV1 | null;
+  location?: ObserverLocation | null;
+  observationDate?: Date | null;
   star: StarViewModel | null;
   timeScales?: ResolvedTimeScales | null;
 };
@@ -82,7 +89,7 @@ function annualParallaxLabel(star: StarViewModel) {
 function diurnalAberrationLabel(star: StarViewModel) {
   switch (star.diurnalAberrationMode) {
     case "wgs84-observer":
-      return "適用（WGS84楕円体高0 m仮定）";
+      return "適用（WGS84・選択地点の標高）";
     case "disabled":
       return "無効";
     case null:
@@ -188,16 +195,25 @@ function positionAccuracySummary(
     earthOrientationEstimate &&
     timeScales?.dut1Source.startsWith("iers-")
   ) {
-    return "星表の格納分解能から見た目安として、IERS収録期間内では概ね1〜数秒角級です（全恒星への保証値ではありません）。これは星表・真空計算部分の目安で、地点・時計・実際の大気との差は別です。";
+    return "BSC5Pの格納分解能から見た真空中の通常目安として、IERS収録期間内では概ね1〜数秒角級です。全恒星の実測精度を保証する値ではありません。地点・時計の誤差や、大気差ON時の表示高度は別です。";
   }
-  return "IERS収録外または未取得です。DUT1=0秒・xp/yp=0近似を使います。現行の整数うるう秒UTCが維持される期間では、DUT1だけで時角に最大約13.5秒角相当が加わり得ます。1972年以前と将来のUTC制度は別の時刻系近似も含みます。これは星表・真空計算部分の目安で、地点・時計・実際の大気との差は別です。";
+  return "IERS収録外または未取得です。DUT1=0秒・xp/yp=0近似を使います。時角の最大約13.5秒角は、現行の整数うるう秒UTCを前提にしたDUT1だけの条件付き目安です。xp/yp=0による方向差も、同梱履歴では最大約0.6秒角です。1972年以前はTAI−UTC=0秒、将来は既知最後の37秒を仮定するUTC近似を含みます。地点・時計の誤差や、大気差ON時の表示高度は別です。";
 }
 
 export function StarDetails({
   earthOrientationEstimate = null,
+  location = null,
+  observationDate = null,
   star,
   timeScales = null,
 }: StarDetailsProps) {
+  const [copyResult, setCopyResult] = useState<{
+    hr: number;
+    status: "copied" | "error";
+  } | null>(null);
+  const copyStatus =
+    star && copyResult?.hr === star.hr ? copyResult.status : null;
+
   if (!star) {
     return (
       <section className="star-details star-details--empty">
@@ -230,11 +246,11 @@ export function StarDetails({
 
       <dl className="star-details__metrics">
         <div>
-          <dt>高度</dt>
-          <dd>{formatSignedDegrees(star.altitudeDeg, 0)}</dd>
+          <dt>高度（計算値）</dt>
+          <dd>{formatSignedDegrees(star.altitudeDeg, 3)}</dd>
         </div>
         <div>
-          <dt>方位</dt>
+          <dt>方位（計算値）</dt>
           <dd>
             {star.azimuthDefined
               ? azimuthCompassLabel(star.azimuthDeg)
@@ -242,7 +258,7 @@ export function StarDetails({
           </dd>
           <span>
             {star.azimuthDefined
-              ? formatAzimuthDegrees(star.azimuthDeg)
+              ? formatAzimuthDegrees(star.azimuthDeg, 3)
               : "天頂または天底"}
           </span>
         </div>
@@ -261,27 +277,99 @@ export function StarDetails({
           赤経は天球上の東西方向を時間で、赤緯は天の赤道からの南北角を示します。
           「見かけ（観測日）」は選択した日時の空へ変換した座標、
           J2000.0は2000年1月1.5日を基準にした星表座標です。
+          上の概要は0.001°、以下の精密読み出しは0.000001°単位です。
+          桁数は計算条件の転記・比較用であり、実測精度の保証ではありません。
         </p>
+        {observationDate && location ? (
+          <div className="star-details__pointing-copy">
+            <button
+              className="button button--secondary"
+              onClick={async () => {
+                const payload = buildStarPointingPayload({
+                  earthOrientationEstimate,
+                  location,
+                  observationDate,
+                  star,
+                  timeScales,
+                });
+                try {
+                  if (!navigator.clipboard?.writeText) {
+                    throw new Error("Clipboard API is unavailable");
+                  }
+                  await navigator.clipboard.writeText(payload);
+                  setCopyResult({
+                    hr: star.hr,
+                    status: "copied",
+                  });
+                } catch {
+                  setCopyResult({
+                    hr: star.hr,
+                    status: "error",
+                  });
+                }
+              }}
+              type="button"
+            >
+              導入用データをコピー
+            </button>
+            <span aria-live="polite" role="status">
+              {copyStatus === "copied"
+                ? "コピーしました"
+                : copyStatus === "error"
+                  ? "コピーできませんでした"
+                  : ""}
+            </span>
+          </div>
+        ) : null}
         <dl className="star-details__secondary">
           {star.apparentRaRad !== null ? (
             <div>
               <dt>見かけ赤経（観測日）</dt>
-              <dd>{formatRightAscension(star.apparentRaRad)}</dd>
+              <dd>{formatRightAscension(star.apparentRaRad, 2)}</dd>
             </div>
           ) : null}
           {star.apparentDecRad !== null ? (
             <div>
               <dt>見かけ赤緯（観測日）</dt>
-              <dd>{formatDeclination(star.apparentDecRad)}</dd>
+              <dd>{formatDeclination(star.apparentDecRad, 1)}</dd>
             </div>
           ) : null}
           <div>
+            <dt>幾何高度（真空）</dt>
+            <dd>
+              {formatSignedDegrees(star.geometricAltitudeDeg, 6)}
+            </dd>
+          </div>
+          <div>
+            <dt>幾何方位（真空）</dt>
+            <dd>
+              {star.geometricAzimuthDefined
+                ? formatAzimuthDegrees(
+                    star.geometricAzimuthDeg,
+                    6,
+                  )
+                : "不定（天頂または天底）"}
+            </dd>
+          </div>
+          <div>
+            <dt>観測高度（大気差設定反映）</dt>
+            <dd>{formatSignedDegrees(star.altitudeDeg, 6)}</dd>
+          </div>
+          <div>
+            <dt>観測方位（大気差設定反映）</dt>
+            <dd>
+              {star.azimuthDefined
+                ? formatAzimuthDegrees(star.azimuthDeg, 6)
+                : "不定（天頂または天底）"}
+            </dd>
+          </div>
+          <div>
             <dt>赤経（J2000.0）</dt>
-            <dd>{formatRightAscension(star.raRad)}</dd>
+            <dd>{formatRightAscension(star.raRad, 2)}</dd>
           </div>
           <div>
             <dt>赤緯（J2000.0）</dt>
-            <dd>{formatDeclination(star.decRad)}</dd>
+            <dd>{formatDeclination(star.decRad, 1)}</dd>
           </div>
           <div>
             <dt>星座</dt>

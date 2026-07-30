@@ -173,6 +173,8 @@ struct LunarOccultationSampleV1: Sendable {
 
 struct LunarOccultationGeometryV1: Sendable {
     let maximum: LunarOccultationSampleV1
+    let earthRotation:
+        EventEarthRotationContextV1
     let limbContacts: [LunarOccultationSampleV1]
     let minimumClearanceRadians: Double
     let boundaryUncertaintyRadians: Double
@@ -319,7 +321,8 @@ public enum LocalLunarOccultationV1 {
                 location: location,
                 options: options
             )
-        if let timingUncertainty =
+        if options.eventEarthRotationAt == nil,
+           let timingUncertainty =
             options.timingUncertaintySeconds
         {
             guard timingUncertainty.isFinite,
@@ -640,6 +643,25 @@ public enum LocalLunarOccultationV1 {
             .checkCancellation(options.shouldCancel)
         let maximum = try await sampleAt(maximumInstant)
         let minimumClearance = try clearance(maximum)
+        let maximumEarthRotation =
+            try options.resolvedEventEarthRotation(
+                at: Date(
+                    timeIntervalSinceReferenceDate:
+                        maximum
+                        .secondsSinceReferenceDate
+                )
+            )
+        if let timingUncertainty =
+            maximumEarthRotation
+            .timingUncertaintySeconds
+        {
+            guard timingUncertainty.isFinite,
+                  timingUncertainty >= 0
+            else {
+                throw LocalLunarOccultationErrorV1
+                    .invalidTimingUncertainty
+            }
+        }
         let boundaryUncertainty =
             try boundaryUncertaintyRadians(
                 moonDistanceKilometers:
@@ -647,8 +669,8 @@ public enum LocalLunarOccultationV1 {
                 horizontalAccuracyMeters:
                     options.horizontalAccuracyMeters,
                 earthRotationPathUncertaintyKilometers:
-                    options
-                    .earthRotationPathUncertaintyKilometers
+                    maximumEarthRotation
+                    .uncertainty.pathKilometers
             )
         guard minimumClearance
             <= boundaryUncertainty
@@ -664,6 +686,8 @@ public enum LocalLunarOccultationV1 {
         if boundaryUncertain {
             return LunarOccultationGeometryV1(
                 maximum: maximum,
+                earthRotation:
+                    maximumEarthRotation,
                 limbContacts: [maximum],
                 minimumClearanceRadians:
                     minimumClearance,
@@ -736,6 +760,7 @@ public enum LocalLunarOccultationV1 {
                 )
         return LunarOccultationGeometryV1(
             maximum: maximum,
+            earthRotation: maximumEarthRotation,
             limbContacts: [
                 try await sampleAt(disappearance),
                 try await sampleAt(reappearance),
@@ -784,6 +809,34 @@ public enum LocalLunarOccultationV1 {
         return value
     }
 
+    private static func earthRotationPathWarning(
+        uncertainty:
+            EventEarthRotationUncertaintyV1,
+        pathKilometers: Double
+    ) -> String {
+        let label: String
+        switch uncertainty {
+        case .none:
+            label = "地球回転・姿勢による経路"
+        case .iersReported:
+            label = "IERS公表誤差換算の地表経路"
+        case .model:
+            label = "地球回転・姿勢モデルによる経路"
+        }
+        if pathKilometers < 0.001 {
+            return String(
+                format: "、%@±%.3f m",
+                label,
+                pathKilometers * 1_000
+            )
+        }
+        return String(
+            format: "、%@±%.3f km",
+            label,
+            pathKilometers
+        )
+    }
+
     private static func circumstances(
         provider: DE442SEphemerisProviderV1,
         candidate: EclipseCandidateV1,
@@ -830,17 +883,17 @@ public enum LocalLunarOccultationV1 {
             || astrometry?
                 .properMotionDeclinationArcsecondsPerYear
                 == nil
+        let maximumEarthRotation =
+            geometry.earthRotation
         let maximumEarthOrientation =
-            try options.resolvedEarthOrientation(
-                at: maximum.instantUTC
-            )
+            maximumEarthRotation.earthOrientation
         let timeScaleNotices =
             try EventTimeScaleNoticesV1.resolve(
                 at: maximum.instantUTC,
                 earthOrientation:
                     maximumEarthOrientation
             )
-        let dominantContributors = [
+        var dominantContributors = [
             "BSC5P J2000 FK5恒星位置（星ごとの共分散なし、位置分解能2.5″を境界帯へ反映）",
             "平均球面月縁（LOLA・かぐや地形未使用、月地形±11 kmを境界帯へ反映）",
             "DE442s月位置係数量子化（地心月最大約24.5 mを境界帯へ反映）",
@@ -874,16 +927,31 @@ public enum LocalLunarOccultationV1 {
             ? ["観測地点の水平精度が不明"]
             : ["観測地点の水平精度を境界帯へ線形加算"]
         )
-        + (
-            options
-                .earthRotationPathUncertaintyKilometers
-                == nil
-            ? []
-            : ["ΔTによる地球回転の経路不確かさを境界帯へ線形加算"]
+        switch maximumEarthRotation.uncertainty {
+        case .none:
+            break
+        case .iersReported:
+            dominantContributors.append(
+                "IERS公表誤差から換算した地表経路幅を境界帯へ1回だけ線形加算"
+            )
+        case .model:
+            dominantContributors.append(
+                "地球回転・姿勢モデルによる経路幅を境界帯へ線形加算"
+            )
+        }
+        dominantContributors.append(
+            "経路値は月地形・暦・星表・地点・地球回転を線形加算した総境界幅"
         )
-        + ["経路値は月地形・暦・星表・地点・地球回転を線形加算した総境界幅"]
-        + timeScaleNotices.dominantContributors
-        + options.timeScaleContributors
+        dominantContributors.append(
+            contentsOf:
+                timeScaleNotices
+                .dominantContributors
+        )
+        dominantContributors.append(
+            contentsOf:
+                maximumEarthRotation
+                .dominantContributors
+        )
         let precisionWarnings =
             uniquePrecisionWarnings(
                 contacts.flatMap {
@@ -898,13 +966,15 @@ public enum LocalLunarOccultationV1 {
             "潜入・出現は平均月縁との幾何学的接触で、月面地形による数秒規模の差を含みません。",
             "境界判定は月地形±11 km、DE442s月位置係数量子化約24.5 m、BSC5P位置分解能2.5″、既知の観測地点水平精度"
                 + (
-                    options
-                        .earthRotationPathUncertaintyKilometers
+                    maximumEarthRotation
+                        .uncertainty
+                        .pathKilometers
                         .map {
-                            String(
-                                format:
-                                    "、ΔTによる経路±%.2f km",
-                                $0
+                            earthRotationPathWarning(
+                                uncertainty:
+                                    maximumEarthRotation
+                                    .uncertainty,
+                                pathKilometers: $0
                             )
                         }
                     ?? ""
@@ -923,7 +993,7 @@ public enum LocalLunarOccultationV1 {
             : []
         )
         + timeScaleNotices.warnings
-        + options.timeScaleWarnings
+        + maximumEarthRotation.warnings
         return LocalLunarOccultationCircumstancesV1(
             candidate: candidate,
             title: candidate.title,
@@ -953,13 +1023,16 @@ public enum LocalLunarOccultationV1 {
                 EclipseForecastUncertaintyV1(
                     tier: .reference,
                     timingSeconds:
-                        options
+                        maximumEarthRotation
                         .timingUncertaintySeconds,
                     pathKilometers:
                         boundaryEnvelopeKilometers,
                     observerLocationMeters:
                         options
                         .horizontalAccuracyMeters,
+                    earthOrientation:
+                        maximumEarthRotation
+                        .uncertainty.iersReported,
                     dominantContributors:
                         dominantContributors
                 ),
@@ -970,18 +1043,23 @@ public enum LocalLunarOccultationV1 {
                     ephemerisID: provider.id,
                     ephemerisSourceSHA256:
                         provider.sourceSHA256,
-                    eopID: options.eopID,
+                    eopID:
+                        maximumEarthRotation.eopID,
                     eopSourceSHA256:
-                        options.eopSourceSHA256,
+                        maximumEarthRotation
+                        .eopSourceSHA256,
                     eopRetrievedAt:
-                        options.eopRetrievedAt,
+                        maximumEarthRotation
+                        .eopRetrievedAt,
                     eopDUT1Quality:
-                        options.eopDUT1Quality,
+                        maximumEarthRotation
+                        .eopDUT1Quality,
                     eopPolarMotionQuality:
-                        options
+                        maximumEarthRotation
                         .eopPolarMotionQuality,
                     deltaTModel:
-                        options.deltaTModel,
+                        maximumEarthRotation
+                        .deltaTModel,
                     lunarRadiusModel:
                         "mean-spherical-limb",
                     limbProfileID: nil

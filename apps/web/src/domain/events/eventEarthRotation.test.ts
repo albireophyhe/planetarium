@@ -4,12 +4,47 @@ import {
   EVENT_EOP_ANCHOR_DELTA_T_SECONDS,
   EVENT_EOP_LAST_SAMPLE_UTC,
   de442sLunarAccelerationCorrectionSeconds,
+  eventEarthOrientationReportedUncertainty,
   eventEarthRotationFallback,
   nasaDeltaTDecimalYear,
   nasaDeltaTPolynomialSeconds,
 } from "./eventEarthRotation";
 
 describe("eventEarthRotationFallback", () => {
+  it("keeps IERS reported-error components separate from total event uncertainty", () => {
+    const result = eventEarthOrientationReportedUncertainty({
+      dut1: {
+        reportedErrorSeconds: 0.000_701,
+        seconds: 0,
+        source: "predicted",
+      },
+      polarMotion: {
+        source: "predicted",
+        usesPrediction: true,
+        xpRadians: 0,
+        xpReportedErrorRadians:
+          (0.001_819 * Math.PI) / (180 * 3_600),
+        ypRadians: 0,
+        ypReportedErrorRadians:
+          (0.001_624 * Math.PI) / (180 * 3_600),
+      },
+    });
+
+    expect(result.dut1ReportedErrorSeconds).toBe(0.000_701);
+    expect(result.dut1PathMeters).toBeCloseTo(0.326_036, 5);
+    expect(result.polarMotionPathMeters).toBeCloseTo(
+      0.106_465,
+      5,
+    );
+    expect(result.combinedPathMeters).toBeCloseTo(
+      0.432_501,
+      5,
+    );
+    expect(result.semantics).toBe(
+      "iers-reported-error-linear-envelope",
+    );
+  });
+
   it("reproduces the NASA historical polynomial at 1900 and 1950", () => {
     const at1900 = eventEarthRotationFallback(
       new Date("1900-01-01T00:00:00Z"),

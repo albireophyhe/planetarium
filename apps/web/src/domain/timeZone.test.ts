@@ -31,10 +31,10 @@ describe("time-zone conversion", () => {
   it("formats an instant for datetime-local input", () => {
     expect(
       formatZonedDateTimeInput(
-        new Date("2026-07-29T03:34:00.000Z"),
+        new Date("2026-07-29T03:34:56.789Z"),
         "Asia/Tokyo"
       )
-    ).toBe("2026-07-29T12:34");
+    ).toBe("2026-07-29T12:34:56");
   });
 
   it("formats a reader-facing localized date", () => {

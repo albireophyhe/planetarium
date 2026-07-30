@@ -10,9 +10,9 @@ import {
   julianDate,
   normalizeRadians,
   precessJ2000,
-  radiansToDegrees,
-  starByHR
+  radiansToDegrees
 } from "./index";
+import { starByHR } from "./data";
 
 const GREENWICH = {
   latitude: 0,

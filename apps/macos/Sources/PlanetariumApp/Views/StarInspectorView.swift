@@ -1,3 +1,4 @@
+import AppKit
 import PlanetariumCore
 import SwiftUI
 
@@ -183,7 +184,7 @@ struct StarInspectorView: View {
             .foregroundStyle(.secondary)
 
             Label(
-                "日周光行差：WGS84楕円体高0 mで適用",
+                "日周光行差：WGS84・選択地点の標高を反映",
                 systemImage: "globe"
             )
             .font(.caption)
@@ -205,14 +206,22 @@ struct StarInspectorView: View {
             GridRow {
                 MetricView(
                     title: store.useStandardAtmosphericRefraction
-                        ? "高度（標準大気差）"
-                        : "高度（幾何）",
-                    value: SkyFormatting.degrees(star.horizontal.altitude),
+                        ? "高度（大気差後・計算値）"
+                        : "高度（真空topocentric・計算値）",
+                    value: SkyFormatting.degrees(
+                        star.observedHorizontal.altitude,
+                        fractionDigits: 3
+                    ),
                     systemImage: "arrow.up.and.down"
                 )
                 MetricView(
-                    title: "方位",
-                    value: SkyFormatting.azimuth(star.horizontal),
+                    title: store.useStandardAtmosphericRefraction
+                        ? "方位（大気差後・計算値）"
+                        : "方位（真空topocentric・計算値）",
+                    value: SkyFormatting.azimuth(
+                        star.observedHorizontal,
+                        fractionDigits: 3
+                    ),
                     systemImage: "safari"
                 )
             }
@@ -230,7 +239,7 @@ struct StarInspectorView: View {
             }
         }
 
-        if !star.horizontal.azimuthIsDefined {
+        if !star.observedHorizontal.azimuthIsDefined {
             Label(
                 "天頂では方位角を一意に定められません。",
                 systemImage: "info.circle"
@@ -240,9 +249,11 @@ struct StarInspectorView: View {
             .fixedSize(horizontal: false, vertical: true)
         }
 
+        precisionPointingReadout(star)
+
         DisclosureGroup("詳しい情報") {
             Text(
-                "赤経は天球上の東西方向を時間で、赤緯は天の赤道からの南北角を示します。J2000は2000年1月1.5日の基準座標で、上の高度・方位は選択した観測日時へ変換した値です。"
+                "赤経は天球上の東西方向を時間で、赤緯は天の赤道からの南北角を示します。J2000は2000年1月1.5日の基準座標で、上の高度・方位は選択した観測日時・地点へ変換した値です。0.001°単位の表示桁そのものは精度の保証ではありません。"
             )
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -286,7 +297,7 @@ struct StarInspectorView: View {
                 )
                 detailRow(
                     label: "日周光行差",
-                    value: "適用（WGS84楕円体高0 m仮定）"
+                    value: "適用（WGS84・選択地点の楕円体高）"
                 )
                 detailRow(
                     label: "視線速度",
@@ -327,8 +338,8 @@ struct StarInspectorView: View {
             )
             Text(annualParallaxExplanation)
             Text(solarLightDeflectionExplanation)
-            Text("日周光行差は地球自転による東向き速度をWGS84で求め、地点の楕円体高を0 mと仮定して適用しています。")
-            Text("BSC5PのFK5座標はJ2000回転・フレームスピンでHipparcos/ICRSへ接続します。既定の共有地球暦はVSOP2000由来200項をTT（TDBのproxy）で評価し、解析微分を年周光行差の速度に使いますが、太陽系重心に対する太陽の速度は加えません。BSC5Pの格納分解能、FK5のゾーン誤差、この切り詰めと近似が精度を制限します。既定の年周視差は厳密な太陽系重心暦と実観測地点の変位を含まず、恒星の日周視差、惑星による光の曲がり、日内の極運動潮汐、天候、光害、地形も含みません。太陽の水平位置だけはWGS84地点変位による日周視差を含みます。サブ秒角精度や望遠鏡導入を保証しません。星の大きさと色は見分けやすくした表現です。")
+            Text("日周光行差は地球自転による東向き速度をWGS84で求め、選択地点の楕円体高を反映します。都市は0 m、手入力は指定値、端末測位は取得できたOSの楕円体高を使い、取得できない場合は0 mとします。")
+            Text("BSC5PのFK5座標はJ2000回転・フレームスピンでHipparcos/ICRSへ接続します。既定の共有地球暦はVSOP2000由来200項をTT（TDBのproxy）で評価し、解析微分を年周光行差の速度に使いますが、太陽系重心に対する太陽の速度は加えません。BSC5Pの格納分解能、FK5のゾーン誤差、この切り詰めと近似が精度を制限します。IERS収録期間内の「概ね1〜数秒角級」は、BSC5Pの格納分解能から見た真空中の通常目安で、全恒星の実測精度を保証する値ではありません。標準大気差ON時の表示高度は別です。既定の年周視差は厳密な太陽系重心暦と実観測地点の変位を含まず、恒星の日周視差、惑星による光の曲がり、日内の極運動潮汐、天候、光害、地形も含みません。太陽の水平位置だけはWGS84地点変位による日周視差を含みます。サブ秒角精度や望遠鏡導入を保証しません。星の大きさと色は見分けやすくした表現です。")
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -446,6 +457,144 @@ struct StarInspectorView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func precisionPointingReadout(
+        _ star: RenderedStar
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .firstTextBaseline) {
+                Label("導入用座標", systemImage: "scope")
+                    .font(SkyTypography.heading)
+                Spacer()
+                Text("精密モデルv2")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(
+                "見かけ赤道座標、真空中のtopocentric幾何座標、"
+                    + "設定した大気差を反映した観測座標を分けて表示します。"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+            Grid(
+                alignment: .leading,
+                horizontalSpacing: 12,
+                verticalSpacing: 8
+            ) {
+                detailRow(
+                    label: "見かけ赤経（日時）",
+                    value:
+                        star.apparentEquatorial.map {
+                            StarPointingPayloadFormatter
+                                .preciseRightAscension(
+                                    $0.rightAscension
+                                )
+                        } ?? "—"
+                )
+                detailRow(
+                    label: "見かけ赤緯（日時）",
+                    value:
+                        star.apparentEquatorial.map {
+                            StarPointingPayloadFormatter
+                                .preciseDeclination(
+                                    $0.declination
+                                )
+                        } ?? "—"
+                )
+                detailRow(
+                    label: "高度（真空・topocentric）",
+                    value:
+                        StarPointingPayloadFormatter
+                            .preciseDegrees(
+                                star.geometricHorizontal.altitude
+                            )
+                )
+                detailRow(
+                    label: "方位（真空・topocentric）",
+                    value:
+                        StarPointingPayloadFormatter
+                            .preciseAzimuth(
+                                star.geometricHorizontal
+                            )
+                )
+                detailRow(
+                    label: "高度（設定大気差後）",
+                    value:
+                        StarPointingPayloadFormatter
+                            .preciseDegrees(
+                                star.observedHorizontal.altitude
+                            )
+                )
+                detailRow(
+                    label: "方位（設定大気差後）",
+                    value:
+                        StarPointingPayloadFormatter
+                            .preciseAzimuth(
+                                star.observedHorizontal
+                            )
+                )
+            }
+            .font(.callout)
+
+            Text(
+                store.useStandardAtmosphericRefraction
+                    ? "標準大気モデルは真空幾何高度5°以上でのみ適用します。"
+                    : "大気差は無効です。設定大気差後の値は真空幾何値と同じです。"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                copyPointingPayload()
+            } label: {
+                Label(
+                    "導入用データをコピー",
+                    systemImage: "doc.on.doc"
+                )
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(store.selectedStarPointingPayload == nil)
+            .help(
+                "J2000・見かけ座標・真空/大気差後の水平座標と"
+                    + "UTC/UT1/TT・EOP識別情報をコピー"
+            )
+
+            Text(
+                "0.01秒時・0.000001°単位の表示桁そのものは"
+                    + "位置精度の保証ではありません。望遠鏡の座標系と"
+                    + "大気差設定を確認して使ってください。"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .background(.quaternary.opacity(0.35))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func copyPointingPayload() {
+        guard let payload = store.selectedStarPointingPayload
+        else {
+            store.statusMessage =
+                "導入用データを作成できませんでした。"
+            return
+        }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        if pasteboard.setString(payload, forType: .string) {
+            store.statusMessage =
+                "導入用データをクリップボードへコピーしました。"
+        } else {
+            store.statusMessage =
+                "クリップボードへコピーできませんでした。"
         }
     }
 

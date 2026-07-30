@@ -20,6 +20,14 @@ const contracts = [
     schema: "shared/schema/bright-stars-lock-v2.schema.json"
   },
   {
+    data: "shared/catalog/render-stars.v1.json",
+    schema: "shared/schema/render-stars.schema.json"
+  },
+  {
+    data: "shared/catalog/render-stars.lock.v1.json",
+    schema: "shared/schema/render-stars-lock.schema.json"
+  },
+  {
     data: "shared/catalog/star-names.v1.json",
     schema: "shared/schema/star-names.schema.json"
   },

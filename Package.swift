@@ -22,6 +22,8 @@ let package = Package(
                 "catalog/bright-stars.v1.json",
                 "catalog/bright-stars.lock.v1.json",
                 "catalog/bright-stars.lock.v2.json",
+                "catalog/render-stars.v1.json",
+                "catalog/render-stars.lock.v1.json",
                 "eop/README.md",
                 "eop/iers-finals2000a-dut1.v1.json",
                 "eop/iers-finals2000a-dut1.lock.v1.json",

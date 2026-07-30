@@ -79,7 +79,7 @@ public struct ObservingLocation: Hashable, Sendable {
     public let longitude: Double
     public let timeZoneIdentifier: String
     /// Height above the WGS84 reference ellipsoid. Zero is the explicit
-    /// approximation used by bundled cities and manual coordinates.
+    /// approximation used by bundled cities and legacy callers that omit it.
     public let heightMeters: Double
     /// Radius reported by a device location fix. `nil` means that the
     /// location source did not provide a measured accuracy.
@@ -172,22 +172,38 @@ public struct SkyCatalog: Sendable {
 public struct RenderedStar: Identifiable, Hashable, Sendable {
     public let catalog: CatalogStar
     public let name: NamedStar?
-    public let horizontal: HorizontalCoordinates
+    /// True equator and equinox-of-date apparent coordinates. Legacy
+    /// renderers leave this unavailable instead of relabelling J2000 data.
+    public let apparentEquatorial: EquatorialCoordinates?
+    /// Topocentric vacuum position relative to the mathematical horizon.
+    public let geometricHorizontal: HorizontalCoordinates
+    /// Position after the configured optical-refraction model. This equals
+    /// `geometricHorizontal` when refraction was disabled or not applicable.
+    public let observedHorizontal: HorizontalCoordinates
     public let projection: ProjectedPoint
 
     public var id: Int { catalog.hr }
     public var hr: Int { catalog.hr }
-    public var isAboveHorizon: Bool { horizontal.altitude >= 0 }
+    /// Compatibility alias for the coordinates used to draw the star.
+    public var horizontal: HorizontalCoordinates { observedHorizontal }
+    public var isAboveHorizon: Bool { observedHorizontal.altitude >= 0 }
 
     public init(
         catalog: CatalogStar,
         name: NamedStar?,
         horizontal: HorizontalCoordinates,
-        projection: ProjectedPoint
+        projection: ProjectedPoint,
+        apparentEquatorial: EquatorialCoordinates? = nil,
+        geometricHorizontal: HorizontalCoordinates? = nil,
+        observedHorizontal: HorizontalCoordinates? = nil
     ) {
         self.catalog = catalog
         self.name = name
-        self.horizontal = horizontal
+        self.apparentEquatorial = apparentEquatorial
+        self.geometricHorizontal =
+            geometricHorizontal ?? horizontal
+        self.observedHorizontal =
+            observedHorizontal ?? horizontal
         self.projection = projection
     }
 }

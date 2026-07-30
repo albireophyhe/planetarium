@@ -8,7 +8,7 @@ import {
   it,
   vi,
 } from "vitest";
-import { cities } from "../../domain";
+import { cities } from "../../domain/catalogMetadata";
 import type { ObserverLocation } from "../../app/types";
 import { LocationDialog } from "./LocationDialog";
 
@@ -103,6 +103,19 @@ describe("LocationDialog event-grade observer metadata", () => {
     expect(
       screen.getByText(/水平精度 ±18 m/),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/WGS84楕円体高 42 m、垂直精度 ±7 m/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("spinbutton", {
+        name: "緯度（北緯が正）",
+      }),
+    ).toHaveAttribute("step", "0.000001");
+    expect(
+      screen.getByRole("spinbutton", {
+        name: "経度（東経が正）",
+      }),
+    ).toHaveAttribute("step", "0.000001");
     expect(requestedOptions).toEqual({
       enableHighAccuracy: true,
       maximumAge: 60_000,

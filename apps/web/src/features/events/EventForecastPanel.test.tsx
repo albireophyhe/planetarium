@@ -683,6 +683,16 @@ describe("EventForecastPanel", () => {
     expect(
       screen.getByText("全経過が地平線下です"),
     ).toBeVisible();
+    const lunarOptions =
+      eventMocks.calculateLunar.mock.calls[0]?.[3];
+    expect(lunarOptions.timeScaleContributors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("局地経路境界への加算なし"),
+      ]),
+    );
+    expect(
+      lunarOptions.timeScaleContributors.join(" "),
+    ).not.toContain("経路成分へ線形加算");
     await user.click(visibleOption);
     expect(eventMocks.candidateLoadRange).toHaveBeenCalledWith(
       new Date("2025-12-30T00:00:00.000Z"),
@@ -711,16 +721,34 @@ describe("EventForecastPanel", () => {
           dut1Seconds: EARTH_ORIENTATION.dut1.seconds,
         }),
         earthOrientationAt: expect.any(Function),
+        earthOrientationReportedUncertaintyAt:
+          expect.any(Function),
         earthOrientationProvenanceAt: expect.any(Function),
+        earthOrientationReportedUncertainty:
+          expect.objectContaining({
+            combinedPathMeters: expect.any(Number),
+            dut1ReportedErrorSeconds:
+              EARTH_ORIENTATION.dut1.reportedErrorSeconds,
+            semantics:
+              "iers-reported-error-linear-envelope",
+          }),
+        earthRotationPathUncertaintyKilometers:
+          expect.any(Number),
+        earthRotationPathUncertaintyKilometersAt:
+          expect.any(Function),
         dut1Quality: "predicted",
         polarMotionQuality: "predicted",
         eopRetrievedAt: EOP_RETRIEVED_AT,
+        eopIdAt: expect.any(Function),
         eopSourceSha256: EOP_SOURCE_SHA256,
         heightMeters: LOCATION.heightMeters,
         horizontalAccuracyMeters:
           LOCATION.horizontalAccuracyMeters,
         locationSource: LOCATION.locationSource,
         shouldCancel: expect.any(Function),
+        timeScaleContributors: expect.arrayContaining([
+          expect.stringContaining("IERS公表誤差"),
+        ]),
       }),
     );
     const eventOptions =
@@ -1113,13 +1141,22 @@ describe("EventForecastPanel", () => {
       ...EARTH_ORIENTATION,
       dut1: {
         ...EARTH_ORIENTATION.dut1,
+        quality: "observed" as const,
+        reportedErrorSeconds: 0.001,
         seconds: -0.586_821,
+        source: "observed" as const,
+      },
+      polarMotion: {
+        ...EARTH_ORIENTATION.polarMotion,
+        quality: "observed" as const,
+        source: "observed" as const,
       },
     };
     const afterLeap = {
       ...EARTH_ORIENTATION,
       dut1: {
         ...EARTH_ORIENTATION.dut1,
+        reportedErrorSeconds: 0.002,
         seconds: 0.413_171,
       },
     };
@@ -1161,6 +1198,33 @@ describe("EventForecastPanel", () => {
         new Date("2012-07-01T00:00:00.000Z"),
       ).dut1Seconds,
     ).toBe(afterLeap.dut1.seconds);
+    const beforeDate = new Date("2012-06-30T23:59:59.000Z");
+    const afterDate = new Date("2012-07-01T00:00:00.000Z");
+    expect(
+      options.earthOrientationReportedUncertaintyAt(
+        beforeDate,
+      ).dut1ReportedErrorSeconds,
+    ).toBe(0.001);
+    expect(
+      options.earthOrientationReportedUncertaintyAt(
+        afterDate,
+      ).dut1ReportedErrorSeconds,
+    ).toBe(0.002);
+    expect(
+      options.earthRotationPathUncertaintyKilometersAt(
+        afterDate,
+      ),
+    ).toBeGreaterThan(
+      options.earthRotationPathUncertaintyKilometersAt(
+        beforeDate,
+      ),
+    );
+    expect(options.eopIdAt(beforeDate)).toBe(
+      "IERS EOP観測値",
+    );
+    expect(options.eopIdAt(afterDate)).toBe(
+      "IERS EOP予測値",
+    );
   });
 
   it("supports year navigation and disables controls at both coverage boundaries", async () => {

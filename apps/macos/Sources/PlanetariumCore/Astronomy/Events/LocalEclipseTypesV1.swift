@@ -103,11 +103,43 @@ public struct EclipseBodyPositionV1: Hashable, Sendable {
     }
 }
 
+/**
+ Mean-shadow geometry for a lunar eclipse in the CIRS tangent plane.
+
+ The center position angle is measured eastward from celestial north at
+ the Moon. Radii and separation use the same Danjon 1.01 convention as
+ the contact solver, allowing the UI to draw the solved geometry directly.
+ */
+public struct LunarShadowGeometryV1: Hashable, Sendable {
+    public let centerSeparationRadians: Double
+    public let centerPositionAngleRadians: Double?
+    public let penumbralAngularRadiusRadians: Double
+    public let umbralAngularRadiusRadians: Double
+
+    public init(
+        centerSeparationRadians: Double,
+        centerPositionAngleRadians: Double?,
+        penumbralAngularRadiusRadians: Double,
+        umbralAngularRadiusRadians: Double
+    ) {
+        self.centerSeparationRadians =
+            centerSeparationRadians
+        self.centerPositionAngleRadians =
+            centerPositionAngleRadians
+        self.penumbralAngularRadiusRadians =
+            penumbralAngularRadiusRadians
+        self.umbralAngularRadiusRadians =
+            umbralAngularRadiusRadians
+    }
+}
+
 public struct EclipseContactV1: Hashable, Sendable {
     public let phase: EclipseContactPhaseV1
     public let instantUTC: Date
     public let sun: EclipseBodyPositionV1?
     public let moon: EclipseBodyPositionV1?
+    /** Present for lunar-eclipse contacts computed by the v1 solver. */
+    public let lunarShadow: LunarShadowGeometryV1?
     public let aboveHorizon: Bool
     /**
      Contact point around the reference disc, in radians [0, 2π), measured
@@ -122,6 +154,7 @@ public struct EclipseContactV1: Hashable, Sendable {
         instantUTC: Date,
         sun: EclipseBodyPositionV1?,
         moon: EclipseBodyPositionV1?,
+        lunarShadow: LunarShadowGeometryV1? = nil,
         aboveHorizon: Bool,
         positionAngleRadians: Double? = nil
     ) {
@@ -129,6 +162,7 @@ public struct EclipseContactV1: Hashable, Sendable {
         self.instantUTC = instantUTC
         self.sun = sun
         self.moon = moon
+        self.lunarShadow = lunarShadow
         self.aboveHorizon = aboveHorizon
         self.positionAngleRadians = positionAngleRadians
     }
@@ -141,6 +175,12 @@ public struct EclipseForecastUncertaintyV1:
     public let timingSeconds: Double?
     public let pathKilometers: Double?
     public let observerLocationMeters: Double?
+    /**
+     IERS-published EOP error components. This is a linear reported-error
+     envelope, not a total timing uncertainty or confidence interval.
+     */
+    public let earthOrientation:
+        EventEOPReportedUncertaintyV1?
     public let dominantContributors: [String]
 
     public init(
@@ -148,6 +188,8 @@ public struct EclipseForecastUncertaintyV1:
         timingSeconds: Double?,
         pathKilometers: Double?,
         observerLocationMeters: Double?,
+        earthOrientation:
+            EventEOPReportedUncertaintyV1? = nil,
         dominantContributors: [String]
     ) {
         self.tier = tier
@@ -155,6 +197,7 @@ public struct EclipseForecastUncertaintyV1:
         self.pathKilometers = pathKilometers
         self.observerLocationMeters =
             observerLocationMeters
+        self.earthOrientation = earthOrientation
         self.dominantContributors =
             dominantContributors
     }
@@ -202,6 +245,101 @@ public struct EclipseProvenanceV1: Hashable, Sendable {
         self.deltaTModel = deltaTModel
         self.lunarRadiusModel = lunarRadiusModel
         self.limbProfileID = limbProfileID
+    }
+}
+
+public enum EventEarthRotationUncertaintyV1:
+    Hashable, Sendable
+{
+    case none
+    /**
+     IERS-published DUT1/xp/yp error columns. The associated surface path is
+     derived from this component exactly once by the event solver.
+     */
+    case iersReported(EventEOPReportedUncertaintyV1)
+    /**
+     A non-IERS model or caller-provided Earth-rotation/orientation path
+     envelope, such as the outside-coverage ΔT fallback.
+     */
+    case model(pathKilometers: Double)
+
+    public var pathKilometers: Double? {
+        switch self {
+        case .none:
+            nil
+        case let .iersReported(reported):
+            reported.combinedPathMeters / 1_000
+        case let .model(pathKilometers):
+            pathKilometers
+        }
+    }
+
+    public var iersReported:
+        EventEOPReportedUncertaintyV1?
+    {
+        guard case let .iersReported(reported) = self
+        else {
+            return nil
+        }
+        return reported
+    }
+}
+
+/**
+ Earth-orientation values, uncertainty source, and provenance resolved for one
+ event instant. The live app supplies this through a Sendable callback so the
+ final event metadata follows the solver's actual maximum rather than the
+ candidate catalog's coarse canonical epoch.
+ */
+public struct EventEarthRotationContextV1:
+    Hashable, Sendable
+{
+    public let earthOrientation:
+        EarthOrientationOptionsV2
+    public let eopID: String
+    public let eopSourceSHA256: String?
+    public let eopRetrievedAt: String?
+    public let eopDUT1Quality: EventEOPQualityV1
+    public let eopPolarMotionQuality:
+        EventEOPQualityV1
+    public let deltaTModel: String
+    public let uncertainty:
+        EventEarthRotationUncertaintyV1
+    public let timingUncertaintySeconds: Double?
+    public let dominantContributors: [String]
+    public let warnings: [String]
+
+    public init(
+        earthOrientation:
+            EarthOrientationOptionsV2,
+        eopID: String,
+        eopSourceSHA256: String? = nil,
+        eopRetrievedAt: String? = nil,
+        eopDUT1Quality:
+            EventEOPQualityV1 = .callerOrAssumed,
+        eopPolarMotionQuality:
+            EventEOPQualityV1 = .callerOrAssumed,
+        deltaTModel: String,
+        uncertainty:
+            EventEarthRotationUncertaintyV1 = .none,
+        timingUncertaintySeconds: Double? = nil,
+        dominantContributors: [String] = [],
+        warnings: [String] = []
+    ) {
+        self.earthOrientation = earthOrientation
+        self.eopID = eopID
+        self.eopSourceSHA256 = eopSourceSHA256
+        self.eopRetrievedAt = eopRetrievedAt
+        self.eopDUT1Quality = eopDUT1Quality
+        self.eopPolarMotionQuality =
+            eopPolarMotionQuality
+        self.deltaTModel = deltaTModel
+        self.uncertainty = uncertainty
+        self.timingUncertaintySeconds =
+            timingUncertaintySeconds
+        self.dominantContributors =
+            dominantContributors
+        self.warnings = warnings
     }
 }
 
@@ -265,6 +403,9 @@ public struct LocalEclipseOptionsV1: Sendable {
     public let earthOrientationAt:
         (@Sendable (Date) throws
             -> EarthOrientationOptionsV2)?
+    public let eventEarthRotationAt:
+        (@Sendable (Date) throws
+            -> EventEarthRotationContextV1)?
     public let eopID: String
     public let eopSourceSHA256: String?
     public let eopRetrievedAt: String?
@@ -273,6 +414,8 @@ public struct LocalEclipseOptionsV1: Sendable {
         EventEOPQualityV1
     public let earthRotationPathUncertaintyKilometers:
         Double?
+    public let earthOrientationReportedUncertainty:
+        EventEOPReportedUncertaintyV1?
     public let heightMeters: Double
     public let horizontalAccuracyMeters: Double?
     public let locationSource: EventLocationSourceV1
@@ -292,6 +435,9 @@ public struct LocalEclipseOptionsV1: Sendable {
         earthOrientationAt:
             (@Sendable (Date) throws
                 -> EarthOrientationOptionsV2)? = nil,
+        eventEarthRotationAt:
+            (@Sendable (Date) throws
+                -> EventEarthRotationContextV1)? = nil,
         eopID: String = "caller-or-assumed",
         eopSourceSHA256: String? = nil,
         eopRetrievedAt: String? = nil,
@@ -301,6 +447,8 @@ public struct LocalEclipseOptionsV1: Sendable {
             EventEOPQualityV1 = .callerOrAssumed,
         earthRotationPathUncertaintyKilometers:
             Double? = nil,
+        earthOrientationReportedUncertainty:
+            EventEOPReportedUncertaintyV1? = nil,
         heightMeters: Double = 0,
         horizontalAccuracyMeters: Double? = nil,
         locationSource: EventLocationSourceV1 = .manual,
@@ -314,6 +462,8 @@ public struct LocalEclipseOptionsV1: Sendable {
         self.deltaTModel = deltaTModel
         self.earthOrientation = earthOrientation
         self.earthOrientationAt = earthOrientationAt
+        self.eventEarthRotationAt =
+            eventEarthRotationAt
         self.eopID = eopID
         self.eopSourceSHA256 = eopSourceSHA256
         self.eopRetrievedAt = eopRetrievedAt
@@ -322,6 +472,8 @@ public struct LocalEclipseOptionsV1: Sendable {
             eopPolarMotionQuality
         self.earthRotationPathUncertaintyKilometers =
             earthRotationPathUncertaintyKilometers
+        self.earthOrientationReportedUncertainty =
+            earthOrientationReportedUncertainty
         self.heightMeters = heightMeters
         self.horizontalAccuracyMeters =
             horizontalAccuracyMeters
@@ -339,8 +491,55 @@ public struct LocalEclipseOptionsV1: Sendable {
     func resolvedEarthOrientation(
         at date: Date
     ) throws -> EarthOrientationOptionsV2 {
-        try earthOrientationAt?(date)
-            ?? earthOrientation
+        if let earthOrientationAt {
+            return try earthOrientationAt(date)
+        }
+        if let eventEarthRotationAt {
+            return try eventEarthRotationAt(date)
+                .earthOrientation
+        }
+        return earthOrientation
+    }
+
+    func resolvedEventEarthRotation(
+        at date: Date
+    ) throws -> EventEarthRotationContextV1 {
+        if let eventEarthRotationAt {
+            return try eventEarthRotationAt(date)
+        }
+        let uncertainty:
+            EventEarthRotationUncertaintyV1
+        if let earthOrientationReportedUncertainty {
+            uncertainty = .iersReported(
+                earthOrientationReportedUncertainty
+            )
+        } else if let
+            earthRotationPathUncertaintyKilometers
+        {
+            uncertainty = .model(
+                pathKilometers:
+                    earthRotationPathUncertaintyKilometers
+            )
+        } else {
+            uncertainty = .none
+        }
+        return EventEarthRotationContextV1(
+            earthOrientation:
+                try resolvedEarthOrientation(at: date),
+            eopID: eopID,
+            eopSourceSHA256: eopSourceSHA256,
+            eopRetrievedAt: eopRetrievedAt,
+            eopDUT1Quality: eopDUT1Quality,
+            eopPolarMotionQuality:
+                eopPolarMotionQuality,
+            deltaTModel: deltaTModel,
+            uncertainty: uncertainty,
+            timingUncertaintySeconds:
+                timingUncertaintySeconds,
+            dominantContributors:
+                timeScaleContributors,
+            warnings: timeScaleWarnings
+        )
     }
 }
 
@@ -636,7 +835,10 @@ enum EclipseCalculationSupportV1 {
                 .invalidObserverAccuracy
             }
         }
-        if let pathUncertainty =
+        if options.eventEarthRotationAt == nil,
+           options
+            .earthOrientationReportedUncertainty == nil,
+           let pathUncertainty =
             options.earthRotationPathUncertaintyKilometers
         {
             guard pathUncertainty.isFinite,

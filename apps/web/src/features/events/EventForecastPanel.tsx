@@ -27,6 +27,7 @@ import {
   fetchEventAsset,
 } from "../../domain/events/eventAssetTransport";
 import {
+  eventEarthOrientationReportedUncertainty,
   eventEarthRotationFallback,
 } from "../../domain/events/eventEarthRotation";
 import {
@@ -371,6 +372,9 @@ function calculateCandidate(
     : eventEarthRotationFallback(
         candidate.summary.canonicalEpochUtc,
       );
+  const earthOrientationReportedUncertainty = estimate
+    ? eventEarthOrientationReportedUncertainty(estimate)
+    : null;
   const candidateEarthOrientationProvenance =
     earthOrientationProvenance(
       earthOrientationSnapshot,
@@ -399,14 +403,52 @@ function calculateCandidate(
     eopId:
       earthRotationFallback?.eopId ??
       earthOrientationId(estimate),
+    eopIdAt: (date: Date) => {
+      const sampleEstimate =
+        earthOrientationSnapshot.lookup(date);
+      return sampleEstimate
+        ? earthOrientationId(sampleEstimate)
+        : eventEarthRotationFallback(date).eopId;
+    },
     earthRotationPathUncertaintyKilometers:
-      earthRotationFallback?.pathUncertaintyKilometers,
+      earthRotationFallback?.pathUncertaintyKilometers ??
+      (earthOrientationReportedUncertainty
+        ? earthOrientationReportedUncertainty.combinedPathMeters /
+          1_000
+        : undefined),
+    earthRotationPathUncertaintyKilometersAt: (date: Date) => {
+      const sampleEstimate =
+        earthOrientationSnapshot.lookup(date);
+      return sampleEstimate
+        ? eventEarthOrientationReportedUncertainty(
+            sampleEstimate,
+          ).combinedPathMeters / 1_000
+        : eventEarthRotationFallback(date)
+            .pathUncertaintyKilometers;
+    },
+    earthOrientationReportedUncertainty,
+    earthOrientationReportedUncertaintyAt: (date: Date) => {
+      const sampleEstimate =
+        earthOrientationSnapshot.lookup(date);
+      return sampleEstimate
+        ? eventEarthOrientationReportedUncertainty(
+            sampleEstimate,
+          )
+        : null;
+    },
     heightMeters: location.heightMeters,
     horizontalAccuracyMeters: location.horizontalAccuracyMeters,
     locationSource: location.locationSource,
     shouldCancel: () => signal.aborted,
     timeScaleContributors:
-      earthRotationFallback?.dominantContributors,
+      earthRotationFallback?.dominantContributors ??
+      (earthOrientationReportedUncertainty
+        ? [
+            candidate.seed.kind === "lunar-eclipse"
+              ? "IERS公表誤差のDUT1・xp・ypを統計的な信頼区間とみなさず、独立成分として表示（局地経路境界への加算なし）"
+              : "IERS公表誤差のDUT1・xp・ypを統計的な信頼区間とみなさず、経路成分へ線形加算",
+          ]
+        : undefined),
     timeScaleWarnings: earthRotationFallback?.warnings,
     timingUncertaintySeconds:
       earthRotationFallback === null
