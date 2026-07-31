@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
@@ -164,7 +165,7 @@ type MockEventPanelProps = {
   isActive: boolean;
   observationDate: Date;
   onRestoreObservationTime: () => void;
-  onShowEventTime: (date: Date) => void;
+  onShowEventTime: (date: Date, eventTitle: string) => void;
 };
 
 vi.mock("../features/events/EventForecastPanel", () => ({
@@ -179,6 +180,7 @@ vi.mock("../features/events/EventForecastPanel", () => ({
           onClick={() =>
             props.onShowEventTime(
               new Date("2026-08-12T17:45:54.000Z"),
+              "テスト皆既日食",
             )
           }
           type="button"
@@ -301,6 +303,11 @@ vi.mock("../features/sky/SkyViewport", () => ({
   ),
 }));
 
+afterEach(() => {
+  window.history.replaceState(null, "", "/sky");
+  document.title = "Planetarium";
+});
+
 describe("App selection announcements", () => {
   beforeEach(() => {
     dut1HookState.estimate = {
@@ -339,7 +346,15 @@ describe("App selection announcements", () => {
 
     expect(
       await screen.findByText(
-        /精密計算 v2・年周視差（収録星）／太陽光偏向・年周・日周光行差・幾何高度/,
+        /精密計算 v2・大気差なし/,
+      ),
+    ).toBeVisible();
+    await user.click(
+      screen.getByText("計算情報", { selector: "summary" }),
+    );
+    expect(
+      screen.getByText(
+        /年周視差（収録星）／太陽光偏向・年周・日周光行差・幾何高度/,
       ),
     ).toBeVisible();
     expect(document.querySelector(".app-shell")).toHaveAttribute(
@@ -397,7 +412,7 @@ describe("App selection announcements", () => {
 
     expect(
       await screen.findByText(
-        "IERS EOPを準備中・一時的に簡易計算で幾何高度を表示",
+        "IERS準備中（DUT1・極運動は0近似）・簡易計算",
       ),
     ).toBeVisible();
     expect(document.querySelector(".app-shell")).toHaveAttribute(
@@ -464,7 +479,7 @@ describe("App selection announcements", () => {
     expect(input).toHaveValue("2026-07-30T08:59:59.000");
     expect(
       screen.getByText(
-        /新しい観測日時のIERS EOPを準備中（整合済みの直前フレームを表示）/,
+        /更新中（直前の整合済み結果）/,
       ),
     ).toBeVisible();
     expect(document.querySelector(".app-shell")).toHaveAttribute(
@@ -671,7 +686,7 @@ describe("App selection announcements", () => {
       expect(trackCalculationSpy).toHaveBeenCalledTimes(1);
       expect(
         screen.getByText(
-          /新しい観測日時のIERS EOPを準備中/,
+          /更新中（直前の整合済み結果）/,
         ),
       ).toBeVisible();
 
@@ -703,7 +718,7 @@ describe("App selection announcements", () => {
       );
       expect(
         screen.getByText(
-          /新しい観測日時のIERS EOPを準備中/,
+          /更新中（直前の整合済み結果）/,
         ),
       ).toBeVisible();
 
@@ -804,7 +819,7 @@ describe("App selection announcements", () => {
     }
   });
 
-  it("loads forecasts only after the events tab and changes time only on an explicit action", async () => {
+  it("loads forecasts only after opening the events screen and changes time only on an explicit action", async () => {
     vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
     const user = userEvent.setup();
@@ -813,20 +828,17 @@ describe("App selection announcements", () => {
     const originalDateTime = readout?.getAttribute("datetime");
 
     expect(
-      screen.getByRole("tab", {
-        hidden: true,
-        name: "星と現象",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("tab", { name: "恒星" }),
-    ).toHaveAttribute("aria-selected", "true");
+      screen.getByRole("link", { name: "空" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(window.location.pathname).toBe("/sky");
     expect(eventPanelRenderSpy).not.toHaveBeenCalled();
 
     await user.click(
       screen.getByRole("button", { name: "時間を再生" }),
     );
-    await user.click(screen.getByRole("tab", { name: "現象" }));
+    await user.click(
+      screen.getByRole("link", { name: "現象" }),
+    );
 
     expect(
       await screen.findByRole("region", {
@@ -837,16 +849,27 @@ describe("App selection announcements", () => {
     expect(eventPanelRenderSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ isActive: true }),
     );
+    expect(window.location.pathname).toBe("/events");
+    expect(
+      screen.getByRole("heading", { level: 1, name: "天文現象" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("main", { name: "天文現象" }),
+    ).toHaveFocus();
     expect(readout).toHaveAttribute("datetime", originalDateTime);
+
+    await user.click(screen.getByRole("link", { name: "空" }));
+    expect(screen.getByRole("main", { name: "星空" })).toHaveFocus();
+    expect(eventPanelRenderSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ isActive: false }),
+    );
     expect(
       screen.getByRole("button", { name: "時間を一時停止" }),
     ).toHaveAttribute("aria-pressed", "true");
 
-    await user.click(screen.getByRole("tab", { name: "恒星" }));
-    expect(eventPanelRenderSpy).toHaveBeenLastCalledWith(
-      expect.objectContaining({ isActive: false }),
+    await user.click(
+      screen.getByRole("link", { name: "現象" }),
     );
-    await user.click(screen.getByRole("tab", { name: "現象" }));
     expect(eventPanelRenderSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ isActive: true }),
     );
@@ -860,62 +883,107 @@ describe("App selection announcements", () => {
       "datetime",
       "2026-08-12T17:45:54.000Z",
     );
+    expect(window.location.pathname).toBe("/sky");
     expect(
       screen.getByRole("button", { name: "時間を再生" }),
     ).toHaveAttribute("aria-pressed", "false");
+    expect(
+      screen.getByRole("button", { name: "元の日時に戻る" }),
+    ).toHaveFocus();
+    expect(screen.getByText("テスト皆既日食")).toBeVisible();
+    const eventTimeContext = screen.getByRole("note", {
+      name: "現象時刻から開いた空",
+    });
+    expect(eventTimeContext).toBeVisible();
+    expect(eventTimeContext).toHaveTextContent(
+      "現象時刻 2026/08/13 2:45",
+    );
+    expect(
+      within(eventTimeContext).getByText("2026/08/13 2:45"),
+    ).toHaveAttribute("datetime", "2026-08-12T17:45:54.000Z");
+
+    await user.click(
+      screen.getByRole("button", { name: "＋1時間" }),
+    );
+    expect(readout).toHaveAttribute(
+      "datetime",
+      "2026-08-12T18:45:54.000Z",
+    );
+    expect(eventTimeContext).toHaveTextContent(
+      "現象時刻 2026/08/13 2:45",
+    );
+    expect(eventTimeContext).not.toHaveTextContent("表示中");
+    await user.click(
+      screen.getByRole("button", { name: "−1時間" }),
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "現象へ戻る" }),
+    );
+    expect(window.location.pathname).toBe("/events");
+    expect(readout).toHaveAttribute(
+      "datetime",
+      "2026-08-12T17:45:54.000Z",
+    );
+
+    await user.click(screen.getByRole("link", { name: "空" }));
 
     await user.click(
       screen.getByRole("button", {
-        name: "テスト元の日時に戻る",
+        name: "元の日時に戻る",
       }),
     );
     expect(readout).toHaveAttribute("datetime", originalDateTime);
+    expect(screen.getByRole("main", { name: "星空" })).toHaveFocus();
   });
 
-  it("marks the retained event panel inactive while mobile settings are shown", async () => {
-    const matchMedia = vi.fn((query: string) => ({
-      addEventListener: vi.fn(),
-      addListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-      matches: query === "(max-width: 860px)",
-      media: query,
-      onchange: null,
-      removeEventListener: vi.fn(),
-      removeListener: vi.fn(),
-    }));
-    vi.stubGlobal("matchMedia", matchMedia);
-    const user = userEvent.setup();
+  it("opens a direct events URL and follows popstate while retaining the event panel", async () => {
+    window.history.replaceState(null, "", "/events");
     const { unmount } = render(<App />);
     try {
-      await user.click(
-        screen.getByRole("tab", { name: "現象" }),
-      );
       await screen.findByRole("region", {
         name: "テスト用天文現象予報",
       });
+      expect(
+        screen.getByRole("link", { name: "現象" }),
+      ).toHaveAttribute("aria-current", "page");
       expect(eventPanelRenderSpy).toHaveBeenLastCalledWith(
         expect.objectContaining({ isActive: true }),
       );
 
-      await user.click(
-        screen.getByRole("tab", { name: "表示設定" }),
-      );
-      expect(eventPanelRenderSpy).toHaveBeenLastCalledWith(
-        expect.objectContaining({ isActive: false }),
+      act(() => {
+        window.history.pushState(null, "", "/sky");
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      });
+      expect(
+        screen.getByRole("link", { name: "空" }),
+      ).toHaveAttribute("aria-current", "page");
+      expect(
+        screen.getByRole("main", { name: "星空" }),
+      ).toHaveFocus();
+      await waitFor(() =>
+        expect(eventPanelRenderSpy).toHaveBeenLastCalledWith(
+          expect.objectContaining({ isActive: false }),
+        ),
       );
 
-      await user.click(
-        screen.getByRole("tab", {
-          hidden: true,
-          name: "星と現象",
-        }),
-      );
-      expect(eventPanelRenderSpy).toHaveBeenLastCalledWith(
-        expect.objectContaining({ isActive: true }),
+      act(() => {
+        window.history.pushState(null, "", "/events");
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      });
+      expect(
+        screen.getByRole("link", { name: "現象" }),
+      ).toHaveAttribute("aria-current", "page");
+      expect(
+        screen.getByRole("main", { name: "天文現象" }),
+      ).toHaveFocus();
+      await waitFor(() =>
+        expect(eventPanelRenderSpy).toHaveBeenLastCalledWith(
+          expect.objectContaining({ isActive: true }),
+        ),
       );
     } finally {
       unmount();
-      vi.unstubAllGlobals();
     }
   });
 
@@ -1127,7 +1195,7 @@ describe("App selection announcements", () => {
 
     expect(
       await screen.findByText(
-        /IERS EOP読込失敗（DUT1・極運動は0近似）/,
+        /IERS読込失敗・0近似/,
       ),
     ).toBeVisible();
     await user.click(
@@ -1145,7 +1213,7 @@ describe("App selection announcements", () => {
 
     expect(
       await screen.findByText(
-        /IERS EOP収録外（DUT1・極運動は0近似）/,
+        /IERS収録外・0近似/,
       ),
     ).toBeVisible();
     expect(
@@ -1187,7 +1255,7 @@ describe("App selection announcements", () => {
     render(<App />);
 
     const calculationStatus = await screen.findByText(
-      /精密計算 v2・年周視差（収録星）/,
+      /精密計算 v2・大気差なし/,
     );
     const twilightSection =
       screen.getByText(/太陽高度/).closest("section");
@@ -1212,7 +1280,7 @@ describe("App selection announcements", () => {
     render(<App />);
 
     await screen.findByText(
-      /精密計算 v2・年周視差（収録星）／太陽光偏向・年周・日周光行差・幾何高度/,
+      /精密計算 v2・大気差なし/,
     );
     await user.click(
       screen.getByRole("button", { name: "時間を再生" }),
@@ -1229,7 +1297,7 @@ describe("App selection announcements", () => {
 
     expect(
       screen.getByText(
-        /精密計算 v2・年周視差（収録星）／太陽光偏向・年周・日周光行差・標準大気差あり（幾何高度5°以上）/,
+        /精密計算 v2・標準大気差/,
       ),
     ).toBeVisible();
     expect(
@@ -1263,7 +1331,7 @@ describe("App selection announcements", () => {
     render(<App />);
 
     await screen.findByText(
-      /精密計算 v2・年周視差（収録星）／太陽光偏向・年周・日周光行差・幾何高度/,
+      /精密計算 v2・大気差なし/,
     );
     await user.click(
       screen.getByRole("checkbox", { name: "選択星の軌跡" }),
@@ -1289,7 +1357,7 @@ describe("App selection announcements", () => {
     expect(trackCalculationSpy).toHaveBeenCalledTimes(1);
     expect(
       screen.getByText(
-        /^精密計算 v2.*幾何高度（大気差なし）/,
+        /^精密計算 v2・大気差なし/,
       ),
     ).toBeVisible();
     expect(
@@ -1302,7 +1370,7 @@ describe("App selection announcements", () => {
 
     expect(
       await screen.findByText(
-        /手動大気差あり（幾何高度5°以上）/,
+        /精密計算 v2・手動大気差/,
       ),
     ).toBeVisible();
     expect(screen.getByText("手動大気を適用中")).toBeVisible();
@@ -1373,7 +1441,7 @@ describe("App selection announcements", () => {
     render(<App />);
 
     await screen.findByText(
-      /精密計算 v2・年周視差（収録星）／太陽光偏向・年周・日周光行差・幾何高度/,
+      /精密計算 v2・大気差なし/,
     );
     expect(trackCalculationSpy).not.toHaveBeenCalled();
     expect(
@@ -1433,7 +1501,7 @@ describe("App selection announcements", () => {
     render(<App />);
 
     await screen.findByText(
-      /精密計算 v2・年周視差（収録星）／太陽光偏向・年周・日周光行差・幾何高度/,
+      /精密計算 v2・大気差なし/,
     );
     await user.click(
       screen.getByRole("checkbox", { name: "選択星の軌跡" }),
@@ -1468,7 +1536,7 @@ describe("App selection announcements", () => {
     render(<App />);
 
     await screen.findByText(
-      /精密計算 v2・年周視差（収録星）／太陽光偏向・年周・日周光行差・幾何高度/,
+      /精密計算 v2・大気差なし/,
     );
     await user.click(
       screen.getByRole("checkbox", { name: "選択星の軌跡" }),
@@ -1507,7 +1575,7 @@ describe("App selection announcements", () => {
     const { rerender } = render(<App />);
 
     await screen.findByText(
-      /IERS EOP読込失敗（DUT1・極運動は0近似）/,
+      /IERS読込失敗・0近似/,
     );
     await user.click(
       screen.getByRole("checkbox", { name: "選択星の軌跡" }),
@@ -1624,7 +1692,7 @@ describe("App selection announcements", () => {
     render(<App />);
 
     await screen.findByText(
-      /精密計算 v2・年周視差（収録星）／太陽光偏向・年周・日周光行差・幾何高度/,
+      /精密計算 v2・大気差なし/,
     );
     await user.click(
       screen.getByRole("checkbox", { name: "選択星の軌跡" }),

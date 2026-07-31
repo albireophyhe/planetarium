@@ -600,6 +600,105 @@ final class EventForecastStoreTests:
     }
 
     @MainActor
+    func testFeatureRoundTripPreservesExplicitForecastWithoutReload()
+        async throws
+    {
+        let first = makeForecast(
+            id: "first",
+            date: date("2026-08-01T00:00:00Z"),
+            visibility: .fullyVisible
+        )
+        let chosen = makeForecast(
+            id: "chosen",
+            date: date("2026-10-01T00:00:00Z"),
+            visibility: .fullyVisible
+        )
+        let counter = EventForecastLoadCounter()
+        let store = EventForecastStore(
+            initialYear: 2026,
+            dependencies: EventForecastDependencies {
+                year, _ in
+                await counter.record(year: year)
+                return [chosen, first]
+            }
+        )
+
+        store.activate(
+            location: tokyo,
+            observationDate:
+                date("2026-07-30T00:00:00Z")
+        )
+        try await waitUntil {
+            store.phase == .loaded
+        }
+        XCTAssertEqual(store.selectedForecastID, "first")
+
+        store.selectForecast("chosen")
+        store.deactivate()
+        store.activate(
+            location: tokyo,
+            observationDate:
+                date("2026-08-01T00:00:00Z")
+        )
+
+        XCTAssertEqual(store.phase, .loaded)
+        XCTAssertEqual(store.selectedForecastID, "chosen")
+        let loadCount =
+            await counter.count(for: 2026)
+        XCTAssertEqual(
+            loadCount,
+            1,
+            "同じ地点・年・条件への往復では予報を再読込しない"
+        )
+    }
+
+    func testEventAttentionSummaryIncludesGeneralAndPrecisionWarnings()
+    {
+        let eclipse = makeForecast(
+            id: "warning-summary-eclipse",
+            date: date("2026-08-01T00:00:00Z"),
+            visibility: .fullyVisible,
+            warnings: ["注意1", "注意2"]
+        )
+        let eclipseSummary =
+            EventForecastAttentionSummary(item: eclipse)
+        XCTAssertEqual(
+            eclipseSummary.calculationTierTitle,
+            "不確かさあり"
+        )
+        XCTAssertEqual(
+            eclipseSummary.importantWarningCount,
+            2
+        )
+        XCTAssertEqual(
+            eclipseSummary.warningTitle,
+            "重要な注意 2件"
+        )
+
+        let occultation = makeOccultationForecast(
+            id: "warning-summary-occultation",
+            visibility: .fullyVisible,
+            grazing: false,
+            precisionWarnings: [
+                .properMotionMissing,
+            ],
+            warnings: ["局地条件の注意"]
+        )
+        let occultationSummary =
+            EventForecastAttentionSummary(
+                item: occultation
+            )
+        XCTAssertEqual(
+            occultationSummary.calculationTierTitle,
+            "参考"
+        )
+        XCTAssertEqual(
+            occultationSummary.importantWarningCount,
+            2
+        )
+    }
+
+    @MainActor
     func testKindFilterPersistsAcrossYearAndLocationReloads()
         async throws
     {
@@ -1239,6 +1338,13 @@ final class EventForecastStoreTests:
             eventStore.originalObservationDate,
             original
         )
+        XCTAssertEqual(
+            eventStore.skyContext,
+            EventSkyContext(
+                eventTitle: "天文現象",
+                eventDate: firstEvent
+            )
+        )
 
         eventStore.showOnSky(
             at: secondContact,
@@ -1247,6 +1353,10 @@ final class EventForecastStoreTests:
         XCTAssertEqual(
             eventStore.originalObservationDate,
             original
+        )
+        XCTAssertEqual(
+            eventStore.skyContext?.eventDate,
+            secondContact
         )
 
         eventStore.restoreSkyDate(
@@ -1259,6 +1369,7 @@ final class EventForecastStoreTests:
         XCTAssertNil(
             eventStore.originalObservationDate
         )
+        XCTAssertNil(eventStore.skyContext)
     }
 
     @MainActor
@@ -2484,7 +2595,8 @@ final class EventForecastStoreTests:
         location: ObservingLocation? = nil,
         kind: EclipseCandidateKindV1 = .lunarEclipse,
         uncertainBoundary:
-            SolarEclipseUncertainBoundaryV1? = nil
+            SolarEclipseUncertainBoundaryV1? = nil,
+        warnings: [String] = []
     ) -> EventForecastItem {
         let location = location ?? tokyo
         let candidate = EclipseCandidateV1(
@@ -2554,7 +2666,7 @@ final class EventForecastStoreTests:
                         "mean-spherical-limb",
                     limbProfileID: nil
                 ),
-                warnings: [],
+                warnings: warnings,
                 uncertainBoundary: uncertainBoundary
             )
         )
@@ -2563,7 +2675,10 @@ final class EventForecastStoreTests:
     private func makeOccultationForecast(
         id: String,
         visibility: LunarOccultationVisibilityV1,
-        grazing: Bool
+        grazing: Bool,
+        precisionWarnings:
+            [PrecisionWarningCode] = [],
+        warnings: [String] = []
     ) -> EventForecastItem {
         let instant =
             date("2026-03-05T04:20:00Z")
@@ -2640,8 +2755,8 @@ final class EventForecastStoreTests:
                         "mean-spherical-limb",
                     limbProfileID: nil
                 ),
-                precisionWarnings: [],
-                warnings: []
+                precisionWarnings: precisionWarnings,
+                warnings: warnings
             )
         )
     }

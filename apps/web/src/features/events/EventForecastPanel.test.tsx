@@ -854,6 +854,7 @@ describe("EventForecastPanel", () => {
     );
     expect(onShowEventTime).toHaveBeenCalledWith(
       localMaximum.instantUtc,
+      "部分日食",
     );
   });
 

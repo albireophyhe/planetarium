@@ -1,15 +1,24 @@
 import SwiftUI
 
-enum PlanetariumSidebarMode: String, CaseIterable {
-    case stars
+enum PlanetariumFeature: String, CaseIterable {
+    case sky
     case events
 
     var title: String {
         switch self {
-        case .stars:
-            "恒星"
+        case .sky:
+            "空"
         case .events:
-            "現象予報"
+            "現象"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .sky:
+            "sparkles"
+        case .events:
+            "calendar.badge.clock"
         }
     }
 }
@@ -17,26 +26,38 @@ enum PlanetariumSidebarMode: String, CaseIterable {
 struct PlanetariumSidebarView: View {
     @Bindable var skyStore: SkyStore
     @Bindable var eventStore: EventForecastStore
-    @Binding var mode: PlanetariumSidebarMode
+    @Binding var feature: PlanetariumFeature
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("サイドバーの内容", selection: $mode) {
-                Text("恒星")
-                    .tag(PlanetariumSidebarMode.stars)
-                Text("現象")
-                    .tag(PlanetariumSidebarMode.events)
+            Picker("機能", selection: $feature) {
+                ForEach(
+                    PlanetariumFeature.allCases,
+                    id: \.self
+                ) { feature in
+                    Label(
+                        feature.title,
+                        systemImage: feature.systemImage
+                    )
+                    .tag(feature)
+                }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .accessibilityLabel("サイドバーの内容")
+            .accessibilityLabel("機能")
+            .accessibilityHint(
+                "空の観察と天文現象の予報を切り替えます"
+            )
+            .accessibilityIdentifier(
+                "planetarium.featurePicker"
+            )
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
 
             Divider()
 
-            switch mode {
-            case .stars:
+            switch feature {
+            case .sky:
                 StarSidebarView(store: skyStore)
             case .events:
                 EventForecastSidebarView(
@@ -45,6 +66,6 @@ struct PlanetariumSidebarView: View {
                 )
             }
         }
-        .navigationTitle(mode.title)
+        .navigationTitle(feature.title)
     }
 }

@@ -1,24 +1,47 @@
+import Accessibility
 import PlanetariumCore
 import SwiftUI
 
 struct SkyWorkspaceView: View {
     @Bindable var store: SkyStore
+    @Bindable var eventStore: EventForecastStore
+    let contextFocusRequest: Int
+    let onShowEvents: () -> Void
     @Environment(\.accessibilityReduceMotion)
     private var accessibilityReduceMotion
+    @AccessibilityFocusState
+    private var restoreActionAccessibilityFocused: Bool
+    @AccessibilityFocusState
+    private var workspaceHeadingAccessibilityFocused: Bool
+    @State private var handledContextFocusRequest = 0
 
     var body: some View {
         workspaceContent
-        .onAppear {
-            store.setReduceMotion(accessibilityReduceMotion)
-        }
-        .onChange(of: accessibilityReduceMotion) {
-            store.setReduceMotion(accessibilityReduceMotion)
-        }
+            .onAppear {
+                store.setReduceMotion(
+                    accessibilityReduceMotion
+                )
+                applyContextFocusRequest()
+            }
+            .onChange(of: accessibilityReduceMotion) {
+                store.setReduceMotion(
+                    accessibilityReduceMotion
+                )
+            }
+            .onChange(of: contextFocusRequest) {
+                applyContextFocusRequest()
+            }
     }
 
     private var workspaceContent: some View {
         VStack(spacing: 0) {
             header
+
+            if eventStore.canRestoreObservationDate {
+                eventTimeRestoreBar
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+            }
 
             if let errorMessage = store.errorMessage {
                 MessageBanner(
@@ -70,6 +93,7 @@ struct SkyWorkspaceView: View {
                 .padding(.bottom, 16)
         }
         .navigationTitle("Planetarium")
+        .accessibilityIdentifier("sky.workspace")
         .background(
             store.nightMode
                 ? Color(red: 0.055, green: 0.018, blue: 0.018)
@@ -83,6 +107,10 @@ struct SkyWorkspaceView: View {
                 HStack(spacing: 8) {
                     Text("Planetarium")
                         .font(SkyTypography.brand)
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityFocused(
+                            $workspaceHeadingAccessibilityFocused
+                        )
                     Text(store.sunState.phase.nameJa)
                         .font(.caption.weight(.semibold))
                         .padding(.horizontal, 8)
@@ -122,17 +150,26 @@ struct SkyWorkspaceView: View {
                 }
 
                 Label(
-                    store.dut1StatusSummary,
-                    systemImage: store.dut1StatusSystemImage
+                    calculationStatusPresentation.summary,
+                    systemImage:
+                        calculationStatusPresentation.systemImage
                 )
                 .font(SkyTypography.dataCaption)
                 .foregroundStyle(
-                    store.currentDUT1Estimate == nil
+                    calculationStatusPresentation.isWarning
                         ? Color.orange
                         : Color.secondary
                 )
-                .lineLimit(1)
-                .help(store.dut1StatusDetail)
+                .lineLimit(
+                    calculationStatusPresentation.isWarning
+                        ? 2
+                        : 1
+                )
+                .help(calculationStatusDetail)
+                .accessibilityLabel(
+                    "計算状態。"
+                        + calculationStatusPresentation.summary
+                )
                 .accessibilityHint(store.dut1StatusDetail)
             }
 
@@ -163,6 +200,60 @@ struct SkyWorkspaceView: View {
         .padding(.bottom, 10)
     }
 
+    private var calculationStatusPresentation:
+        SkyWorkspaceCalculationStatusPresentation
+    {
+        let earthOrientationStatus:
+            SkyWorkspaceCalculationStatusPresentation
+                .EarthOrientationStatus
+
+        if let dut1Source =
+            store.currentDUT1Estimate?.source,
+            let polarMotionSource =
+                store.currentPolarMotionEstimate?.source
+        {
+            switch (
+                dut1Source == .observed,
+                polarMotionSource == .observed
+            ) {
+            case (true, true):
+                earthOrientationStatus = .observed
+            case (false, false):
+                earthOrientationStatus = .predicted
+            default:
+                earthOrientationStatus = .mixed
+            }
+        } else if store.currentEarthOrientationApplicationFailure
+            != nil
+        {
+            earthOrientationStatus = .applicationFailure
+        } else if store.iersEarthOrientationLoadFailure != nil
+            || store.currentEarthOrientationLookupFailure != nil
+        {
+            earthOrientationStatus = .readFailure
+        } else if store.isIERSEarthOrientationDataLoaded {
+            earthOrientationStatus = .outsideCoverage
+        } else {
+            earthOrientationStatus = .preparing
+        }
+
+        return SkyWorkspaceCalculationStatusPresentation(
+            refractionSource:
+                store.atmosphericRefractionInputSource,
+            earthOrientationStatus: earthOrientationStatus
+        )
+    }
+
+    private var calculationStatusDetail: String {
+        [
+            "精密モデルv2",
+            "大気差：\(store.pointingRefractionDescription)",
+            store.dut1StatusDetail,
+            store.polarMotionStatusDetail,
+        ]
+        .joined(separator: "\n")
+    }
+
     private var timeControls: some View {
         VStack(spacing: 10) {
             if store.showSelectedStarTrajectory {
@@ -183,6 +274,114 @@ struct SkyWorkspaceView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
         }
+    }
+
+    private var eventTimeRestoreBar: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                eventTimeContextLabel
+
+                Spacer(minLength: 12)
+
+                eventTimeContextActions
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                eventTimeContextLabel
+                eventTimeContextActions
+            }
+        }
+        .padding(10)
+        .background(
+            .ultraThinMaterial,
+            in: RoundedRectangle(cornerRadius: 9)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 9)
+                .stroke(
+                    (store.nightMode ? Color.red : Color.blue)
+                        .opacity(0.45),
+                    lineWidth: 1
+                )
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var eventTimeContextLabel: some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(
+                    eventStore.skyContext?.eventTitle
+                        ?? "天文現象"
+                )
+                .font(.callout.weight(.semibold))
+                .lineLimit(2)
+
+                Text(eventTimeContextDateText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } icon: {
+            Image(systemName: "clock.badge.checkmark")
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(eventStore.skyContext?.eventTitle ?? "天文現象")。"
+                + eventTimeContextDateText
+        )
+        .accessibilityIdentifier(
+            "sky.eventObservationContext"
+        )
+    }
+
+    private var eventTimeContextActions: some View {
+        HStack(spacing: 8) {
+            Button {
+                onShowEvents()
+            } label: {
+                Label(
+                    "現象へ戻る",
+                    systemImage: "calendar.badge.clock"
+                )
+            }
+            .accessibilityHint(
+                "選択した現象の詳細へ戻ります"
+            )
+            .accessibilityIdentifier(
+                "sky.showEventWorkspace"
+            )
+
+            Button {
+                restoreEventObservationDate()
+            } label: {
+                Label(
+                    "元の観測日時へ戻す",
+                    systemImage: "arrow.uturn.backward"
+                )
+            }
+            .accessibilityIdentifier(
+                "sky.restoreEventObservationDate"
+            )
+            .accessibilityFocused(
+                $restoreActionAccessibilityFocused
+            )
+            .accessibilityHint(
+                "現象を表示する前の観測日時へ戻します"
+            )
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+    }
+
+    private var eventTimeContextDateText: String {
+        let date =
+            eventStore.skyContext?.eventDate
+            ?? store.observationDate
+        return "現象時刻 " + SkyFormatting.dateTime(
+            date,
+            timeZoneIdentifier:
+                store.location.timeZoneIdentifier
+        )
     }
 
     private var expandedTimeActionRow: some View {
@@ -445,6 +644,113 @@ struct SkyWorkspaceView: View {
         }
     }
 
+    private func restoreEventObservationDate() {
+        eventStore.restoreSkyDate(skyStore: store)
+        Task { @MainActor in
+            restoreActionAccessibilityFocused = false
+            workspaceHeadingAccessibilityFocused = true
+            AccessibilityNotification
+                .Announcement(
+                    EventForecastAccessibility
+                        .restoredObservationTimeAnnouncement
+                )
+                .post()
+        }
+    }
+
+    private func applyContextFocusRequest() {
+        guard contextFocusRequest
+            > handledContextFocusRequest
+        else {
+            return
+        }
+        handledContextFocusRequest =
+            contextFocusRequest
+        Task { @MainActor in
+            if eventStore.canRestoreObservationDate {
+                workspaceHeadingAccessibilityFocused = false
+                restoreActionAccessibilityFocused = true
+            } else {
+                restoreActionAccessibilityFocused = false
+                workspaceHeadingAccessibilityFocused = true
+            }
+        }
+    }
+
+}
+
+struct SkyWorkspaceCalculationStatusPresentation:
+    Equatable
+{
+    enum EarthOrientationStatus: Equatable {
+        case observed
+        case predicted
+        case mixed
+        case preparing
+        case readFailure
+        case outsideCoverage
+        case applicationFailure
+    }
+
+    let summary: String
+    let systemImage: String
+    let isWarning: Bool
+
+    init(
+        refractionSource: AtmosphericRefractionInputSource?,
+        earthOrientationStatus: EarthOrientationStatus
+    ) {
+        let refractionSummary = switch refractionSource {
+        case .standard:
+            "標準大気差"
+        case .manual:
+            "手動大気差"
+        case nil:
+            "大気差なし"
+        }
+        let earthOrientationSummary =
+            switch earthOrientationStatus {
+            case .observed:
+                "IERS観測値"
+            case .predicted:
+                "IERS予測値"
+            case .mixed:
+                "IERS観測・予測値"
+            case .preparing:
+                "IERS EOP準備中（0近似）"
+            case .readFailure:
+                "IERS EOP読込失敗（0近似）"
+            case .outsideCoverage:
+                "IERS EOP収録範囲外（0近似）"
+            case .applicationFailure:
+                "IERS EOP適用失敗（0近似）"
+            }
+
+        summary =
+            "精密計算・\(refractionSummary)・"
+            + earthOrientationSummary
+        systemImage = switch earthOrientationStatus {
+        case .observed:
+            "checkmark.circle"
+        case .predicted, .mixed:
+            "clock.badge.exclamationmark"
+        case .preparing:
+            "clock.arrow.circlepath"
+        case .readFailure,
+             .outsideCoverage,
+             .applicationFailure:
+            "exclamationmark.triangle"
+        }
+        isWarning = switch earthOrientationStatus {
+        case .observed, .predicted, .mixed:
+            false
+        case .preparing,
+             .readFailure,
+             .outsideCoverage,
+             .applicationFailure:
+            true
+        }
+    }
 }
 
 private struct MessageBanner: View {

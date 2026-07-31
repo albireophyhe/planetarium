@@ -9,6 +9,7 @@ import {
 import {
   lazy,
   Suspense,
+  type MouseEvent as ReactMouseEvent,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -70,6 +71,11 @@ import {
   formatSignedDegrees,
 } from "./astronomicalFormatting";
 import {
+  appRouteFromPathname,
+  pathnameForAppRoute,
+  type AppRoute,
+} from "./appRoute";
+import {
   observationInputRange,
   parseObservationDateInput,
   shiftObservationDate,
@@ -114,34 +120,6 @@ const GEOMETRIC_POSITION_OPTIONS: ApparentPositionOptionsV2 =
   Object.freeze({
     refraction: false,
   });
-
-const MOBILE_SIDE_PANEL_MEDIA_QUERY = "(max-width: 860px)";
-
-function useMobileSidePanelLayout(): boolean {
-  const [matches, setMatches] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      typeof window.matchMedia === "function" &&
-      window.matchMedia(MOBILE_SIDE_PANEL_MEDIA_QUERY).matches,
-  );
-  useEffect(() => {
-    if (
-      typeof window === "undefined" ||
-      typeof window.matchMedia !== "function"
-    ) {
-      return;
-    }
-    const mediaQuery = window.matchMedia(
-      MOBILE_SIDE_PANEL_MEDIA_QUERY,
-    );
-    const handleChange = (event: MediaQueryListEvent) =>
-      setMatches(event.matches);
-    mediaQuery.addEventListener("change", handleChange);
-    return () =>
-      mediaQuery.removeEventListener("change", handleChange);
-  }, []);
-  return matches;
-}
 
 const OBSERVATION_DATE_ADJUSTMENT_MESSAGE =
   "対応期間は1900年から2100年です。最も近い日時へ調整しました。";
@@ -263,8 +241,9 @@ function apparentPositionOptionsWithEarthOrientation(
 }
 
 export function App() {
-  const usesMobileSidePanelLayout =
-    useMobileSidePanelLayout();
+  const [route, setRoute] = useState<AppRoute>(() =>
+    appRouteFromPathname(window.location.pathname),
+  );
   const [initialClock] = useState(() => {
     const requestedDate = new Date();
     const date = clampObservationDate(requestedDate);
@@ -288,11 +267,14 @@ export function App() {
   const [location, setLocation] = useState<ObserverLocation>(cityToLocation);
   const [locationOpen, setLocationOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<"stars" | "settings">("stars");
-  const [sideFeature, setSideFeature] = useState<"stars" | "events">(
-    "stars",
+  const [eventFeatureActivated, setEventFeatureActivated] = useState(
+    () => route === "events",
   );
-  const [eventFeatureActivated, setEventFeatureActivated] = useState(false);
-  const [eventReturnDate, setEventReturnDate] = useState<Date | null>(null);
+  const [eventReturnContext, setEventReturnContext] = useState<{
+    readonly eventDate: Date;
+    readonly eventTitle: string;
+    readonly originalDate: Date;
+  } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedHr, setSelectedHr] = useState<number | null>(null);
   const [resolvedSelectedStarTrack, setResolvedSelectedStarTrack] =
@@ -317,6 +299,14 @@ export function App() {
   const atmosphereTriggerRef = useRef<HTMLButtonElement | null>(null);
   const restoreAtmosphereFocusRef = useRef(false);
   const helpTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const skyScreenRef = useRef<HTMLElement | null>(null);
+  const eventsScreenRef = useRef<HTMLElement | null>(null);
+  const eventTimeReturnButtonRef = useRef<HTMLButtonElement | null>(
+    null,
+  );
+  const pendingRouteFocusRef = useRef<
+    "screen" | "event-time-return" | null
+  >(null);
   const timeBoundaryNoticeSequence = useRef(
     initialClock.adjusted ? 1 : 0,
   );
@@ -331,6 +321,97 @@ export function App() {
     retry: retryPrecisionCatalog,
     status: precisionCatalogStatus,
   } = usePrecisionCatalog();
+
+  const navigateToRoute = useCallback(
+    (
+      nextRoute: AppRoute,
+      focusTarget: "screen" | "event-time-return" = "screen",
+    ) => {
+      const nextPathname = pathnameForAppRoute(nextRoute);
+      pendingRouteFocusRef.current = focusTarget;
+      if (window.location.pathname !== nextPathname) {
+        window.history.pushState(null, "", nextPathname);
+      }
+      if (nextRoute === "events") {
+        setEventFeatureActivated(true);
+      }
+      setRoute(nextRoute);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const canonicalPathname = pathnameForAppRoute(
+      appRouteFromPathname(window.location.pathname),
+    );
+    if (window.location.pathname !== canonicalPathname) {
+      window.history.replaceState(null, "", canonicalPathname);
+    }
+
+    const handlePopState = () => {
+      const nextRoute = appRouteFromPathname(
+        window.location.pathname,
+      );
+      pendingRouteFocusRef.current = "screen";
+      if (nextRoute === "events") {
+        setEventFeatureActivated(true);
+      }
+      setRoute(nextRoute);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () =>
+      window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  useEffect(() => {
+    document.title =
+      route === "events"
+        ? "天文現象 | Planetarium"
+        : "星空 | Planetarium";
+  }, [route]);
+
+  useLayoutEffect(() => {
+    const focusTarget = pendingRouteFocusRef.current;
+    if (!focusTarget) {
+      return;
+    }
+
+    const screen =
+      route === "events"
+        ? eventsScreenRef.current
+        : skyScreenRef.current;
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    if (screen) {
+      screen.scrollTop = 0;
+    }
+
+    const target =
+      route === "sky" && focusTarget === "event-time-return"
+        ? eventTimeReturnButtonRef.current ?? screen
+        : screen;
+    target?.focus({
+      preventScroll: focusTarget !== "event-time-return",
+    });
+    pendingRouteFocusRef.current = null;
+  }, [eventReturnContext, route]);
+
+  function handleRouteLinkClick(
+    event: ReactMouseEvent<HTMLAnchorElement>,
+    nextRoute: AppRoute,
+  ) {
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
+    event.preventDefault();
+    navigateToRoute(nextRoute);
+  }
 
   const clearTimeBoundaryNotice = useCallback(() => {
     setTimeBoundaryNotice(null);
@@ -891,8 +972,8 @@ export function App() {
   );
   const handleSearchFocusRequest = useCallback(() => {
     setMobileTab("stars");
-    setSideFeature("stars");
-  }, []);
+    navigateToRoute("sky");
+  }, [navigateToRoute]);
   const sun = useMemo(
     () =>
       precisionFrame
@@ -963,23 +1044,46 @@ export function App() {
     hasSettledEarthOrientationFrame
       ? "・新しい観測日時のIERS EOPを準備中（整合済みの直前フレームを表示）"
       : "";
-  const calculationStatusText =
+  const earthOrientationSummaryText = currentEarthOrientationEstimate
+    ? currentEarthOrientationEstimate.dut1.source === "observed" &&
+      currentEarthOrientationEstimate.polarMotion.source === "observed"
+      ? "IERS観測値"
+      : currentEarthOrientationEstimate.dut1.source === "predicted" &&
+          currentEarthOrientationEstimate.polarMotion.source === "predicted"
+        ? "IERS予測値"
+        : "IERS観測・予測値"
+    : settledEarthOrientationStatus === "unavailable"
+      ? "IERS収録外・0近似"
+      : settledEarthOrientationStatus === "error"
+        ? "IERS読込失敗・0近似"
+        : "IERS準備中";
+  const refractionSummaryText = appliedRefraction
+    ? appliedRefraction.inputSource === "standard"
+      ? "標準大気差"
+      : "手動大気差"
+    : "大気差なし";
+  const calculationDetailText =
     precisionCatalogStatus === "ready" &&
-    !hasSettledEarthOrientationFrame
-      ? "IERS EOPを準備中・一時的に簡易計算で幾何高度を表示"
-      : precisionCatalogStatus === "ready"
-      ? `精密計算 v2・年周視差（収録星）／太陽光偏向・年周・日周光行差・${
+    hasSettledEarthOrientationFrame
+      ? `年周視差（収録星）／太陽光偏向・年周・日周光行差・${
           appliedRefraction
-            ? `${
-                appliedRefraction.inputSource === "standard"
-                  ? "標準大気差"
-                  : "手動大気差"
-              }あり（幾何高度${
+            ? `${refractionSummaryText}あり（幾何高度${
                 appliedRefraction.atmosphere
                   .minimumGeometricAltitudeDegrees ?? 5
               }°以上）`
             : "幾何高度（大気差なし）"
         }・${earthOrientationStatusText}${earthOrientationPendingText}`
+      : null;
+  const calculationStatusText =
+    precisionCatalogStatus === "ready" &&
+    !hasSettledEarthOrientationFrame
+      ? "IERS準備中（DUT1・極運動は0近似）・簡易計算"
+      : precisionCatalogStatus === "ready"
+      ? `精密計算 v2・${refractionSummaryText}・${earthOrientationSummaryText}${
+          earthOrientationRequestPending && hasSettledEarthOrientationFrame
+            ? "・更新中（直前の整合済み結果）"
+            : ""
+        }`
       : precisionCatalogStatus === "loading"
         ? `精密星表を準備中・一時的に簡易計算で幾何高度を表示${
             appliedRefraction
@@ -1054,28 +1158,28 @@ export function App() {
     setLocationOpen(true);
   }
 
-  function handleSideFeatureChange(nextFeature: "stars" | "events") {
-    setSideFeature(nextFeature);
-    if (nextFeature === "events") {
-      setEventFeatureActivated(true);
-    }
-  }
-
-  function handleShowEventTime(nextDate: Date) {
+  function handleShowEventTime(nextDate: Date, eventTitle: string) {
     playback.pause();
-    setEventReturnDate((current) => current ?? date);
+    setEventReturnContext((current) => ({
+      eventDate: nextDate,
+      eventTitle,
+      originalDate: current?.originalDate ?? date,
+    }));
     requestObservationDate(clampObservationDate(nextDate));
     setTimeError(null);
     clearTimeBoundaryNotice();
+    navigateToRoute("sky", "event-time-return");
   }
 
   function handleRestoreObservationTime() {
-    if (!eventReturnDate) {
+    if (!eventReturnContext) {
       return;
     }
     playback.pause();
-    requestObservationDate(eventReturnDate);
-    setEventReturnDate(null);
+    requestObservationDate(eventReturnContext.originalDate);
+    pendingRouteFocusRef.current =
+      route === "sky" ? "screen" : null;
+    setEventReturnContext(null);
     setTimeError(null);
     clearTimeBoundaryNotice();
   }
@@ -1107,47 +1211,80 @@ export function App() {
       className={`app-shell${layers.nightMode ? " app-shell--night" : ""}`}
       data-calculation-model={precisionFrame ? "v2" : "v1"}
     >
-      <a className="skip-link" href="#star-list-panel">
-        星と現象の一覧へ移動
+      <a
+        className="skip-link"
+        href={route === "events" ? "#events-screen" : "#sky-screen"}
+      >
+        {route === "events"
+          ? "天文現象の内容へ移動"
+          : "星空の内容へ移動"}
       </a>
 
-      <header className="app-toolbar">
-        <h1 className="app-brand">Planetarium</h1>
-        <button
-          className="toolbar-location"
-          onClick={handleLocationOpen}
-          type="button"
-        >
-          <MapPinIcon aria-hidden="true" size={20} strokeWidth={1.8} />
-          <span>{location.name}</span>
-        </button>
-        <time className="toolbar-datetime" dateTime={date.toISOString()}>
-          {displayDateTime}
-        </time>
-        <button
-          className="toolbar-action toolbar-action--location"
-          onClick={handleLocationOpen}
-          type="button"
-        >
-          <NavigationIcon aria-hidden="true" size={20} strokeWidth={1.8} />
-          現在地
-        </button>
-        <button
-          className="toolbar-action toolbar-action--help"
-          onClick={(event) => handleHelpOpen(event.currentTarget)}
-          type="button"
-        >
-          <CircleHelpIcon aria-hidden="true" size={20} strokeWidth={1.8} />
-          ヘルプ
-        </button>
+      <header className="app-header">
+        <div className="app-toolbar">
+          <span className="app-brand">Planetarium</span>
+          <button
+            className="toolbar-location"
+            onClick={handleLocationOpen}
+            type="button"
+          >
+            <MapPinIcon aria-hidden="true" size={20} strokeWidth={1.8} />
+            <span>{location.name}</span>
+          </button>
+          <time className="toolbar-datetime" dateTime={date.toISOString()}>
+            {displayDateTime}
+          </time>
+          <button
+            className="toolbar-action toolbar-action--location"
+            onClick={handleLocationOpen}
+            type="button"
+          >
+            <NavigationIcon aria-hidden="true" size={20} strokeWidth={1.8} />
+            現在地
+          </button>
+          <button
+            className="toolbar-action toolbar-action--help"
+            onClick={(event) => handleHelpOpen(event.currentTarget)}
+            type="button"
+          >
+            <CircleHelpIcon aria-hidden="true" size={20} strokeWidth={1.8} />
+            ヘルプ
+          </button>
+        </div>
+        <nav aria-label="主な画面" className="app-primary-nav">
+          <a
+            aria-current={route === "sky" ? "page" : undefined}
+            href={pathnameForAppRoute("sky")}
+            onClick={(event) => handleRouteLinkClick(event, "sky")}
+          >
+            空
+          </a>
+          <a
+            aria-current={route === "events" ? "page" : undefined}
+            href={pathnameForAppRoute("events")}
+            onClick={(event) => handleRouteLinkClick(event, "events")}
+          >
+            現象
+          </a>
+        </nav>
       </header>
 
       <div className="mobile-datetime">
         <time dateTime={date.toISOString()}>{displayDateTime}</time>
       </div>
 
-      <div className="workspace">
-        <main className="sky-region">
+      <div className={`workspace workspace--${route}`}>
+        <main
+          aria-labelledby="sky-screen-title"
+          className="sky-region"
+          hidden={route !== "sky"}
+          id="sky-screen"
+          ref={skyScreenRef}
+          tabIndex={-1}
+        >
+          <h1 className="sr-only" id="sky-screen-title">
+            星空
+          </h1>
           {drawError ? (
             <div className="inline-error" role="alert">
               <p>{drawError.message}</p>
@@ -1181,11 +1318,19 @@ export function App() {
                 {TWILIGHT_LABELS[twilight]}・太陽高度
                 {solarAltitudeText}
               </strong>
-              <p
-                aria-live={playback.isPlaying ? "off" : "polite"}
-              >
-                {calculationStatusText}
-              </p>
+              <div className="calculation-status-row">
+                <p
+                  aria-live={playback.isPlaying ? "off" : "polite"}
+                >
+                  {calculationStatusText}
+                </p>
+                {calculationDetailText ? (
+                  <details className="calculation-status-details">
+                    <summary>計算情報</summary>
+                    <p>{calculationDetailText}</p>
+                  </details>
+                ) : null}
+              </div>
               {timeScaleAssumption ? (
                 <p
                   aria-live="polite"
@@ -1241,6 +1386,43 @@ export function App() {
             >
               {timeBoundaryNotice.message}
             </p>
+          ) : null}
+          {eventReturnContext ? (
+            <aside
+              aria-label="現象時刻から開いた空"
+              className="observation-time-return"
+              role="note"
+            >
+              <span className="observation-time-return__context">
+                <strong>{eventReturnContext.eventTitle}</strong>
+                <span>
+                  現象時刻&nbsp;
+                  <time
+                    dateTime={eventReturnContext.eventDate.toISOString()}
+                  >
+                    {formatZonedDateTime(
+                      eventReturnContext.eventDate,
+                      location.timeZone,
+                    )}
+                  </time>
+                </span>
+              </span>
+              <span className="observation-time-return__actions">
+                <button
+                  onClick={() => navigateToRoute("events")}
+                  type="button"
+                >
+                  現象へ戻る
+                </button>
+                <button
+                  onClick={handleRestoreObservationTime}
+                  ref={eventTimeReturnButtonRef}
+                  type="button"
+                >
+                  元の日時に戻る
+                </button>
+              </span>
+            </aside>
           ) : null}
           <TimeControls
             dateTimeMaximum={dateTimeRange.maximum}
@@ -1305,7 +1487,12 @@ export function App() {
           />
         </main>
 
-        <aside className="side-panel" id="star-list-panel">
+        <aside
+          aria-label="恒星と表示設定"
+          className="side-panel"
+          hidden={route !== "sky"}
+          id="star-list-panel"
+        >
           <div className="mobile-tabs">
             <SegmentedControl
               ariaLabel="モバイル表示"
@@ -1315,7 +1502,7 @@ export function App() {
                 {
                   controlsId: "mobile-stars-panel",
                   id: "mobile-stars-tab",
-                  label: "星と現象",
+                  label: "恒星",
                   value: "stars",
                 },
                 {
@@ -1337,128 +1524,37 @@ export function App() {
             role="tabpanel"
             aria-labelledby="mobile-stars-tab"
           >
-            <div className="side-panel__feature-tabs">
-              <SegmentedControl
-                ariaLabel="星と天文現象"
-                kind="tabs"
-                onChange={handleSideFeatureChange}
-                options={[
-                  {
-                    controlsId: "side-stars-feature-panel",
-                    id: "side-stars-feature-tab",
-                    label: "恒星",
-                    value: "stars",
-                  },
-                  {
-                    controlsId: "side-events-feature-panel",
-                    id: "side-events-feature-tab",
-                    label: "現象",
-                    value: "events",
-                  },
-                ]}
-                value={sideFeature}
-              />
-            </div>
-
-            {sideFeature === "stars" ? (
-              <div
-                className="side-panel__feature-panel"
-                id="side-stars-feature-panel"
-                role="tabpanel"
-                aria-labelledby="side-stars-feature-tab"
-              >
-                <StarExplorer
-                  allStars={namedViewModels}
-                  onQueryChange={setSearchQuery}
-                  onSearchFocusRequest={handleSearchFocusRequest}
-                  onSelect={handleSelectStar}
-                  onVisibleModeChange={setVisibleMode}
-                  query={searchQuery}
-                  selectedHr={selectedHr}
-                  visibleMode={visibleMode}
-                />
-                <StarDetails
-                  earthOrientationEstimate={currentEarthOrientationEstimate}
-                  earthOrientationSourceIdentifier={
-                    currentEarthOrientationSourceIdentifier
-                  }
-                  isPlaybackPlaying={playback.isPlaying}
-                  location={location}
-                  observationDate={date}
-                  onPausePlayback={playback.pause}
-                  polarMotionSnapshot={
-                    precisionFrame?.context.polarMotion ?? null
-                  }
-                  refractionAtmosphere={
-                    appliedRefraction?.atmosphere ?? null
-                  }
-                  refractionInputSource={
-                    appliedRefraction?.inputSource ?? null
-                  }
-                  star={selectedStar}
-                  timeScales={precisionFrame?.context.timeScales ?? null}
-                />
-              </div>
-            ) : null}
-
-            {eventFeatureActivated ? (
-              <div
-                className="side-panel__feature-panel"
-                hidden={sideFeature !== "events"}
-                id="side-events-feature-panel"
-                role="tabpanel"
-                aria-labelledby="side-events-feature-tab"
-              >
-                <LazyFeatureErrorBoundary
-                  fallback={
-                    <div className="lazy-feature-fallback" role="alert">
-                      <span>
-                        予報機能を読み込めませんでした。恒星の星図は利用できます。
-                      </span>
-                      <button
-                        className="button button--secondary"
-                        onClick={() => window.location.reload()}
-                        type="button"
-                      >
-                        再読み込み
-                      </button>
-                    </div>
-                  }
-                  featureName="Event forecast panel"
-                >
-                  <Suspense
-                    fallback={
-                      <p
-                        aria-live="polite"
-                        className="lazy-feature-fallback"
-                        role="status"
-                      >
-                        予報機能を準備しています。
-                      </p>
-                    }
-                  >
-                    <LazyEventForecastPanel
-                      canRestoreObservationTime={eventReturnDate !== null}
-                      isActive={
-                        sideFeature === "events" &&
-                        (!usesMobileSidePanelLayout ||
-                          mobileTab === "stars")
-                      }
-                      loadEarthOrientationSnapshot={
-                        loadIersEarthOrientationSnapshot
-                      }
-                      location={location}
-                      observationDate={date}
-                      onRestoreObservationTime={handleRestoreObservationTime}
-                      onRetryPrecisionCatalog={retryPrecisionCatalog}
-                      onShowEventTime={handleShowEventTime}
-                      precisionCatalog={precisionCatalog}
-                      precisionCatalogStatus={precisionCatalogStatus}
-                    />
-                  </Suspense>
-                </LazyFeatureErrorBoundary>
-              </div>
-            ) : null}
+            <StarExplorer
+              allStars={namedViewModels}
+              onQueryChange={setSearchQuery}
+              onSearchFocusRequest={handleSearchFocusRequest}
+              onSelect={handleSelectStar}
+              onVisibleModeChange={setVisibleMode}
+              query={searchQuery}
+              selectedHr={selectedHr}
+              visibleMode={visibleMode}
+            />
+            <StarDetails
+              earthOrientationEstimate={currentEarthOrientationEstimate}
+              earthOrientationSourceIdentifier={
+                currentEarthOrientationSourceIdentifier
+              }
+              isPlaybackPlaying={playback.isPlaying}
+              location={location}
+              observationDate={date}
+              onPausePlayback={playback.pause}
+              polarMotionSnapshot={
+                precisionFrame?.context.polarMotion ?? null
+              }
+              refractionAtmosphere={
+                appliedRefraction?.atmosphere ?? null
+              }
+              refractionInputSource={
+                appliedRefraction?.inputSource ?? null
+              }
+              star={selectedStar}
+              timeScales={precisionFrame?.context.timeScales ?? null}
+            />
           </div>
 
           <div
@@ -1487,6 +1583,65 @@ export function App() {
             </button>
           </div>
         </aside>
+
+        {eventFeatureActivated ? (
+          <main
+            aria-labelledby="events-screen-title"
+            className="events-region"
+            hidden={route !== "events"}
+            id="events-screen"
+            ref={eventsScreenRef}
+            tabIndex={-1}
+          >
+            <header className="events-region__header">
+              <h1 id="events-screen-title">天文現象</h1>
+            </header>
+            <LazyFeatureErrorBoundary
+              fallback={
+                <div className="lazy-feature-fallback" role="alert">
+                  <span>
+                    予報機能を読み込めませんでした。星空の表示は利用できます。
+                  </span>
+                  <button
+                    className="button button--secondary"
+                    onClick={() => window.location.reload()}
+                    type="button"
+                  >
+                    再読み込み
+                  </button>
+                </div>
+              }
+              featureName="Event forecast panel"
+            >
+              <Suspense
+                fallback={
+                  <p
+                    aria-live="polite"
+                    className="lazy-feature-fallback"
+                    role="status"
+                  >
+                    予報機能を準備しています。
+                  </p>
+                }
+              >
+                <LazyEventForecastPanel
+                  canRestoreObservationTime={eventReturnContext !== null}
+                  isActive={route === "events"}
+                  loadEarthOrientationSnapshot={
+                    loadIersEarthOrientationSnapshot
+                  }
+                  location={location}
+                  observationDate={date}
+                  onRestoreObservationTime={handleRestoreObservationTime}
+                  onRetryPrecisionCatalog={retryPrecisionCatalog}
+                  onShowEventTime={handleShowEventTime}
+                  precisionCatalog={precisionCatalog}
+                  precisionCatalogStatus={precisionCatalogStatus}
+                />
+              </Suspense>
+            </LazyFeatureErrorBoundary>
+          </main>
+        ) : null}
       </div>
 
       {locationOpen ? (

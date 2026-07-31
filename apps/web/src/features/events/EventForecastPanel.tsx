@@ -63,6 +63,7 @@ import {
   EventExplorer,
   type EventExplorerStatus,
 } from "./EventExplorer";
+import { eventTitleForPresentation } from "./eventPresentation";
 import {
   eventSceneContactRange,
   eventSceneProjectionInstants,
@@ -133,7 +134,7 @@ export type EventForecastPanelProps = {
   ) => Promise<IersEarthOrientationSnapshotV1>;
   onRestoreObservationTime: () => void;
   onRetryPrecisionCatalog: () => void;
-  onShowEventTime: (date: Date) => void;
+  onShowEventTime: (date: Date, eventTitle: string) => void;
 };
 
 type ForecastState = {
@@ -1425,9 +1426,19 @@ export function EventForecastPanel({
 
   const showContact = useCallback(
     (sample: { readonly instantUtc: Date }) => {
-      onShowEventTime(sample.instantUtc);
+      const eventTitle = selectedCircumstances
+        ? eventTitleForPresentation(
+            selectedCircumstances.event,
+            selectedCircumstances.localClassification,
+            selectedCircumstances.boundaryUncertaintyReason,
+          )
+        : "天文現象";
+      onShowEventTime(
+        sample.instantUtc,
+        eventTitle,
+      );
     },
-    [onShowEventTime],
+    [onShowEventTime, selectedCircumstances],
   );
 
   const changeBelowHorizonVisibility = useCallback(
@@ -1612,9 +1623,9 @@ export function EventForecastPanel({
           ) : null}
           {displayedForecast.excludedAtLocationCount > 0 ? (
             <p>
-              この地点では成立しない候補
+              この地点で現象が起きない候補
               {displayedForecast.excludedAtLocationCount}
-              件は一覧から除外しています。
+              件は除外しました。
             </p>
           ) : null}
         </aside>

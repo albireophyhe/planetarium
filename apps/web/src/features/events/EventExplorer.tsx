@@ -1,5 +1,6 @@
 import {
   ChevronDownIcon,
+  ChevronLeftIcon,
   ChevronRightIcon,
   CircleAlertIcon,
   Clock3Icon,
@@ -38,6 +39,11 @@ import type {
   LocalCircumstances,
 } from "../../domain/events/types";
 import { EventScene } from "./EventScene";
+import {
+  eventClassificationLabel,
+  eventPresentationClassification,
+  eventTitleForPresentation,
+} from "./eventPresentation";
 import {
   clampEventSceneInstant,
   type EventSceneSamplingSession,
@@ -257,6 +263,37 @@ function usePrefersReducedMotion(): boolean {
   return prefersReducedMotion;
 }
 
+function useNarrowEventLayout(
+  onEnterNarrowLayout: () => void,
+): boolean {
+  const query = "(max-width: 959px)";
+  const [isNarrow, setIsNarrow] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia(query).matches,
+  );
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    ) {
+      return;
+    }
+    const mediaQuery = window.matchMedia(query);
+    const handleChange = (event: MediaQueryListEvent) => {
+      if (event.matches) {
+        onEnterNarrowLayout();
+      }
+      setIsNarrow(event.matches);
+    };
+    mediaQuery.addEventListener?.("change", handleChange);
+    return () =>
+      mediaQuery.removeEventListener?.("change", handleChange);
+  }, [onEnterNarrowLayout]);
+  return isNarrow;
+}
+
 function matchingSceneSamplingSession(
   sceneSampling: EventSceneSamplingState,
   circumstances: LocalCircumstances,
@@ -300,60 +337,6 @@ function samplePhysicalSceneAt(
   return sample;
 }
 
-function eventClassificationLabel(
-  event: EventSummary,
-  classification: EventClassification = event.globalClassification,
-) {
-  switch (event.kind) {
-    case "solar-eclipse":
-      switch (classification) {
-        case "partial":
-          return "部分日食";
-        case "annular":
-          return "金環日食";
-        case "total":
-          return "皆既日食";
-        case "hybrid":
-          return "金環皆既日食";
-        default:
-          return "日食";
-      }
-    case "lunar-eclipse":
-      switch (classification) {
-        case "penumbral":
-          return "半影月食";
-        case "partial":
-          return "部分月食";
-        case "total":
-          return "皆既月食";
-        default:
-          return "月食";
-      }
-    case "lunar-occultation":
-      return "月による恒星掩蔽";
-  }
-}
-
-function eventTitleForClassification(
-  event: EventSummary,
-  classification: EventClassification,
-) {
-  if (
-    event.kind === "lunar-occultation" ||
-    classification === event.globalClassification
-  ) {
-    return event.title;
-  }
-  const globalLabel = eventClassificationLabel(
-    event,
-    event.globalClassification,
-  );
-  const localLabel = eventClassificationLabel(event, classification);
-  return event.title.includes(globalLabel)
-    ? event.title.replace(globalLabel, localLabel)
-    : localLabel;
-}
-
 function isOccurrenceUncertain(
   reason: EventBoundaryUncertaintyReason | null,
 ): boolean {
@@ -361,50 +344,6 @@ function isOccurrenceUncertain(
     reason === "solar-occurrence" ||
     reason === "occultation-occurrence"
   );
-}
-
-function eventTitleForPresentation(
-  event: EventSummary,
-  classification: EventClassification,
-  boundaryReason: EventBoundaryUncertaintyReason | null,
-): string {
-  const classifiedTitle = eventTitleForClassification(
-    event,
-    classification,
-  );
-  if (boundaryReason === "solar-occurrence") {
-    const classificationLabel = eventClassificationLabel(
-      event,
-      classification,
-    );
-    const candidateLabel = "日食候補（発生未確定）";
-    return classifiedTitle.includes(classificationLabel)
-      ? classifiedTitle.replace(classificationLabel, candidateLabel)
-      : `${classifiedTitle} ${candidateLabel}`;
-  }
-  if (boundaryReason === "occultation-occurrence") {
-    return classifiedTitle.includes("の掩蔽")
-      ? classifiedTitle.replace(
-          "の掩蔽",
-          "の掩蔽候補（発生未確定）",
-        )
-      : `${classifiedTitle}（発生未確定の候補）`;
-  }
-  return classifiedTitle;
-}
-
-function eventPresentationClassification(
-  event: EventSummary,
-  classification: EventClassification,
-  boundaryReason: EventBoundaryUncertaintyReason | null,
-): string {
-  if (boundaryReason === "solar-occurrence") {
-    return "日食候補";
-  }
-  if (boundaryReason === "occultation-occurrence") {
-    return "恒星掩蔽候補";
-  }
-  return eventClassificationLabel(event, classification);
 }
 
 function boundaryUncertaintyMessage(
@@ -583,6 +522,9 @@ function EventList({
   events,
   localClassificationsByEventId,
   onSelectEvent,
+  onActivateEvent,
+  focusEventId,
+  focusRequest,
   resultsSummaryId,
   selectedEventId,
   timeZone,
@@ -595,12 +537,59 @@ function EventList({
   | "selectedEventId"
   | "timeZone"
 > & {
+  focusEventId: string | null;
+  focusRequest: number;
+  onActivateEvent: (eventId: string) => void;
   resultsSummaryId: string;
 }) {
+  const listRef = useRef<HTMLDivElement>(null);
   const optionRefs = useRef(new Map<string, HTMLButtonElement>());
   const selectedIndex = events.findIndex(
     (event) => event.id === selectedEventId,
   );
+
+  const revealOptionWithinList = useCallback(
+    (option: HTMLButtonElement) => {
+      const list = listRef.current;
+      if (!list) {
+        return;
+      }
+      const listRect = list.getBoundingClientRect();
+      const optionRect = option.getBoundingClientRect();
+      if (optionRect.top < listRect.top) {
+        list.scrollTop -= listRect.top - optionRect.top;
+      } else if (optionRect.bottom > listRect.bottom) {
+        list.scrollTop += optionRect.bottom - listRect.bottom;
+      }
+    },
+    [],
+  );
+
+  const focusOption = useCallback((eventId: string) => {
+    const option = optionRefs.current.get(eventId);
+    if (!option) {
+      return;
+    }
+    revealOptionWithinList(option);
+    option.focus({ preventScroll: true });
+  }, [revealOptionWithinList]);
+
+  useEffect(() => {
+    if (focusRequest === 0 || focusEventId === null) {
+      return;
+    }
+    focusOption(focusEventId);
+  }, [focusEventId, focusOption, focusRequest]);
+
+  useEffect(() => {
+    if (selectedEventId === null) {
+      return;
+    }
+    const option = optionRefs.current.get(selectedEventId);
+    if (option) {
+      revealOptionWithinList(option);
+    }
+  }, [events, revealOptionWithinList, selectedEventId]);
 
   function handleKeyDown(
     keyboardEvent: KeyboardEvent<HTMLButtonElement>,
@@ -629,7 +618,7 @@ function EventList({
       return;
     }
     onSelectEvent(nextEvent.id);
-    optionRefs.current.get(nextEvent.id)?.focus();
+    focusOption(nextEvent.id);
   }
 
   return (
@@ -637,6 +626,7 @@ function EventList({
       aria-describedby={resultsSummaryId}
       aria-label="天文現象"
       className="event-list"
+      ref={listRef}
       role="listbox"
     >
       {events.map((event, index) => {
@@ -670,7 +660,7 @@ function EventList({
             aria-setsize={events.length}
             className="event-row"
             key={event.id}
-            onClick={() => onSelectEvent(event.id)}
+            onClick={() => onActivateEvent(event.id)}
             onKeyDown={(keyboardEvent) =>
               handleKeyDown(keyboardEvent, index)
             }
@@ -1073,6 +1063,7 @@ function EventDetails({
   onRestoreObservationTime,
   onRetrySceneSampling,
   sceneSampling,
+  focusHeadingRequest,
 }: {
   canRestoreObservationTime: boolean;
   circumstances: LocalCircumstances;
@@ -1083,10 +1074,12 @@ function EventDetails({
   onRestoreObservationTime: () => void;
   onRetrySceneSampling?: () => void;
   sceneSampling: EventSceneSamplingState;
+  focusHeadingRequest: number;
 }) {
   const titleId = useId();
   const safetyTitleId = useId();
   const scenePhaseSelectId = useId();
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const maximumActionRef = useRef<HTMLButtonElement>(null);
   const calculatedPhases = useMemo(
     () => calculatedEventPhases(circumstances),
@@ -1131,6 +1124,12 @@ function EventDetails({
   const samplingTimerRef = useRef<number | null>(null);
   const previousSamplingSessionRef =
     useRef<EventSceneSamplingSession | null>(samplingSession);
+  useEffect(() => {
+    if (focusHeadingRequest === 0) {
+      return;
+    }
+    titleRef.current?.focus();
+  }, [focusHeadingRequest]);
   const stopPhysicalPlayback = useCallback(() => {
     playbackClockRef.current = null;
     setPlayingSession(null);
@@ -1491,7 +1490,9 @@ function EventDetails({
           {eventIcon(event.kind, 18)}
           {presentationClassification}
         </span>
-        <h2 id={titleId}>{displayTitle}</h2>
+        <h2 id={titleId} ref={titleRef} tabIndex={-1}>
+          {displayTitle}
+        </h2>
         <p
           className={`event-visibility event-visibility--${circumstances.visibility}`}
         >
@@ -1597,6 +1598,51 @@ function EventDetails({
         ) : null}
       </dl>
 
+      <div className="event-details__primary-actions">
+        <button
+          className="event-action event-action--primary"
+          onClick={() => {
+            clearPhysicalSimulation();
+            setScenePhaseId(maximumPhaseId);
+            onGoToMaximum(circumstances.maximum);
+            announceAction(
+              `観測日時を${formatDateTime(circumstances.maximum.instantUtc, localTimeZone)}に変更しました。元の日時に戻せます。`,
+            );
+          }}
+          ref={maximumActionRef}
+          type="button"
+        >
+          <Clock3Icon aria-hidden="true" size={18} strokeWidth={1.8} />
+          {maximumLabel}時刻を空に表示
+        </button>
+        {canRestoreObservationTime ? (
+          <button
+            className="event-action event-action--secondary"
+            onClick={() => {
+              clearPhysicalSimulation();
+              setScenePhaseId(maximumPhaseId);
+              onRestoreObservationTime();
+              announceAction("元の観測日時に戻しました。");
+              maximumActionRef.current?.focus();
+            }}
+            type="button"
+          >
+            <RotateCcwIcon
+              aria-hidden="true"
+              size={18}
+              strokeWidth={1.8}
+            />
+            元の日時に戻る
+          </button>
+        ) : null}
+      </div>
+
+      <ContactTable
+        circumstances={circumstances}
+        onGoToContact={showContactOnSky}
+        timeZone={localTimeZone}
+      />
+
       <div className="event-scene-timeline">
         <div className="event-scene-timeline__control">
           <label htmlFor={scenePhaseSelectId}>
@@ -1667,51 +1713,6 @@ function EventDetails({
         circumstances={circumstances}
         projectionSamples={samplingSession?.projectionSamples}
         sample={sceneSample}
-      />
-
-      <div className="event-details__primary-actions">
-        <button
-          className="event-action event-action--primary"
-          onClick={() => {
-            clearPhysicalSimulation();
-            setScenePhaseId(maximumPhaseId);
-            onGoToMaximum(circumstances.maximum);
-            announceAction(
-              `観測日時を${formatDateTime(circumstances.maximum.instantUtc, localTimeZone)}に変更しました。元の日時に戻せます。`,
-            );
-          }}
-          ref={maximumActionRef}
-          type="button"
-        >
-          <Clock3Icon aria-hidden="true" size={18} strokeWidth={1.8} />
-          {maximumLabel}時刻を空に表示
-        </button>
-        {canRestoreObservationTime ? (
-          <button
-            className="event-action event-action--secondary"
-            onClick={() => {
-              clearPhysicalSimulation();
-              setScenePhaseId(maximumPhaseId);
-              onRestoreObservationTime();
-              announceAction("元の観測日時に戻しました。");
-              maximumActionRef.current?.focus();
-            }}
-            type="button"
-          >
-            <RotateCcwIcon
-              aria-hidden="true"
-              size={18}
-              strokeWidth={1.8}
-            />
-            元の日時に戻る
-          </button>
-        ) : null}
-      </div>
-
-      <ContactTable
-        circumstances={circumstances}
-        onGoToContact={showContactOnSky}
-        timeZone={localTimeZone}
       />
 
       {actionAnnouncement ? (
@@ -1965,14 +1966,84 @@ export function EventExplorer({
 }: EventExplorerProps) {
   const headingId = useId();
   const resultsSummaryId = useId();
+  const detailColumnRef = useRef<HTMLDivElement>(null);
+  const [narrowView, setNarrowView] = useState<"list" | "detail">(
+    "list",
+  );
+  const handleEnterNarrowLayout = useCallback(() => {
+    // Keep the currently focused desktop column visible when zoom or
+    // orientation changes cross into the one-column layout.
+    const activeElement = document.activeElement;
+    setNarrowView(
+      activeElement &&
+        detailColumnRef.current?.contains(activeElement)
+        ? "detail"
+        : "list",
+    );
+  }, []);
+  const isNarrowEventLayout = useNarrowEventLayout(
+    handleEnterNarrowLayout,
+  );
+  const [listFocusRequest, setListFocusRequest] = useState(0);
+  const [detailHeadingFocusRequest, setDetailHeadingFocusRequest] =
+    useState(0);
+  const [lastActivatedEventId, setLastActivatedEventId] = useState<
+    string | null
+  >(null);
+  const narrowBackButtonRef = useRef<HTMLButtonElement>(null);
   const selectedCircumstancesAreCurrent =
     selectedCircumstances?.event.id === selectedEventId;
+  const showsNarrowDetail =
+    narrowView === "detail" && selectedEventId !== null;
+
+  const handleActivateEvent = useCallback(
+    (eventId: string) => {
+      setLastActivatedEventId(eventId);
+      onSelectEvent(eventId);
+      if (isNarrowEventLayout) {
+        setNarrowView("detail");
+        setDetailHeadingFocusRequest((current) => current + 1);
+      }
+    },
+    [isNarrowEventLayout, onSelectEvent],
+  );
+
+  const handleBackToList = useCallback(() => {
+    const preferredFocusEventId =
+      lastActivatedEventId ?? selectedEventId;
+    const focusEventId =
+      events.find(({ id }) => id === preferredFocusEventId)?.id ??
+      events.find(({ id }) => id === selectedEventId)?.id ??
+      events[0]?.id ??
+      null;
+    setLastActivatedEventId(focusEventId);
+    setNarrowView("list");
+    setListFocusRequest((current) => current + 1);
+  }, [events, lastActivatedEventId, selectedEventId]);
+
+  useEffect(() => {
+    if (
+      isNarrowEventLayout &&
+      showsNarrowDetail &&
+      !selectedCircumstancesAreCurrent
+    ) {
+      narrowBackButtonRef.current?.focus();
+    }
+  }, [
+    isNarrowEventLayout,
+    selectedCircumstancesAreCurrent,
+    showsNarrowDetail,
+  ]);
 
   return (
     <section
       aria-busy={status === "loading"}
       aria-labelledby={headingId}
-      className="event-explorer"
+      className={`event-explorer${
+        isNarrowEventLayout && showsNarrowDetail
+          ? " event-explorer--narrow-detail"
+          : ""
+      }`}
     >
       <h2 className="sr-only" id={headingId}>
         天文現象を探す
@@ -2035,67 +2106,101 @@ export function EventExplorer({
 
       {status === "ready" && events.length > 0 ? (
         <>
-          <p
-            aria-live="polite"
-            className="event-results-summary"
-            id={resultsSummaryId}
-            role="status"
+          <div
+            className="event-explorer__list-column"
+            hidden={isNarrowEventLayout && showsNarrowDetail}
           >
-            {events.length}件の天文現象
-          </p>
-          <EventList
-            boundaryUncertaintyReasonsByEventId={
-              boundaryUncertaintyReasonsByEventId
-            }
-            events={events}
-            localClassificationsByEventId={
-              localClassificationsByEventId
-            }
-            onSelectEvent={onSelectEvent}
-            resultsSummaryId={resultsSummaryId}
-            selectedEventId={selectedEventId}
-            timeZone={timeZone}
-          />
-
-          {selectedCircumstancesAreCurrent && selectedCircumstances ? (
-            <EventDetails
-              canRestoreObservationTime={canRestoreObservationTime}
-              circumstances={selectedCircumstances}
-              isActive={isActive}
-              key={selectedCircumstances.event.id}
-              observationDate={observationDate}
-              onGoToContact={onGoToContact}
-              onGoToMaximum={onGoToMaximum}
-              onRestoreObservationTime={onRestoreObservationTime}
-              onRetrySceneSampling={onRetrySceneSampling}
-              sceneSampling={sceneSampling}
-            />
-          ) : selectedEventId ? (
-            <div
+            <p
               aria-live="polite"
-              className="event-details event-details--empty"
+              className="event-results-summary"
+              id={resultsSummaryId}
               role="status"
             >
-              <Clock3Icon
-                aria-hidden="true"
-                size={21}
-                strokeWidth={1.8}
+              {events.length}件の天文現象
+            </p>
+            <EventList
+              boundaryUncertaintyReasonsByEventId={
+                boundaryUncertaintyReasonsByEventId
+              }
+              events={events}
+              localClassificationsByEventId={
+                localClassificationsByEventId
+              }
+              focusEventId={lastActivatedEventId}
+              focusRequest={listFocusRequest}
+              onActivateEvent={handleActivateEvent}
+              onSelectEvent={onSelectEvent}
+              resultsSummaryId={resultsSummaryId}
+              selectedEventId={selectedEventId}
+              timeZone={timeZone}
+            />
+          </div>
+
+          <div
+            className="event-explorer__detail-column"
+            hidden={isNarrowEventLayout && !showsNarrowDetail}
+            ref={detailColumnRef}
+          >
+            {isNarrowEventLayout ? (
+              <button
+                className="event-details-back"
+                onClick={handleBackToList}
+                ref={narrowBackButtonRef}
+                type="button"
+              >
+                <ChevronLeftIcon
+                  aria-hidden="true"
+                  size={18}
+                  strokeWidth={1.8}
+                />
+                一覧へ戻る
+              </button>
+            ) : null}
+
+            {selectedCircumstancesAreCurrent && selectedCircumstances ? (
+              <EventDetails
+                canRestoreObservationTime={canRestoreObservationTime}
+                circumstances={selectedCircumstances}
+                focusHeadingRequest={detailHeadingFocusRequest}
+                isActive={
+                  isActive &&
+                  (!isNarrowEventLayout || showsNarrowDetail)
+                }
+                key={selectedCircumstances.event.id}
+                observationDate={observationDate}
+                onGoToContact={onGoToContact}
+                onGoToMaximum={onGoToMaximum}
+                onRestoreObservationTime={onRestoreObservationTime}
+                onRetrySceneSampling={onRetrySceneSampling}
+                sceneSampling={sceneSampling}
               />
-              <p>選択した現象の局地予報を準備しています。</p>
-            </div>
-          ) : (
-            <div className="event-details event-details--empty">
-              <MoonIcon
-                aria-hidden="true"
-                size={21}
-                strokeWidth={1.8}
-              />
-              <p>
-                現象を選ぶと、この地点での接触時刻と予報精度を
-                表示します。
-              </p>
-            </div>
-          )}
+            ) : selectedEventId ? (
+              <div
+                aria-live="polite"
+                className="event-details event-details--empty"
+                role="status"
+              >
+                <Clock3Icon
+                  aria-hidden="true"
+                  size={21}
+                  strokeWidth={1.8}
+                />
+                <p>選択した現象の局地予報を準備しています。</p>
+              </div>
+            ) : (
+              <div className="event-details event-details--empty">
+                <MoonIcon
+                  aria-hidden="true"
+                  size={21}
+                  strokeWidth={1.8}
+                />
+                <p>
+                  現象を選ぶと、この地点での接触時刻と予報精度を
+                  表示します。
+                </p>
+              </div>
+            )}
+          </div>
         </>
       ) : null}
     </section>

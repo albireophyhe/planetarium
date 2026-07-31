@@ -10,6 +10,11 @@ enum EventForecastPhase: Equatable {
     case failed(String)
 }
 
+struct EventSkyContext: Equatable, Sendable {
+    let eventTitle: String
+    let eventDate: Date
+}
+
 struct EventSceneSessionLease:
     Hashable, Sendable
 {
@@ -316,6 +321,7 @@ final class EventForecastStore {
     private(set) var showBelowHorizon = false
     private(set) var kindFilter: EventForecastKindFilter = .all
     private(set) var originalObservationDate: Date?
+    private(set) var skyContext: EventSkyContext?
     private(set) var sceneSession:
         EventSceneSessionState?
     private(set) var sceneReduceMotionEnabled =
@@ -361,6 +367,13 @@ final class EventForecastStore {
 
     @ObservationIgnored
     private var observationDateForSelection: Date?
+
+    /// True only when the current forecast was chosen from the list by the
+    /// user. Automatic upcoming selections may follow a changed sky date,
+    /// while an explicit choice survives an otherwise identical feature
+    /// round-trip.
+    @ObservationIgnored
+    private var selectedForecastWasExplicit = false
 
     @ObservationIgnored
     private var cachedForecasts:
@@ -475,6 +488,24 @@ final class EventForecastStore {
                 )
             )
         }
+
+        if activeLocation == location {
+            switch phase {
+            case .loaded, .empty:
+                if selectedForecastWasExplicit,
+                   selectedForecast != nil
+                {
+                    return
+                }
+                selectedForecastWasExplicit = false
+                selectedForecastID = nil
+                selectFallbackIfNeeded()
+                return
+            case .idle, .loading, .failed:
+                break
+            }
+        }
+
         reload(location: location)
     }
 
@@ -487,6 +518,7 @@ final class EventForecastStore {
     }
 
     func reload(location: ObservingLocation) {
+        selectedForecastWasExplicit = false
         activeLocation = location
         cancelLoad()
         requestGeneration += 1
@@ -597,6 +629,7 @@ final class EventForecastStore {
 
     func selectForecast(_ id: String?) {
         guard let id else {
+            selectedForecastWasExplicit = false
             selectedForecastID = nil
             return
         }
@@ -607,6 +640,7 @@ final class EventForecastStore {
             return
         }
         selectedForecastID = id
+        selectedForecastWasExplicit = true
     }
 
     func selectPreviousYear(location: ObservingLocation) {
@@ -680,6 +714,12 @@ final class EventForecastStore {
             originalObservationDate =
                 skyStore.observationDate
         }
+        skyContext = EventSkyContext(
+            eventTitle:
+                selectedForecast?.title
+                ?? "天文現象",
+            eventDate: date
+        )
         skyStore.pausePlayback()
         skyStore.observationDate = date
         skyStore.statusMessage =
@@ -696,10 +736,12 @@ final class EventForecastStore {
         skyStore.statusMessage =
             "現象表示前の観測日時へ戻しました。"
         self.originalObservationDate = nil
+        skyContext = nil
     }
 
     func clearRestorableDate() {
         originalObservationDate = nil
+        skyContext = nil
     }
 
     func activateSceneSession(
@@ -1399,6 +1441,8 @@ final class EventForecastStore {
         {
             return
         }
+
+        selectedForecastWasExplicit = false
 
         guard !displayed.isEmpty else {
             selectedForecastID = nil

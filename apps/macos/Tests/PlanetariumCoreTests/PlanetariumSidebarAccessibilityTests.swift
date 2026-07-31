@@ -8,7 +8,7 @@ final class PlanetariumSidebarAccessibilityTests:
     XCTestCase, @unchecked Sendable
 {
     @MainActor
-    func testAXPressOnEventsSegmentPreservesHiddenInspector()
+    func testAXPressOnEventsFeatureActivatesForecastAndPreservesHiddenInspector()
         throws
     {
         _ = NSApplication.shared
@@ -32,8 +32,8 @@ final class PlanetariumSidebarAccessibilityTests:
             contentRect: NSRect(
                 x: 0,
                 y: 0,
-                width: 1_080,
-                height: 720
+                width: 980,
+                height: 680
             ),
             styleMask: [
                 .titled,
@@ -74,6 +74,12 @@ final class PlanetariumSidebarAccessibilityTests:
         )
         let accessibleSegments =
             accessibilityDescendants(of: picker)
+        XCTAssertTrue(
+            accessibleSegments.contains {
+                $0.accessibilityLabel() == "空"
+            },
+            "The feature Picker must expose the sky destination as 空."
+        )
         let eventsSegment = try XCTUnwrap(
             accessibleSegments.first {
                 $0.accessibilityLabel() == "現象"
@@ -99,9 +105,202 @@ final class PlanetariumSidebarAccessibilityTests:
         XCTAssertNotEqual(eventStore.phase, .idle)
         XCTAssertFalse(
             skyStore.isInspectorPresented,
-            "Changing sidebar mode must preserve the user's inspector visibility"
+            "Changing feature must preserve the user's inspector visibility"
         )
         XCTAssertTrue(window.isVisible)
+    }
+
+    func testFeatureNamesDescribePrimaryDestinations() {
+        XCTAssertEqual(
+            PlanetariumFeature.allCases.map(\.title),
+            ["空", "現象"]
+        )
+        XCTAssertEqual(
+            PlanetariumFeature.sky.systemImage,
+            "sparkles"
+        )
+        XCTAssertEqual(
+            PlanetariumFeature.events.systemImage,
+            "calendar.badge.clock"
+        )
+    }
+
+    func testSwitchingToEventsRequestsWorkspaceHeadingFocus() {
+        var router = EventWorkspaceFocusRouter()
+
+        router.switched(to: .events)
+
+        XCTAssertEqual(router.request.serial, 1)
+        XCTAssertEqual(
+            router.request.target,
+            .workspaceHeading
+        )
+        XCTAssertFalse(
+            router.returnsToAccuracyTriggerOnClose
+        )
+    }
+
+    func testAccuracyInspectorCloseReturnsFocusToItsTrigger() {
+        var router = EventWorkspaceFocusRouter()
+        router.switched(to: .events)
+
+        router.requestedAccuracyInspector()
+        let inspectorRequestSerial =
+            router.request.serial
+        XCTAssertEqual(
+            router.request.target,
+            .inspectorHeading
+        )
+        XCTAssertTrue(
+            router.returnsToAccuracyTriggerOnClose
+        )
+
+        router.inspectorVisibilityChanged(
+            isPresented: true,
+            selectedFeature: .events
+        )
+        XCTAssertEqual(
+            router.request.serial,
+            inspectorRequestSerial,
+            "Presenting the requested inspector must preserve its focus request"
+        )
+
+        router.inspectorVisibilityChanged(
+            isPresented: false,
+            selectedFeature: .events
+        )
+        XCTAssertEqual(
+            router.request.target,
+            .accuracyTrigger
+        )
+        XCTAssertFalse(
+            router.returnsToAccuracyTriggerOnClose
+        )
+    }
+
+    func testToolbarInspectorCloseDoesNotClaimAccuracyTriggerFocus() {
+        var router = EventWorkspaceFocusRouter()
+        router.switched(to: .events)
+        let workspaceRequest = router.request
+
+        router.inspectorVisibilityChanged(
+            isPresented: true,
+            selectedFeature: .events
+        )
+        router.inspectorVisibilityChanged(
+            isPresented: false,
+            selectedFeature: .events
+        )
+
+        XCTAssertEqual(router.request, workspaceRequest)
+        XCTAssertFalse(
+            router.returnsToAccuracyTriggerOnClose
+        )
+    }
+
+    func testLeavingEventsClearsPendingReturnToHiddenTrigger() {
+        var router = EventWorkspaceFocusRouter()
+        router.switched(to: .events)
+        router.requestedAccuracyInspector()
+
+        router.switched(to: .sky)
+        let skyRequest = router.request
+        router.inspectorVisibilityChanged(
+            isPresented: false,
+            selectedFeature: .sky
+        )
+
+        XCTAssertNil(skyRequest.target)
+        XCTAssertEqual(router.request, skyRequest)
+        XCTAssertFalse(
+            router.returnsToAccuracyTriggerOnClose
+        )
+    }
+
+    func testRepeatedAccuracyActionsIssueFreshInspectorFocusRequests() {
+        var router = EventWorkspaceFocusRouter()
+
+        router.requestedAccuracyInspector()
+        let firstRequest = router.request
+        router.requestedAccuracyInspector()
+
+        XCTAssertEqual(
+            router.request.target,
+            .inspectorHeading
+        )
+        XCTAssertGreaterThan(
+            router.request.serial,
+            firstRequest.serial
+        )
+    }
+
+    func testReopeningInspectorCancelsPendingTriggerFocus() {
+        var router = EventWorkspaceFocusRouter()
+        router.switched(to: .events)
+        router.requestedAccuracyInspector()
+        router.inspectorVisibilityChanged(
+            isPresented: false,
+            selectedFeature: .events
+        )
+        XCTAssertEqual(
+            router.request.target,
+            .accuracyTrigger
+        )
+
+        router.inspectorVisibilityChanged(
+            isPresented: true,
+            selectedFeature: .events
+        )
+
+        XCTAssertNil(router.request.target)
+    }
+
+    @MainActor
+    func testEventWorkspaceRoutingPreservesOriginalDateForRestore() {
+        let originalDate =
+            Date(timeIntervalSince1970: 1_774_915_200)
+        let eventDate =
+            Date(timeIntervalSince1970: 1_776_000_000)
+        let skyStore = SkyStore(now: originalDate)
+        let eventStore = EventForecastStore(
+            initialYear: 2026
+        )
+        var didRouteToSky = false
+
+        EventWorkspaceRouting.showOnSky(
+            at: eventDate,
+            skyStore: skyStore,
+            eventStore: eventStore
+        ) {
+            didRouteToSky = true
+        }
+
+        XCTAssertTrue(didRouteToSky)
+        XCTAssertEqual(skyStore.observationDate, eventDate)
+        XCTAssertEqual(
+            eventStore.originalObservationDate,
+            originalDate
+        )
+        XCTAssertTrue(eventStore.canRestoreObservationDate)
+
+        eventStore.restoreSkyDate(skyStore: skyStore)
+
+        XCTAssertEqual(skyStore.observationDate, originalDate)
+        XCTAssertFalse(eventStore.canRestoreObservationDate)
+    }
+
+    @MainActor
+    func testAccuracySummaryActionPresentsInspector() {
+        let skyStore = SkyStore(
+            now: Date(timeIntervalSince1970: 1_774_915_200)
+        )
+        skyStore.isInspectorPresented = false
+
+        EventWorkspaceRouting.showAccuracyInspector(
+            skyStore: skyStore
+        )
+
+        XCTAssertTrue(skyStore.isInspectorPresented)
     }
 
     @MainActor
@@ -191,6 +390,21 @@ final class PlanetariumSidebarAccessibilityTests:
     func testEventForecastAnnouncementsDescribeAsyncAndFilteredState()
     {
         XCTAssertEqual(
+            EventWorkspaceAccessibility
+                .switchedToEventsAnnouncement,
+            "現象画面を表示しました"
+        )
+        XCTAssertEqual(
+            EventWorkspaceAccessibility
+                .accuracyInspectorAnnouncement,
+            "予報の精度と出典をインスペクタに表示しました"
+        )
+        XCTAssertEqual(
+            EventWorkspaceAccessibility
+                .returnedToAccuracyTriggerAnnouncement,
+            "精度・出典を表示へ戻りました"
+        )
+        XCTAssertEqual(
             EventForecastAccessibility
                 .loadingAnnouncement(year: 2026),
             "2026年の局地予報を計算中です"
@@ -227,7 +441,8 @@ final class PlanetariumSidebarAccessibilityTests:
                         "2026年8月13日（木） 03:13:22 JST"
                 ),
             "最大時刻を空に表示しました。"
-                + "観測日時は2026年8月13日（木） 03:13:22 JSTです"
+                + "空画面へ移動し、観測日時は"
+                + "2026年8月13日（木） 03:13:22 JSTです"
         )
     }
 

@@ -6,27 +6,66 @@ struct ContentView: View {
     @Bindable var store: SkyStore
     @Bindable var eventStore: EventForecastStore
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
-    @State private var sidebarMode: PlanetariumSidebarMode = .stars
+    @State private var selectedFeature: PlanetariumFeature = .sky
+    @State private var skyContextFocusRequest = 0
+    @State private var eventWorkspaceFocusRouter =
+        EventWorkspaceFocusRouter()
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             PlanetariumSidebarView(
                 skyStore: store,
                 eventStore: eventStore,
-                mode: $sidebarMode
+                feature: $selectedFeature
             )
                 .navigationSplitViewColumnWidth(min: 230, ideal: 280, max: 360)
         } detail: {
-            SkyWorkspaceView(store: store)
+            Group {
+                switch selectedFeature {
+                case .sky:
+                    SkyWorkspaceView(
+                        store: store,
+                        eventStore: eventStore,
+                        contextFocusRequest:
+                            skyContextFocusRequest,
+                        onShowEvents: {
+                            selectedFeature = .events
+                        }
+                    )
+                case .events:
+                    EventWorkspaceView(
+                        skyStore: store,
+                        eventStore: eventStore,
+                        focusRequest:
+                            eventWorkspaceFocusRouter
+                            .request,
+                        onShowOnSky: {
+                            skyContextFocusRequest += 1
+                            selectedFeature = .sky
+                        },
+                        onShowAccuracyInspector: {
+                            eventWorkspaceFocusRouter
+                                .requestedAccuracyInspector()
+                            EventWorkspaceRouting
+                                .showAccuracyInspector(
+                                    skyStore: store
+                                )
+                        }
+                    )
+                }
+            }
                 .inspector(isPresented: $store.isInspectorPresented) {
                     Group {
-                        switch sidebarMode {
-                        case .stars:
+                        switch selectedFeature {
+                        case .sky:
                             StarInspectorView(store: store)
                         case .events:
                             EventForecastInspectorView(
                                 skyStore: store,
-                                eventStore: eventStore
+                                eventStore: eventStore,
+                                focusRequest:
+                                    eventWorkspaceFocusRouter
+                                    .request
                             )
                         }
                     }
@@ -78,9 +117,12 @@ struct ContentView: View {
                     .stopScenePlaybackForBackground()
             }
         }
-        .onChange(of: sidebarMode) { _, newMode in
-            switch newMode {
-            case .stars:
+        .onChange(of: selectedFeature) { _, newFeature in
+            eventWorkspaceFocusRouter.switched(
+                to: newFeature
+            )
+            switch newFeature {
+            case .sky:
                 eventStore.deactivate()
             case .events:
                 eventStore.activate(
@@ -93,8 +135,16 @@ struct ContentView: View {
                 // constraint pass when the change comes from AX Press.
             }
         }
+        .onChange(of: store.isInspectorPresented) {
+            _, isPresented in
+            eventWorkspaceFocusRouter
+                .inspectorVisibilityChanged(
+                    isPresented: isPresented,
+                    selectedFeature: selectedFeature
+                )
+        }
         .onChange(of: store.location) {
-            guard sidebarMode == .events else {
+            guard selectedFeature == .events else {
                 return
             }
             eventStore.reload(

@@ -47,7 +47,7 @@ enum EventForecastAccessibility {
         label: String,
         dateText: String
     ) -> String {
-        "\(label)しました。観測日時は\(dateText)です"
+        "\(label)しました。空画面へ移動し、観測日時は\(dateText)です"
     }
 
     static let restoredObservationTimeAnnouncement =
@@ -345,6 +345,22 @@ struct EventForecastSidebarView: View {
                     hiddenForecastsUnavailableView
                 }
             } else {
+                HStack(spacing: 6) {
+                    Text(
+                        "\(eventStore.displayedForecasts.count)件の天文現象"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .accessibilityElement(children: .combine)
+
+                Divider()
+
                 List(selection: selection) {
                     ForEach(
                         eventStore.displayedForecasts,
@@ -581,7 +597,11 @@ private struct EventForecastRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(forecast.title)
                     .fontWeight(.semibold)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(
+                        horizontal: false,
+                        vertical: true
+                    )
                 Text(
                     summary
                 )

@@ -2,13 +2,73 @@ import Accessibility
 import PlanetariumCore
 import SwiftUI
 
+enum EventForecastDetailPresentation {
+    case workspace
+    case inspector
+}
+
+struct EventForecastAttentionSummary: Equatable {
+    let calculationTierTitle: String
+    let importantWarningCount: Int
+
+    init(item: EventForecastItem) {
+        calculationTierTitle =
+            EventForecastFormatting
+            .tier(item.uncertainty.tier)
+        let precisionWarningCount: Int
+        switch item {
+        case .eclipse:
+            precisionWarningCount = 0
+        case let .occultation(forecast):
+            precisionWarningCount =
+                forecast.precisionWarnings.count
+        }
+        importantWarningCount =
+            item.warnings.count
+            + precisionWarningCount
+    }
+
+    var warningTitle: String {
+        importantWarningCount == 0
+            ? "追加の重要な注意なし"
+            : "重要な注意 \(importantWarningCount)件"
+    }
+}
+
 struct EventForecastInspectorView: View {
     @Bindable var skyStore: SkyStore
     @Bindable var eventStore: EventForecastStore
+    var focusRequest = EventWorkspaceFocusRequest.none
+
+    var body: some View {
+        EventForecastDetailView(
+            skyStore: skyStore,
+            eventStore: eventStore,
+            presentation: .inspector,
+            focusRequest: focusRequest
+        )
+    }
+}
+
+struct EventForecastDetailView: View {
+    @Bindable var skyStore: SkyStore
+    @Bindable var eventStore: EventForecastStore
+    let presentation: EventForecastDetailPresentation
+    var focusRequest = EventWorkspaceFocusRequest.none
+    var onShowOnSky: () -> Void = {}
+    var onShowDetails: () -> Void = {}
+
+    @AccessibilityFocusState
+    private var eventAccessibilityFocusedTarget:
+        EventWorkspaceFocusTarget?
+    @FocusState
+    private var eventKeyboardFocusedTarget:
+        EventWorkspaceFocusTarget?
     @AccessibilityFocusState
     private var maximumActionAccessibilityFocused: Bool
     @FocusState
     private var maximumActionKeyboardFocused: Bool
+    @State private var handledFocusRequestSerial = 0
 
     var body: some View {
         Group {
@@ -17,17 +77,78 @@ struct EventForecastInspectorView: View {
             {
                 details(forecast)
             } else {
-                ContentUnavailableView {
-                    Label(
-                        "現象を選択",
-                        systemImage: "sparkles"
-                    )
-                } description: {
-                    Text(
-                        "サイドバーから局地予報を選ぶと、接触時刻と精度情報を確認できます。"
-                    )
-                }
+                unselectedContent
             }
+        }
+        .task(id: focusRequest.serial) {
+            await applyFocusRequest()
+        }
+        .onDisappear {
+            eventAccessibilityFocusedTarget = nil
+            eventKeyboardFocusedTarget = nil
+            maximumActionAccessibilityFocused = false
+            maximumActionKeyboardFocused = false
+        }
+    }
+
+    @ViewBuilder
+    private var unselectedContent: some View {
+        switch eventStore.phase {
+        case .idle, .loading:
+            VStack(spacing: 12) {
+                ProgressView()
+                Text("この地点の現象を準備中…")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(
+                maxWidth: .infinity,
+                maxHeight: .infinity
+            )
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("この地点の現象を準備中")
+
+        case .loaded:
+            selectionUnavailableView
+
+        case .empty:
+            ContentUnavailableView {
+                Label(
+                    "表示できる現象がありません",
+                    systemImage: "calendar.badge.exclamationmark"
+                )
+            } description: {
+                Text(
+                    "年や表示条件を変えて、現象を探してください。"
+                )
+            }
+
+        case .failed:
+            ContentUnavailableView {
+                Label(
+                    "予報を表示できません",
+                    systemImage: "exclamationmark.triangle"
+                )
+            } description: {
+                Text(
+                    "サイドバーの案内を確認して再試行してください。"
+                )
+            }
+        }
+    }
+
+    private var selectionUnavailableView: some View {
+        ContentUnavailableView {
+            Label(
+                "現象を選択",
+                systemImage: "sparkles"
+            )
+        } description: {
+            Text(
+                presentation == .workspace
+                    ? "サイドバーから局地予報を選ぶと、相対配置と主要時刻を確認できます。"
+                    : "サイドバーから局地予報を選ぶと、精度・前提・出典を確認できます。"
+            )
         }
     }
 
@@ -36,44 +157,207 @@ struct EventForecastInspectorView: View {
     ) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                header(item)
-
-                if item.candidate.kind == .solarEclipse {
-                    solarSafety
+                switch presentation {
+                case .workspace:
+                    workspaceDetails(item)
+                case .inspector:
+                    inspectorDetails(item)
                 }
-
-                EventSceneView(
-                    item: item,
-                    eventStore: eventStore,
-                    observationDate:
-                        skyStore.observationDate
-                ) { date, label in
-                    showOnSky(
-                        at: date,
-                        label: label
-                    )
-                }
-
-                switch item {
-                case let .eclipse(forecast):
-                    eclipseMaximumSection(forecast)
-                    eclipseContactSection(forecast)
-                    eclipseMeasurementSection(forecast)
-                case let .occultation(forecast):
-                    occultationMaximumSection(forecast)
-                    occultationContactSection(forecast)
-                    occultationMeasurementSection(forecast)
-                    precisionWarningsSection(forecast)
-                }
-
-                uncertaintySection(item.uncertainty)
-                assumptionsSection(item)
-                warningsSection(item.warnings)
-                provenanceSection(item.provenance)
             }
-            .padding(16)
+            .frame(
+                maxWidth:
+                    presentation == .workspace
+                    ? 900
+                    : .infinity,
+                alignment: .leading
+            )
+            .padding(
+                presentation == .workspace
+                ? 24
+                : 16
+            )
+            .frame(
+                maxWidth: .infinity,
+                alignment: .top
+            )
         }
         .navigationTitle(item.title)
+    }
+
+    @ViewBuilder
+    private func workspaceDetails(
+        _ item: EventForecastItem
+    ) -> some View {
+        header(item)
+
+        if item.candidate.kind == .solarEclipse {
+            solarSafety
+        }
+
+        switch item {
+        case let .eclipse(forecast):
+            eclipseMaximumSection(forecast)
+        case let .occultation(forecast):
+            occultationMaximumSection(forecast)
+        }
+
+        switch item {
+        case let .eclipse(forecast):
+            eclipseContactSection(forecast)
+            eclipseMeasurementSection(forecast)
+        case let .occultation(forecast):
+            occultationContactSection(forecast)
+            occultationMeasurementSection(forecast)
+        }
+
+        EventSceneView(
+            item: item,
+            eventStore: eventStore,
+            observationDate:
+                skyStore.observationDate
+        ) { date, label in
+            showOnSky(
+                at: date,
+                label: label
+            )
+        }
+
+        accuracyOverview(item)
+    }
+
+    private func accuracyOverview(
+        _ item: EventForecastItem
+    ) -> some View {
+        let summary =
+            EventForecastAttentionSummary(item: item)
+        return GroupBox {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 12) {
+                    accuracyOverviewLabels(summary)
+                    Spacer(minLength: 8)
+                    accuracyInspectorButton
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    accuracyOverviewLabels(summary)
+                    accuracyInspectorButton
+                }
+            }
+            .frame(
+                maxWidth: .infinity,
+                alignment: .leading
+            )
+        } label: {
+            Label(
+                "精度の要約",
+                systemImage: "scope"
+            )
+        }
+        .accessibilityIdentifier(
+            "event.accuracySummary"
+        )
+    }
+
+    private func accuracyOverviewLabels(
+        _ summary: EventForecastAttentionSummary
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Label(
+                "計算区分：\(summary.calculationTierTitle)",
+                systemImage: "gauge.with.dots.needle.33percent"
+            )
+            .font(.callout.weight(.semibold))
+
+            Label(
+                summary.warningTitle,
+                systemImage:
+                    summary.importantWarningCount == 0
+                    ? "checkmark.circle"
+                    : "exclamationmark.triangle"
+            )
+            .font(.caption)
+            .foregroundStyle(
+                summary.importantWarningCount == 0
+                    ? Color.secondary
+                    : Color.orange
+            )
+        }
+        .fixedSize(
+            horizontal: false,
+            vertical: true
+        )
+    }
+
+    private var accuracyInspectorButton: some View {
+        Button {
+            onShowDetails()
+        } label: {
+            Label(
+                "精度・出典を表示",
+                systemImage: "sidebar.trailing"
+            )
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .focused(
+            $eventKeyboardFocusedTarget,
+            equals: .accuracyTrigger
+        )
+        .accessibilityFocused(
+            $eventAccessibilityFocusedTarget,
+            equals: .accuracyTrigger
+        )
+        .accessibilityIdentifier(
+            "event.showAccuracyInspector"
+        )
+        .accessibilityHint(
+            "インスペクタを開き、予報精度、計算前提、注意、出典を表示します"
+        )
+    }
+
+    @ViewBuilder
+    private func inspectorDetails(
+        _ item: EventForecastItem
+    ) -> some View {
+        inspectorHeader(item)
+
+        if case let .occultation(forecast) = item {
+            precisionWarningsSection(forecast)
+        }
+
+        uncertaintySection(item.uncertainty)
+        assumptionsSection(item)
+        warningsSection(item.warnings)
+        provenanceSection(item.provenance)
+    }
+
+    private func inspectorHeader(
+        _ item: EventForecastItem
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Label(
+                "補足と精度",
+                systemImage: "scope"
+            )
+            .font(SkyTypography.heading)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier(
+                "event.inspector.heading"
+            )
+            .accessibilityFocused(
+                $eventAccessibilityFocusedTarget,
+                equals: .inspectorHeading
+            )
+
+            Text(item.title)
+                .font(.callout.weight(.semibold))
+
+            Text(
+                "地点：\(item.observer.location.name)"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
     }
 
     private func header(
@@ -85,6 +369,14 @@ struct EventForecastInspectorView: View {
                 systemImage: item.systemImage
             )
             .font(SkyTypography.heading)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier(
+                "event.workspace.heading"
+            )
+            .accessibilityFocused(
+                $eventAccessibilityFocusedTarget,
+                equals: .workspaceHeading
+            )
 
             eventDateTime(item.maximumDate)
 
@@ -153,6 +445,78 @@ struct EventForecastInspectorView: View {
                     "現象の時刻を表示する前の観測日時へ戻します"
                 )
             }
+        }
+        .accessibilityIdentifier("event.workspace.header")
+    }
+
+    @MainActor
+    private func applyFocusRequest() async {
+        let request = focusRequest
+        guard request.serial > handledFocusRequestSerial else {
+            return
+        }
+        handledFocusRequestSerial = request.serial
+
+        eventAccessibilityFocusedTarget = nil
+        eventKeyboardFocusedTarget = nil
+        maximumActionAccessibilityFocused = false
+        maximumActionKeyboardFocused = false
+
+        guard let target = request.target else {
+            return
+        }
+
+        await Task<Never, Never>.yield()
+        guard !Task.isCancelled else {
+            return
+        }
+
+        switch (presentation, target) {
+        case (.workspace, .workspaceHeading):
+            guard eventStore.selectedForecast != nil else {
+                AccessibilityNotification
+                    .Announcement(
+                        EventWorkspaceAccessibility
+                            .switchedToEventsAnnouncement
+                    )
+                    .post()
+                return
+            }
+            eventAccessibilityFocusedTarget = target
+
+        case (.inspector, .inspectorHeading):
+            guard eventStore.selectedForecast != nil else {
+                AccessibilityNotification
+                    .Announcement(
+                        EventWorkspaceAccessibility
+                            .accuracyInspectorAnnouncement
+                    )
+                    .post()
+                return
+            }
+            eventAccessibilityFocusedTarget = target
+            AccessibilityNotification
+                .Announcement(
+                    EventWorkspaceAccessibility
+                        .accuracyInspectorAnnouncement
+                )
+                .post()
+
+        case (.workspace, .accuracyTrigger):
+            guard eventStore.selectedForecast != nil else {
+                return
+            }
+            eventKeyboardFocusedTarget = target
+            eventAccessibilityFocusedTarget = target
+            AccessibilityNotification
+                .Announcement(
+                    EventWorkspaceAccessibility
+                        .returnedToAccuracyTriggerAnnouncement
+                )
+                .post()
+
+        default:
+            break
         }
     }
 
@@ -945,6 +1309,9 @@ struct EventForecastInspectorView: View {
                 )
             }
             .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier(
+                "event.showOnSky.primary"
+            )
             .focused(
                 $maximumActionKeyboardFocused
             )
@@ -976,9 +1343,11 @@ struct EventForecastInspectorView: View {
         at date: Date,
         label: String
     ) {
-        eventStore.showOnSky(
+        EventWorkspaceRouting.showOnSky(
             at: date,
-            skyStore: skyStore
+            skyStore: skyStore,
+            eventStore: eventStore,
+            onShowOnSky: onShowOnSky
         )
         AccessibilityNotification
             .Announcement(

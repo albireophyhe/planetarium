@@ -348,6 +348,9 @@ struct EventSceneView: View {
                 )
             }
             .buttonStyle(.bordered)
+            .accessibilityIdentifier(
+                "event.scene.showOnSky"
+            )
             .accessibilityHint(
                 "時間再生を停止し、星図の観測時刻をこの配置のUTC時刻へ変更します"
             )

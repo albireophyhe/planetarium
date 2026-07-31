@@ -352,6 +352,241 @@ describe("EventExplorer", () => {
     expect(lunarOption).toHaveFocus();
   });
 
+  it("drills from the narrow list into details only on explicit activation and restores list focus", async () => {
+    const user = userEvent.setup();
+    const onSelectEvent = vi.fn();
+    const scrollIntoView = vi.fn();
+    const originalScrollIntoView =
+      HTMLElement.prototype.scrollIntoView;
+    Object.defineProperty(
+      HTMLElement.prototype,
+      "scrollIntoView",
+      {
+        configurable: true,
+        value: scrollIntoView,
+      },
+    );
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        addEventListener: vi.fn(),
+        matches: query === "(max-width: 959px)",
+        media: query,
+        onchange: null,
+        removeEventListener: vi.fn(),
+      })),
+    );
+
+    const lunarCircumstances: LocalCircumstances = {
+      ...SOLAR_CIRCUMSTANCES,
+      event: LUNAR_EVENT,
+      localClassification: "partial",
+    };
+    const initialProps = explorerProps({
+      events: [SOLAR_EVENT, LUNAR_EVENT],
+      onSelectEvent,
+      selectedCircumstances: SOLAR_CIRCUMSTANCES,
+      selectedEventId: SOLAR_EVENT.id,
+      status: "ready",
+    });
+
+    try {
+      const { rerender } = render(
+        <EventExplorer {...initialProps} />,
+      );
+      const listColumn = document.querySelector(
+        ".event-explorer__list-column",
+      );
+      const detailColumn = document.querySelector(
+        ".event-explorer__detail-column",
+      );
+      const solarOption = screen.getByRole("option", {
+        name: /2026年8月12日 皆既日食/,
+      });
+      const lunarOption = screen.getByRole("option", {
+        name: /2026年8月28日 部分月食/,
+      });
+
+      expect(listColumn).not.toHaveAttribute("hidden");
+      expect(detailColumn).toHaveAttribute("hidden");
+      expect(
+        screen.queryByRole("heading", {
+          name: "2026年8月12日 皆既日食",
+        }),
+      ).not.toBeInTheDocument();
+
+      solarOption.focus();
+      await user.keyboard("{ArrowDown}");
+      expect(onSelectEvent).toHaveBeenLastCalledWith(LUNAR_EVENT.id);
+      expect(lunarOption).toHaveFocus();
+      expect(detailColumn).toHaveAttribute("hidden");
+
+      rerender(
+        <EventExplorer
+          {...initialProps}
+          selectedEventId={LUNAR_EVENT.id}
+        />,
+      );
+      await user.keyboard("{Enter}");
+
+      expect(listColumn).toHaveAttribute("hidden");
+      expect(detailColumn).not.toHaveAttribute("hidden");
+      expect(
+        screen.getByRole("region", { name: "天文現象を探す" }),
+      ).toHaveClass("event-explorer--narrow-detail");
+      expect(
+        screen.getByRole("button", { name: "一覧へ戻る" }),
+      ).toHaveFocus();
+
+      rerender(
+        <EventExplorer
+          {...initialProps}
+          selectedCircumstances={lunarCircumstances}
+          selectedEventId={LUNAR_EVENT.id}
+        />,
+      );
+      const detailHeading = screen.getByRole("heading", {
+        name: "2026年8月28日 部分月食",
+      });
+      expect(detailHeading).toHaveFocus();
+
+      const listbox = document.querySelector<HTMLElement>(
+        ".event-list",
+      );
+      expect(listbox).not.toBeNull();
+      if (!listbox) {
+        throw new Error("event list was not rendered");
+      }
+      vi.spyOn(listbox, "getBoundingClientRect").mockReturnValue({
+        bottom: 100,
+        top: 0,
+      } as DOMRect);
+      vi.spyOn(lunarOption, "getBoundingClientRect").mockReturnValue({
+        bottom: 200,
+        top: 150,
+      } as DOMRect);
+      listbox.scrollTop = 0;
+
+      await user.click(
+        screen.getByRole("button", { name: "一覧へ戻る" }),
+      );
+      expect(listColumn).not.toHaveAttribute("hidden");
+      expect(detailColumn).toHaveAttribute("hidden");
+      expect(
+        screen.getByRole("region", { name: "天文現象を探す" }),
+      ).not.toHaveClass("event-explorer--narrow-detail");
+      expect(lunarOption).toHaveFocus();
+      expect(listbox.scrollTop).toBe(100);
+      expect(scrollIntoView).not.toHaveBeenCalled();
+
+      await user.keyboard(" ");
+      expect(detailHeading).toHaveFocus();
+      await user.click(
+        screen.getByRole("button", { name: "一覧へ戻る" }),
+      );
+      await user.click(lunarOption);
+      expect(detailHeading).toHaveFocus();
+    } finally {
+      vi.unstubAllGlobals();
+      if (originalScrollIntoView) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          "scrollIntoView",
+          {
+            configurable: true,
+            value: originalScrollIntoView,
+          },
+        );
+      } else {
+        Reflect.deleteProperty(
+          HTMLElement.prototype,
+          "scrollIntoView",
+        );
+      }
+    }
+  });
+
+  it("keeps the focused desktop column visible when resizing into the narrow layout", () => {
+    let narrowListener:
+      | ((event: MediaQueryListEvent) => void)
+      | undefined;
+    let isNarrow = false;
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        addEventListener: (
+          _type: string,
+          listener: (event: MediaQueryListEvent) => void,
+        ) => {
+          if (query === "(max-width: 959px)") {
+            narrowListener = listener;
+          }
+        },
+        get matches() {
+          return query === "(max-width: 959px)" && isNarrow;
+        },
+        media: query,
+        onchange: null,
+        removeEventListener: vi.fn(),
+      })),
+    );
+
+    try {
+      render(
+        <EventExplorer
+          {...explorerProps({
+            events: [SOLAR_EVENT],
+            selectedCircumstances: SOLAR_CIRCUMSTANCES,
+            selectedEventId: SOLAR_EVENT.id,
+            status: "ready",
+          })}
+        />,
+      );
+      const detailColumn = document.querySelector(
+        ".event-explorer__detail-column",
+      );
+      const phaseSelect = screen.getByRole("combobox", {
+        name: "相対配置の計算済み時刻",
+      });
+      phaseSelect.focus();
+      expect(detailColumn).not.toHaveAttribute("hidden");
+
+      act(() => {
+        isNarrow = true;
+        narrowListener?.({ matches: true } as MediaQueryListEvent);
+      });
+
+      expect(detailColumn).not.toHaveAttribute("hidden");
+      expect(phaseSelect).toHaveFocus();
+      expect(
+        screen.getByRole("button", { name: "一覧へ戻る" }),
+      ).toBeVisible();
+
+      act(() => {
+        isNarrow = false;
+        narrowListener?.({ matches: false } as MediaQueryListEvent);
+      });
+      const listColumn = document.querySelector(
+        ".event-explorer__list-column",
+      );
+      const solarOption = screen.getByRole("option", {
+        name: /2026年8月12日 皆既日食/,
+      });
+      solarOption.focus();
+
+      act(() => {
+        isNarrow = true;
+        narrowListener?.({ matches: true } as MediaQueryListEvent);
+      });
+
+      expect(listColumn).not.toHaveAttribute("hidden");
+      expect(detailColumn).toHaveAttribute("hidden");
+      expect(solarOption).toHaveFocus();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("shows local circumstances, safety, uncertainty, and reproducibility", async () => {
     const user = userEvent.setup();
     const onGoToContact = vi.fn();
@@ -383,6 +618,23 @@ describe("EventExplorer", () => {
     expect(
       screen.getByText("太陽を直接見ないでください"),
     ).toBeInTheDocument();
+    const primaryAction = screen.getByRole("button", {
+      name: "最大時刻を空に表示",
+    });
+    const simulationHeading = screen.getByRole("heading", {
+      name: "連続シミュレーション",
+    });
+    const contactTable = screen.getByRole("table", {
+      name: "接触時刻",
+    });
+    expect(
+      primaryAction.compareDocumentPosition(contactTable) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      contactTable.compareDocumentPosition(simulationHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(
       screen.getAllByText("2026/08/12 20:30:12"),
     ).toHaveLength(3);
@@ -965,10 +1217,10 @@ describe("EventExplorer", () => {
   });
 
   it("disables automatic playback when reduced motion is requested", () => {
-    const matchMedia = vi.fn(() => ({
+    const matchMedia = vi.fn((query: string) => ({
       addEventListener: vi.fn(),
-      matches: true,
-      media: "(prefers-reduced-motion: reduce)",
+      matches: query === "(prefers-reduced-motion: reduce)",
+      media: query,
       onchange: null,
       removeEventListener: vi.fn(),
     }));
