@@ -409,13 +409,15 @@ struct JMACurrentWeatherService:
                 .invalidResponse
         }
 
-        let pathBytes =
-            Array(bytes[0 ... 3])
-            + Array(bytes[5 ... 6])
-            + Array(bytes[8 ... 9])
-            + Array(bytes[11 ... 12])
-            + Array(bytes[14 ... 15])
-            + [48, 48]
+        var pathBytes: [UInt8] = []
+        pathBytes.reserveCapacity(14)
+        pathBytes.append(contentsOf: bytes[0 ... 3])
+        pathBytes.append(contentsOf: bytes[5 ... 6])
+        pathBytes.append(contentsOf: bytes[8 ... 9])
+        pathBytes.append(contentsOf: bytes[11 ... 12])
+        pathBytes.append(contentsOf: bytes[14 ... 15])
+        pathBytes.append(48)
+        pathBytes.append(48)
         return ObservationTimestamp(
             observedAt: observedAt,
             pathComponent: String(
