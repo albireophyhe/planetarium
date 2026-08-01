@@ -103,7 +103,7 @@ const EVENT_KIND_FILTER_OPTIONS: readonly {
   { value: "all", label: "すべて" },
   { value: "solar-eclipse", label: "日食" },
   { value: "lunar-eclipse", label: "月食" },
-  { value: "lunar-occultation", label: "恒星掩蔽" },
+  { value: "lunar-occultation", label: "月が星を隠す現象" },
 ];
 
 function matchesEventKindFilter(
@@ -1021,13 +1021,21 @@ function ForecastYearControls({
           />
           前年
         </button>
-        <button
-          disabled={year === observationYear}
-          onClick={() => onYearChange(observationYear)}
-          type="button"
-        >
-          観測年へ戻る
-        </button>
+        {year === observationYear ? (
+          <span
+            aria-current="true"
+            className="event-year-controls__current"
+          >
+            観測年を表示中
+          </span>
+        ) : (
+          <button
+            onClick={() => onYearChange(observationYear)}
+            type="button"
+          >
+            観測年へ戻る
+          </button>
+        )}
         <button
           aria-label="翌年"
           disabled={year >= MAXIMUM_FORECAST_YEAR}

@@ -123,6 +123,29 @@ struct AtmosphericRefractionDraft: Hashable, Sendable {
         )
     }
 
+    func manualAtmosphere(
+        pressureHPA: Double,
+        temperatureCelsius: Double,
+        relativeHumidityPercent: Double
+    ) throws -> AtmosphereV2 {
+        AtmosphereV2(
+            pressureHPA: pressureHPA,
+            temperatureCelsius:
+                temperatureCelsius,
+            relativeHumidity:
+                relativeHumidityPercent / 100,
+            wavelengthMicrometers: try Self.number(
+                wavelengthMicrometers,
+                fieldName: "観測波長"
+            ),
+            minimumGeometricAltitudeDegrees:
+                try Self.number(
+                    minimumGeometricAltitudeDegrees,
+                    fieldName: "最低適用高度"
+                )
+        )
+    }
+
     private static func number(
         _ text: String,
         fieldName: String
@@ -155,6 +178,29 @@ struct AtmosphericRefractionDraft: Hashable, Sendable {
             text.removeLast()
         }
         return text
+    }
+}
+
+@MainActor
+enum AtmosphericWeatherApplicator {
+    @discardableResult
+    static func apply(
+        _ weather: CurrentAtmosphereWeather,
+        preserving draft: AtmosphericRefractionDraft,
+        to store: SkyStore
+    ) throws -> AtmosphereV2 {
+        let atmosphere = try draft
+            .manualAtmosphere(
+                pressureHPA: weather.pressureHPA,
+                temperatureCelsius:
+                    weather.temperatureCelsius,
+                relativeHumidityPercent:
+                    weather.relativeHumidityPercent
+            )
+        try store.applyManualAtmosphericRefraction(
+            atmosphere
+        )
+        return atmosphere
     }
 }
 

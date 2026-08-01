@@ -198,7 +198,7 @@ struct ContentView: View {
             } label: {
                 Label("現在地", systemImage: "location")
             }
-            .help("現在地を一度だけ取得（座標は保存・送信しません）")
+            .help("現在地を一度だけ取得（この操作では座標を保存・外部送信しません）")
         }
     }
 

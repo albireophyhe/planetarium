@@ -10,16 +10,24 @@ const sphereStylesheet = readFileSync(
   resolve(process.cwd(), "src/features/sky/SkySphere3D.css"),
   "utf8",
 );
+const eventStylesheet = readFileSync(
+  resolve(process.cwd(), "src/features/events/EventExplorer.css"),
+  "utf8",
+);
 
-function cssRule(selector: string) {
+function cssRuleFrom(stylesheetSource: string, selector: string) {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = stylesheet.match(
+  const match = stylesheetSource.match(
     new RegExp(`${escapedSelector}\\s*\\{([^}]*)\\}`),
   );
   if (!match?.[1]) {
     throw new Error(`CSS rule not found: ${selector}`);
   }
   return match[1];
+}
+
+function cssRule(selector: string) {
+  return cssRuleFrom(stylesheet, selector);
 }
 
 function cssDeclaration(rule: string, property: string) {
@@ -60,6 +68,29 @@ describe("accessibility CSS contracts", () => {
     const accentStrong = cssDeclaration(rootRule, "--accent-strong");
 
     expect(contrastRatio("#ffffff", accentStrong)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("keeps event primary actions white and AA-readable in both color modes", () => {
+    const primaryActionRule = cssRuleFrom(
+      eventStylesheet,
+      ".event-action--primary",
+    );
+    const rootRule = cssRule(":root");
+    const nightRule = cssRule(".app-shell--night");
+
+    expect(cssDeclaration(primaryActionRule, "color")).toBe("#fff");
+    expect(
+      contrastRatio(
+        "#ffffff",
+        cssDeclaration(rootRule, "--accent-strong"),
+      ),
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(
+      contrastRatio(
+        "#ffffff",
+        cssDeclaration(nightRule, "--accent-strong"),
+      ),
+    ).toBeGreaterThanOrEqual(4.5);
   });
 
   it("keeps the inline-error dismiss control at least 24 CSS pixels tall", () => {

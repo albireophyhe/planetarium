@@ -152,9 +152,9 @@ enum StarPointingPayloadProfile:
     var copyLabel: String {
         switch self {
         case .readableText:
-            "導入用データをコピー"
+            "参考座標をコピー"
         case .precisionJSON:
-            "JSON導入データをコピー"
+            "参考座標JSONをコピー"
         }
     }
 }
@@ -242,7 +242,7 @@ enum StarPointingPayloadFormatter {
             ?? "HR \(star.hr)"
 
         return [
-            "Planetarium 導入用データ",
+            "Planetarium 参考座標データ",
             "対象: \(name)（HR \(star.hr) / \(hd)）",
             "観測時刻 UTC: \(utcTimestamp(context.observationDate))",
             "観測地点: \(context.location.name)",
@@ -332,8 +332,11 @@ enum StarPointingPayloadFormatter {
             "EOP: \(context.earthOrientationIdentifier)",
             "モデル: Planetarium 精密モデルv2",
             "",
-            "注意: 小数桁は計算値の転記用であり、"
-                + "その桁数自体が位置精度を保証するものではありません。",
+            "注意: 座標系と大気差設定を確認した手動導入・"
+                + "機材設定比較の補助情報です。小数桁は計算値の転記用であり、"
+                + "その桁数自体が位置精度を保証するものではありません。"
+                + "望遠鏡の自動導入・追尾を保証せず、"
+                + "無人運転の唯一の入力には使用しないでください。",
         ].joined(separator: "\n")
     }
 

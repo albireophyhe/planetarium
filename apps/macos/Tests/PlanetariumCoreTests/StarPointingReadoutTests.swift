@@ -417,7 +417,7 @@ final class StarPointingReadoutTests: XCTestCase {
             store.selectedStarPointingPayload
         )
 
-        XCTAssertTrue(payload.contains("Planetarium 導入用データ"))
+        XCTAssertTrue(payload.contains("Planetarium 参考座標データ"))
         XCTAssertTrue(payload.contains("観測時刻 UTC:"))
         XCTAssertTrue(payload.contains("赤経（J2000）:"))
         XCTAssertTrue(payload.contains("見かけ赤経"))
@@ -446,6 +446,12 @@ final class StarPointingReadoutTests: XCTestCase {
         XCTAssertTrue(payload.contains("JD UT1:"))
         XCTAssertTrue(payload.contains("JD TT:"))
         XCTAssertTrue(payload.contains("EOP:"))
+        XCTAssertTrue(
+            payload.contains(
+                "望遠鏡の自動導入・追尾を保証せず、"
+                    + "無人運転の唯一の入力には使用しないでください。"
+            )
+        )
     }
 
     @MainActor

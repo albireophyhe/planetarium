@@ -412,6 +412,19 @@ function calculationTierLabel(
   }
 }
 
+function plainLanguageEventClassification(
+  event: EventSummary,
+  technicalClassification: string,
+  boundaryReason: EventBoundaryUncertaintyReason | null,
+): string {
+  if (event.kind !== "lunar-occultation") {
+    return technicalClassification;
+  }
+  return boundaryReason === "occultation-occurrence"
+    ? "月が恒星を隠す候補（発生未確定）"
+    : "月が恒星を隠す現象";
+}
+
 function earthOrientationQualityLabel(
   quality: EventEarthOrientationQuality,
 ): string {
@@ -525,6 +538,7 @@ function EventList({
   onActivateEvent,
   focusEventId,
   focusRequest,
+  isNarrowLayout,
   resultsSummaryId,
   selectedEventId,
   timeZone,
@@ -539,7 +553,11 @@ function EventList({
 > & {
   focusEventId: string | null;
   focusRequest: number;
-  onActivateEvent: (eventId: string) => void;
+  isNarrowLayout: boolean;
+  onActivateEvent: (
+    eventId: string,
+    showKeyboardFocus: boolean,
+  ) => void;
   resultsSummaryId: string;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
@@ -554,12 +572,90 @@ function EventList({
       if (!list) {
         return;
       }
+      const hadAlignmentPadding = list.style.paddingBottom !== "";
+      list.style.removeProperty("padding-bottom");
       const listRect = list.getBoundingClientRect();
       const optionRect = option.getBoundingClientRect();
+      const options = Array.from(
+        list.querySelectorAll<HTMLButtonElement>(".event-row"),
+      );
+      const scrollToWithTrailingAlignment = (
+        desiredScrollTop: number,
+      ) => {
+        const normalizedScrollTop = Math.max(0, desiredScrollTop);
+        const unpaddedMaximumScrollTop =
+          list.scrollHeight - list.clientHeight;
+        const alignmentPadding = Math.max(
+          0,
+          Math.ceil(
+            normalizedScrollTop - unpaddedMaximumScrollTop,
+          ),
+        );
+        if (alignmentPadding > 0) {
+          list.style.paddingBottom = `${alignmentPadding}px`;
+        }
+        list.scrollTop = normalizedScrollTop;
+      };
       if (optionRect.top < listRect.top) {
         list.scrollTop -= listRect.top - optionRect.top;
-      } else if (optionRect.bottom > listRect.bottom) {
-        list.scrollTop += optionRect.bottom - listRect.bottom;
+      } else if (optionRect.bottom <= listRect.bottom) {
+        const partialTopRect = options
+          .map((candidate) => candidate.getBoundingClientRect())
+          .find(
+            (candidateRect) =>
+              candidateRect.top < listRect.top - 0.5 &&
+              candidateRect.bottom > listRect.top + 0.5,
+          );
+        if (partialTopRect) {
+          scrollToWithTrailingAlignment(
+            list.scrollTop +
+              partialTopRect.bottom -
+              listRect.top,
+          );
+        } else if (hadAlignmentPadding) {
+          list.scrollTop = Math.min(
+            list.scrollTop,
+            list.scrollHeight - list.clientHeight,
+          );
+        }
+      } else if (
+        optionRect.bottom > listRect.bottom ||
+        hadAlignmentPadding
+      ) {
+        const optionIndex = options.indexOf(option);
+        const viewportHeight = list.clientHeight;
+        let startIndex = optionIndex;
+        let wholeRowsHeight = optionRect.bottom - optionRect.top;
+        let canAlignWholeRows =
+          optionIndex >= 0 &&
+          viewportHeight > 0 &&
+          wholeRowsHeight > 0;
+
+        while (canAlignWholeRows && startIndex > 0) {
+          const previousRect =
+            options[startIndex - 1]?.getBoundingClientRect();
+          const previousHeight = previousRect
+            ? previousRect.bottom - previousRect.top
+            : 0;
+          if (previousHeight <= 0) {
+            canAlignWholeRows = false;
+            break;
+          }
+          if (wholeRowsHeight + previousHeight > viewportHeight) {
+            break;
+          }
+          wholeRowsHeight += previousHeight;
+          startIndex -= 1;
+        }
+
+        const startRect = options[startIndex]?.getBoundingClientRect();
+        if (canAlignWholeRows && startRect) {
+          scrollToWithTrailingAlignment(
+            list.scrollTop + startRect.top - listRect.top,
+          );
+        } else {
+          list.scrollTop += optionRect.bottom - listRect.bottom;
+        }
       }
     },
     [],
@@ -589,7 +685,34 @@ function EventList({
     if (option) {
       revealOptionWithinList(option);
     }
-  }, [events, revealOptionWithinList, selectedEventId]);
+  }, [
+    events,
+    isNarrowLayout,
+    revealOptionWithinList,
+    selectedEventId,
+  ]);
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (
+      !list ||
+      selectedEventId === null ||
+      typeof ResizeObserver === "undefined"
+    ) {
+      return;
+    }
+    const resizeObserver = new ResizeObserver(() => {
+      if (list.clientHeight <= 0) {
+        return;
+      }
+      const option = optionRefs.current.get(selectedEventId);
+      if (option) {
+        revealOptionWithinList(option);
+      }
+    });
+    resizeObserver.observe(list, { box: "border-box" });
+    return () => resizeObserver.disconnect();
+  }, [revealOptionWithinList, selectedEventId]);
 
   function handleKeyDown(
     keyboardEvent: KeyboardEvent<HTMLButtonElement>,
@@ -643,10 +766,16 @@ function EventList({
         );
         const displayClassification =
           eventPresentationClassification(
-          event,
-          localClassification,
-          boundaryReason,
-        );
+            event,
+            localClassification,
+            boundaryReason,
+          );
+        const visibleClassification =
+          plainLanguageEventClassification(
+            event,
+            displayClassification,
+            boundaryReason,
+          );
         const accessibleClassification = displayTitle.includes(
           displayClassification,
         )
@@ -660,7 +789,12 @@ function EventList({
             aria-setsize={events.length}
             className="event-row"
             key={event.id}
-            onClick={() => onActivateEvent(event.id)}
+            onClick={(activationEvent) =>
+              onActivateEvent(
+                event.id,
+                activationEvent.detail === 0,
+              )
+            }
             onKeyDown={(keyboardEvent) =>
               handleKeyDown(keyboardEvent, index)
             }
@@ -682,7 +816,7 @@ function EventList({
             </span>
             <span className="event-row__copy">
               <strong>{displayTitle}</strong>
-              <span>{displayClassification}</span>
+              <span>{visibleClassification}</span>
             </span>
             <time
               className="event-row__date"
@@ -1064,6 +1198,7 @@ function EventDetails({
   onRetrySceneSampling,
   sceneSampling,
   focusHeadingRequest,
+  showKeyboardFocus,
 }: {
   canRestoreObservationTime: boolean;
   circumstances: LocalCircumstances;
@@ -1075,10 +1210,12 @@ function EventDetails({
   onRetrySceneSampling?: () => void;
   sceneSampling: EventSceneSamplingState;
   focusHeadingRequest: number;
+  showKeyboardFocus: boolean;
 }) {
   const titleId = useId();
   const safetyTitleId = useId();
   const scenePhaseSelectId = useId();
+  const accuracySectionId = useId();
   const titleRef = useRef<HTMLHeadingElement>(null);
   const maximumActionRef = useRef<HTMLButtonElement>(null);
   const calculatedPhases = useMemo(
@@ -1271,6 +1408,12 @@ function EventDetails({
     eventPresentationClassification(
       event,
       circumstances.localClassification,
+      circumstances.boundaryUncertaintyReason,
+    );
+  const visiblePresentationClassification =
+    plainLanguageEventClassification(
+      event,
+      presentationClassification,
       circumstances.boundaryUncertaintyReason,
     );
   const uncertaintyMessage = boundaryUncertaintyMessage(
@@ -1488,9 +1631,15 @@ function EventDetails({
       <header className="event-details__header">
         <span className="event-details__kind">
           {eventIcon(event.kind, 18)}
-          {presentationClassification}
+          {visiblePresentationClassification}
         </span>
-        <h2 id={titleId} ref={titleRef} tabIndex={-1}>
+        <h2
+          className="event-details__title"
+          data-keyboard-focus={showKeyboardFocus || undefined}
+          id={titleId}
+          ref={titleRef}
+          tabIndex={-1}
+        >
           {displayTitle}
         </h2>
         <p
@@ -1549,6 +1698,35 @@ function EventDetails({
         />
         {observerSummary(circumstances)}
       </p>
+
+      <aside
+        aria-label="予報精度の要点"
+        className="event-accuracy-summary"
+        role="note"
+      >
+        <div className="event-accuracy-summary__facts">
+          <strong>
+            予報精度：{calculationTierLabel(uncertainty.tier)}
+          </strong>
+          <span>
+            地点精度 {formatOptionalNumber(
+              uncertainty.observerLocationMeters,
+              " m",
+              0,
+            )}
+          </span>
+          {circumstances.provenance.lunarRadiusModel ===
+          "mean-spherical-limb" ? (
+            <span>平均月縁</span>
+          ) : null}
+          {circumstances.warnings.length > 0 ? (
+            <span>注意 {circumstances.warnings.length}件</span>
+          ) : null}
+        </div>
+        <a href={`#${accuracySectionId}`}>
+          精度・前提を見る
+        </a>
+      </aside>
 
       <dl className="event-details__metrics">
         <div>
@@ -1748,6 +1926,7 @@ function EventDetails({
       <section
         aria-label="予報精度"
         className={`event-accuracy event-accuracy--${uncertainty.tier}`}
+        id={accuracySectionId}
       >
         <header>
           <div>
@@ -1987,6 +2166,8 @@ export function EventExplorer({
   const [listFocusRequest, setListFocusRequest] = useState(0);
   const [detailHeadingFocusRequest, setDetailHeadingFocusRequest] =
     useState(0);
+  const [showDetailHeadingKeyboardFocus, setShowDetailHeadingKeyboardFocus] =
+    useState(false);
   const [lastActivatedEventId, setLastActivatedEventId] = useState<
     string | null
   >(null);
@@ -1997,10 +2178,11 @@ export function EventExplorer({
     narrowView === "detail" && selectedEventId !== null;
 
   const handleActivateEvent = useCallback(
-    (eventId: string) => {
+    (eventId: string, showKeyboardFocus: boolean) => {
       setLastActivatedEventId(eventId);
       onSelectEvent(eventId);
       if (isNarrowEventLayout) {
+        setShowDetailHeadingKeyboardFocus(showKeyboardFocus);
         setNarrowView("detail");
         setDetailHeadingFocusRequest((current) => current + 1);
       }
@@ -2128,6 +2310,7 @@ export function EventExplorer({
               }
               focusEventId={lastActivatedEventId}
               focusRequest={listFocusRequest}
+              isNarrowLayout={isNarrowEventLayout}
               onActivateEvent={handleActivateEvent}
               onSelectEvent={onSelectEvent}
               resultsSummaryId={resultsSummaryId}
@@ -2173,6 +2356,7 @@ export function EventExplorer({
                 onRestoreObservationTime={onRestoreObservationTime}
                 onRetrySceneSampling={onRetrySceneSampling}
                 sceneSampling={sceneSampling}
+                showKeyboardFocus={showDetailHeadingKeyboardFocus}
               />
             ) : selectedEventId ? (
               <div

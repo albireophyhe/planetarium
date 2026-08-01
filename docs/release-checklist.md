@@ -117,7 +117,17 @@ ASDF_NODEJS_VERSION=24.18.0 npm run web:bench:precision:soak
   frame・origin・epoch/equinox・単位・方位規約・大気差を持つ。
   利用不能値は`null`と状態を組み合わせ、実際に適用したEOPの0近似だけを
   `0`と`assumed-zero`で表し、表示桁を精度保証として説明しない
-- [ ] 精密導入JSONの共通Draft 2020-12 SchemaがAJV strictでcompileでき、
+- [ ] 現在気象は明示操作前に通信せず、気象庁の固定3 endpointへ座標なしでGETする。
+  品質0・30分以内・25 km以内で現地気圧・気温・湿度が揃う最寄り局を端末内で選び、
+  `normalPressure`を使わず、波長・最低適用高度と組み合わせて原子的に適用する
+- [ ] 気象庁実測を使えない場合だけOpen-Meteoへ小数4桁へ丸めた緯度・経度を送り、
+  モデル地表気圧・2 m気温・2 m相対湿度へfallbackする。全失敗時は旧設定を保持する
+- [ ] 実測／モデル、観測局名・距離・標高・観測／取得時刻、fallback理由、星図時刻との
+  非同期、低高度・局地鉛直構造・雲・視程を含まない限界を正しく表示する
+- [ ] 気象庁公開データの加工表示と利用条件、および`Weather data by Open-Meteo.com`、
+  CC BY 4.0、無料APIの非商用・呼出上限、座標を含み得る最長90日のprovider logを
+  Help／プライバシー文書で確認する
+- [ ] 参考座標JSONの共通Draft 2020-12 SchemaがAJV strictでcompileでき、
   canonical field集合を両serializerが出す。6合成正例、macOS本番出力4 fixture、
   Web本番serializerのIERS／0近似・大気差代表状態を受理し、未知キー・固定値・
   範囲・時刻／EOP／座標／大気差／診断の意味関係を壊す28負例を拒否する。
@@ -133,6 +143,10 @@ ASDF_NODEJS_VERSION=24.18.0 npm run web:bench:precision:soak
 - [ ] macOSで選択星が検索・地平線フィルター・日時変更後も保持され、一覧外の理由と「一覧に表示」導線を示し、軌跡とInspectorが途切れない
 - [ ] macOSで星表またはIERSデータの初回読込に失敗しても、アプリを再起動せず明示的に再試行できる
 - [ ] Webの240px・390px・200%、キーボード、reduced-motion、高コントラスト
+- [ ] Webの`/sky`／`/events`を直接開き、ポインター／キーボード／履歴移動で
+  新しい主領域へfocusし、地点・日時・選択・フィルターを暗黙に変えない
+- [ ] Webの320px Helpで本文regionへ初期focusし、Page Up／Down・矢印・
+  Home／End、Disclosure、閉じた後の起点focus、横overflow 0を確認する
 - [ ] Webのdevice pixel ratio 1倍・2倍・4倍で2D/3Dの描画と操作を確認し、4倍では物理解像度を意図どおり2倍へ抑える
 - [ ] macOSのメニュー、ショートカット、大きな文字、VoiceOver
 - [ ] 「現象」を開くと、観測地点の現地年、種類、地平線下toggle、理由別空状態、
@@ -168,7 +182,8 @@ ASDF_NODEJS_VERSION=24.18.0 npm run web:bench:precision:soak
 
 ## 配布
 
-- [ ] Web応答ヘッダー、キャッシュ、SPA fallback、外部通信なしを公開URLで確認
+- [ ] Web応答ヘッダー、キャッシュ、SPA fallback、気象庁とOpen-Meteoだけを許可する
+  CSPと、明示操作前の外部通信なしを公開URLで確認
 - [ ] macOS公開版はDeveloper ID Application、Hardened Runtime、secure timestampで署名し、不要なentitlementと`get-task-allow`がない
 - [ ] `codesign --verify --deep --strict`、Developer ID・runtime flag・`Timestamp`の表示、公証ログ、`stapler validate`、`spctl --assess`が成功する
 - [ ] 公証済みticketをstapleした成果物を別ユーザー環境でGatekeeper確認

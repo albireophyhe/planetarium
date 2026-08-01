@@ -7,7 +7,7 @@
 1. 固定したNode.jsツールチェーンの確認
 2. Web PNGとmacOS ICNSの原画・生成物hash
 3. リポジトリ用Node.jsスクリプトのESLintとshell scriptの構文検査
-4. 共有データと精密導入profileのJSON Schema、意味・参照・再現性、
+4. 共有データと参考座標profileのJSON Schema、意味・参照・再現性、
    正例・負例mutation
 5. 外部通信API、CSP、dependency install script allowlistの静的検査
 6. WebのESLint、Vitest、本番ビルド
@@ -31,7 +31,7 @@ Apple touch iconは寸法、不透明RGB、manifest用途、source/dist一致を
 `script/requirements-fonts.txt`を使い、`script/subset_fonts.py --check`を
 追加で実行する。
 
-精密導入JSONは`shared/schema/star-pointing-profile-v1.schema.json`を
+参考座標JSONは`shared/schema/star-pointing-profile-v1.schema.json`を
 正本とし、AJV Draft 2020-12のstrict modeでcanonical field集合を必須にする。
 6件の合成正例とmacOS本番serializer由来の4 fixtureを、構造検査後に
 UTCとJD、JD UT1とDUT1、time zoneと現地時刻、EOPの適用値・source・
@@ -82,6 +82,20 @@ metadataへ残します。
 星図、選択星軌跡、詳細、本文／JSONコピーへ切り替え、標準と同値の手動入力も
 `inputSource: manual`を保持する。手動値がセッション外へ永続化されないことも
 両クライアントの保存契約で確認する。
+
+現在気象は利用者の明示操作前に通信しない。気象庁transportは最新時刻、観測所表、
+全国観測mapの固定URLへの匿名GETだけを許可し、選択地点の緯度・経度を送らない。
+観測時刻の厳格な解析、観測値と品質フラグのpair、`pressure`だけの採用、最寄り局の
+Haversine距離、30分・25 km境界を注入時計とfixtureで両版に固定する。
+欠損、品質不良、古い観測、遠距離、HTTP、timeout、取消、JSON、content type・サイズ
+異常では実測と表示しない。
+
+その場合だけOpen-Meteo transportを使い、`api.open-meteo.com/v1/forecast`への
+匿名GETへ小数4桁に丸めた緯度・経度と固定の`temperature_2m`、
+`relative_humidity_2m`、`surface_pressure`以外の利用者情報を送らない。成功応答は
+unit、有限値、範囲、時刻を検証し、既存の波長と最低適用高度を保持した一つの手動設定
+として原子的に適用する。両経路とも失敗時は適用済み設定を変えず再試行できることを
+両版で検査する。
 
 太陽中心の幾何高度は、未改変SOFA Cの
 `epv00 → ab → pnm06a / c2i06a → pvtob → apio13 → atioq`で作った
@@ -213,9 +227,12 @@ asset再読込を混同しない。macOSでは、候補、星表、DE442s、EOP�
 - 地点: 都市、手入力、明示操作の現在地が使え、拒否後も都市へ戻れる
 - 意味: 太陽中心の幾何高度、薄明区分と、幾何学的地平線上が肉眼可視を保証しない説明が見える
 - リセット: 表示だけを戻し、地点と日時は保持する
-- アクセシビリティ: キーボード、フォーカス、DOM一覧、200%ズーム、390px幅、reduced-motion
+- アクセシビリティ: キーボード、画面遷移後のfocus、DOM一覧、200%ズーム、
+  320／390px幅、長いHelpの本文focus・keyboard scroll・Disclosure、reduced-motion
 - エラー: Canvas不可、位置拒否、無効な座標・日時で白紙にならない
-- プライバシー: 起動中に外部リクエストへ選択座標を送らない
+- プライバシー: 起動・地点選択・大気設定を開いただけでは通信せず、現在気象の
+  明示操作時も気象庁には選択座標を送らない。Open-Meteo fallback時だけ丸めた座標を
+  送る。実測／モデル表示、送信前説明、両出典、失敗時の保持を確認する
 - 現象: 現地年、種類、地平線下toggle、理由別空状態、局地／全球分類、
   現地・UTC、接触／最接近の高度・方位・位置角、日時移動と復帰が一貫する
 - 現象の境界: 発生または中心食分類の不確実性と、地平線上／下が別に見え、

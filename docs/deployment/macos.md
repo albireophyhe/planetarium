@@ -15,7 +15,9 @@ Swiftの`release`構成を使用します。
 揃えたアプリアイコン、ad hoc署名、同梱resourceの完全な期待集合と
 schemaVersion、起動プロセスを検査します。さらに全regular fileのlogical
 bytesを署名後に合算し、`config/macos-budgets.json`の20 MiB上限を超える
-配布候補を停止します。現在の実測は19,270,160 bytes（18.377 MiB）です。
+配布候補を停止します。release成果物は署名前にローカルシンボルを除去し、
+現在の実測は16,685,415 bytes（15.912 MiB）です。`--debug`ではLLDBでの
+調査に必要なシンボルを保持します。
 生成先は`dist/Planetarium.app`です。
 
 旧星表と検証fixtureはテスト時にリポジトリ原本から読み、本番`.app`には

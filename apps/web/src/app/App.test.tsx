@@ -402,6 +402,60 @@ describe("App selection announcements", () => {
     ).toBeVisible();
   });
 
+  it("uses regions on desktop and real tab panels only in the narrow layout", () => {
+    let narrowListener:
+      | ((event: MediaQueryListEvent) => void)
+      | undefined;
+    let isNarrow = false;
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        addEventListener: (
+          _type: string,
+          listener: (event: MediaQueryListEvent) => void,
+        ) => {
+          if (query === "(max-width: 860px)") {
+            narrowListener = listener;
+          }
+        },
+        get matches() {
+          return query === "(max-width: 860px)" && isNarrow;
+        },
+        media: query,
+        onchange: null,
+        removeEventListener: vi.fn(),
+      })),
+    );
+
+    try {
+      render(<App />);
+      expect(screen.queryAllByRole("tabpanel")).toHaveLength(0);
+      expect(
+        screen.getByRole("region", { name: "恒星" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("region", { name: "表示設定パネル" }),
+      ).toBeInTheDocument();
+
+      act(() => {
+        isNarrow = true;
+        narrowListener?.({ matches: true } as MediaQueryListEvent);
+      });
+
+      expect(
+        screen.getByRole("tabpanel", { name: "恒星" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("tabpanel", { name: "表示設定" }),
+      ).not.toBeInTheDocument();
+      expect(
+        document.querySelector("#mobile-settings-panel"),
+      ).toHaveAttribute("hidden");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("keeps precision JSON unavailable until the first EOP frame settles", async () => {
     dut1HookState.estimate = null;
     dut1HookState.isCurrent = false;
@@ -832,6 +886,7 @@ describe("App selection announcements", () => {
     ).toHaveAttribute("aria-current", "page");
     expect(window.location.pathname).toBe("/sky");
     expect(eventPanelRenderSpy).not.toHaveBeenCalled();
+    expect(document.querySelector(".mobile-datetime")).toBeInTheDocument();
 
     await user.click(
       screen.getByRole("button", { name: "時間を再生" }),
@@ -850,15 +905,24 @@ describe("App selection announcements", () => {
       expect.objectContaining({ isActive: true }),
     );
     expect(window.location.pathname).toBe("/events");
+    expect(document.querySelector(".mobile-datetime")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "現象画面のヘルプとプライバシー",
+      }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { level: 1, name: "天文現象" }),
     ).toBeVisible();
-    expect(
-      screen.getByRole("main", { name: "天文現象" }),
-    ).toHaveFocus();
+    const eventsScreen = screen.getByRole("main", {
+      name: "天文現象",
+    });
+    expect(eventsScreen).toHaveFocus();
+    expect(eventsScreen).not.toHaveAttribute("data-keyboard-focus");
     expect(readout).toHaveAttribute("datetime", originalDateTime);
 
     await user.click(screen.getByRole("link", { name: "空" }));
+    expect(document.querySelector(".mobile-datetime")).toBeInTheDocument();
     expect(screen.getByRole("main", { name: "星空" })).toHaveFocus();
     expect(eventPanelRenderSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ isActive: false }),
@@ -867,11 +931,14 @@ describe("App selection announcements", () => {
       screen.getByRole("button", { name: "時間を一時停止" }),
     ).toHaveAttribute("aria-pressed", "true");
 
-    await user.click(
-      screen.getByRole("link", { name: "現象" }),
-    );
+    screen.getByRole("link", { name: "現象" }).focus();
+    await user.keyboard("{Enter}");
     expect(eventPanelRenderSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ isActive: true }),
+    );
+    expect(eventsScreen).toHaveAttribute(
+      "data-keyboard-focus",
+      "true",
     );
 
     await user.click(
@@ -1823,6 +1890,65 @@ describe("App help workflow", () => {
         name: "ヘルプとプライバシー",
       }),
     ).toBeInTheDocument();
+    const helpContent = await screen.findByRole("region", {
+      name: "ヘルプとプライバシーの内容",
+    });
+    expect(helpContent).toHaveFocus();
+
+    const scrollBy = vi.fn();
+    const scrollTo = vi.fn();
+    Object.defineProperties(helpContent, {
+      clientHeight: { configurable: true, value: 400 },
+      scrollHeight: { configurable: true, value: 1_200 },
+      scrollBy: { configurable: true, value: scrollBy },
+      scrollTo: { configurable: true, value: scrollTo },
+    });
+    fireEvent.keyDown(helpContent, { key: "PageDown" });
+    expect(scrollBy).toHaveBeenCalledWith({
+      behavior: "auto",
+      left: 0,
+      top: 320,
+    });
+    fireEvent.keyDown(helpContent, { key: "PageUp" });
+    fireEvent.keyDown(helpContent, { key: "ArrowDown" });
+    fireEvent.keyDown(helpContent, { key: "ArrowUp" });
+    expect(scrollBy).toHaveBeenNthCalledWith(2, {
+      behavior: "auto",
+      left: 0,
+      top: -320,
+    });
+    expect(scrollBy).toHaveBeenNthCalledWith(3, {
+      behavior: "auto",
+      left: 0,
+      top: 44,
+    });
+    expect(scrollBy).toHaveBeenNthCalledWith(4, {
+      behavior: "auto",
+      left: 0,
+      top: -44,
+    });
+    fireEvent.keyDown(helpContent, { key: "End" });
+    fireEvent.keyDown(helpContent, { key: "Home" });
+    expect(scrollTo).toHaveBeenNthCalledWith(1, {
+      behavior: "auto",
+      left: 0,
+      top: 1_200,
+    });
+    expect(scrollTo).toHaveBeenNthCalledWith(2, {
+      behavior: "auto",
+      left: 0,
+      top: 0,
+    });
+
+    const calculationSummary = screen.getByText("計算とデータ", {
+      selector: "summary",
+    });
+    fireEvent.keyDown(calculationSummary, { key: "PageDown" });
+    expect(scrollBy).toHaveBeenCalledTimes(4);
+    const calculationDetails = calculationSummary.closest("details");
+    expect(calculationDetails).not.toHaveAttribute("open");
+    await user.click(calculationSummary);
+    expect(calculationDetails).toHaveAttribute("open");
 
     await user.click(
       screen.getByRole("button", {

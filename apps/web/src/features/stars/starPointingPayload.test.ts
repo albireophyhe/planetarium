@@ -331,6 +331,7 @@ describe("buildStarPointingPayload", () => {
       timeScales: TIME_SCALES,
     });
 
+    expect(payload).toContain("Planetarium 参考座標データ");
     expect(payload).toContain("UTC: 2026-07-31T03:00:00.000Z");
     expect(payload).toContain(
       "現地時刻: 2026-07-31 12:00:00 [Asia/Tokyo]",
@@ -356,6 +357,9 @@ describe("buildStarPointingPayload", () => {
     expect(payload).toContain("DUT1: 0.012345 s (iers-predicted)");
     expect(payload).toContain("EOP品質: IERS観測値・予測値の混在");
     expect(payload).toContain("表示桁は計算条件の再現用");
+    expect(payload).toContain(
+      "望遠鏡の自動導入・追尾を保証せず、無人運転の唯一の入力には使用しないでください。",
+    );
   });
 
   it("keeps fallback assumptions explicit", () => {

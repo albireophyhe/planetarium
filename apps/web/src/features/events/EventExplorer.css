@@ -10,20 +10,18 @@
   src: url("../../assets/fonts/PlanetariumSansJP-Event-Regular.woff2") format("woff2");
   unicode-range:
     U+00B2, U+00B9, U+0307, U+0394, U+03B1-03B3, U+03B5-03BB, U+03BD-03BF,
-    U+03C1, U+03C3-03C9, U+2074-2079, U+3054, U+4ECA, U+4ED6, U+4EFB, U+4F1D,
-    U+4F8B, U+4FA1, U+4FC2, U+5019, U+5171, U+5177, U+51E1, U+51F8-51F9,
-    U+5224, U+5236, U+52A0, U+5316, U+533A, U+534A, U+53C2, U+53CC, U+53D7,
-    U+53F2, U+5404, U+5747, U+5897, U+591A, U+5B50, U+5B88, U+5BDF, U+5C02,
-    U+5C11, U+5C40, U+5C71, U+5DE5, U+5E2F, U+5E45, U+5EFA, U+5F53, U+5F71,
-    U+5F84, U+5FA9, U+6027, U+6210, U+63A5, U+63A8-63A9, U+63C3, U+6563,
-    U+671B, U+679C, U+6A21, U+6BB5, U+6C38, U+6DE1, U+6F5C, U+6FC3, U+7167,
-    U+7269, U+72EC, U+7406, U+74B0, U+7570, U+767A, U+7686, U+76E4, U+7701,
-    U+773C, U+7740, U+7834, U+7A0B, U+7A2E, U+7A4D, U+7ACB, U+7B2C, U+7D50,
-    U+7D5E, U+7D71, U+7DCF, U+7E01, U+7FA9, U+7FCC, U+8003, U+8089, U+81EA,
-    U+853D, U+88C5, U+88DC, U+898F, U+89E6, U+8A55, U+8A72, U+8B77, U+8C37,
-    U+8DB3, U+8DEF, U+8F2A, U+9023, U+9060, U+906E, U+90ED, U+914D, U+91D1,
-    U+93E1, U+9664, U+968E, U+969B, U+96F2, U+9759, U+97FF, U+983C, U+985E,
-    U+98DF;
+    U+03C1, U+03C3-03C9, U+2074-2079, U+4ECA, U+4ED6, U+4EFB, U+4F1D, U+4F8B,
+    U+4FA1, U+4FC2, U+5019, U+5171, U+5177, U+51E1, U+51F8-51F9, U+5224,
+    U+5236, U+5316, U+533A, U+534A, U+53CC, U+53D7, U+53F2, U+5404, U+5747,
+    U+5897, U+591A, U+5B50, U+5B88, U+5BDF, U+5C02, U+5C11, U+5C71, U+5E2F,
+    U+5E45, U+5EFA, U+5F53, U+5F71, U+5F84, U+5FA9, U+6027, U+6210, U+63A5,
+    U+63A8-63A9, U+63C3, U+6563, U+6A21, U+6BB5, U+6C38, U+6DE1, U+6F5C,
+    U+6FC3, U+7167, U+7269, U+72EC, U+7406, U+74B0, U+7570, U+767A, U+7686,
+    U+76E4, U+7701, U+773C, U+7740, U+7834, U+7A0B, U+7A2E, U+7A4D, U+7ACB,
+    U+7B2C, U+7D5E, U+7D71, U+7DCF, U+7E01, U+7FA9, U+7FCC, U+8089, U+853D,
+    U+88C5, U+898F, U+89E6, U+8A55, U+8A72, U+8B77, U+8C37, U+8DB3, U+8DEF,
+    U+8F2A, U+9023, U+906E, U+90ED, U+914D, U+91D1, U+9664, U+968E, U+969B,
+    U+96A0, U+96F2, U+9759, U+97FF, U+983C, U+985E, U+98DF;
 }
 
 @font-face {
@@ -34,20 +32,18 @@
   src: url("../../assets/fonts/PlanetariumSansJP-Event-SemiBold.woff2") format("woff2");
   unicode-range:
     U+00B2, U+00B9, U+0307, U+0394, U+03B1-03B3, U+03B5-03BB, U+03BD-03BF,
-    U+03C1, U+03C3-03C9, U+2074-2079, U+3054, U+4ECA, U+4ED6, U+4EFB, U+4F1D,
-    U+4F8B, U+4FA1, U+4FC2, U+5019, U+5171, U+5177, U+51E1, U+51F8-51F9,
-    U+5224, U+5236, U+52A0, U+5316, U+533A, U+534A, U+53C2, U+53CC, U+53D7,
-    U+53F2, U+5404, U+5747, U+5897, U+591A, U+5B50, U+5B88, U+5BDF, U+5C02,
-    U+5C11, U+5C40, U+5C71, U+5DE5, U+5E2F, U+5E45, U+5EFA, U+5F53, U+5F71,
-    U+5F84, U+5FA9, U+6027, U+6210, U+63A5, U+63A8-63A9, U+63C3, U+6563,
-    U+671B, U+679C, U+6A21, U+6BB5, U+6C38, U+6DE1, U+6F5C, U+6FC3, U+7167,
-    U+7269, U+72EC, U+7406, U+74B0, U+7570, U+767A, U+7686, U+76E4, U+7701,
-    U+773C, U+7740, U+7834, U+7A0B, U+7A2E, U+7A4D, U+7ACB, U+7B2C, U+7D50,
-    U+7D5E, U+7D71, U+7DCF, U+7E01, U+7FA9, U+7FCC, U+8003, U+8089, U+81EA,
-    U+853D, U+88C5, U+88DC, U+898F, U+89E6, U+8A55, U+8A72, U+8B77, U+8C37,
-    U+8DB3, U+8DEF, U+8F2A, U+9023, U+9060, U+906E, U+90ED, U+914D, U+91D1,
-    U+93E1, U+9664, U+968E, U+969B, U+96F2, U+9759, U+97FF, U+983C, U+985E,
-    U+98DF;
+    U+03C1, U+03C3-03C9, U+2074-2079, U+4ECA, U+4ED6, U+4EFB, U+4F1D, U+4F8B,
+    U+4FA1, U+4FC2, U+5019, U+5171, U+5177, U+51E1, U+51F8-51F9, U+5224,
+    U+5236, U+5316, U+533A, U+534A, U+53CC, U+53D7, U+53F2, U+5404, U+5747,
+    U+5897, U+591A, U+5B50, U+5B88, U+5BDF, U+5C02, U+5C11, U+5C71, U+5E2F,
+    U+5E45, U+5EFA, U+5F53, U+5F71, U+5F84, U+5FA9, U+6027, U+6210, U+63A5,
+    U+63A8-63A9, U+63C3, U+6563, U+6A21, U+6BB5, U+6C38, U+6DE1, U+6F5C,
+    U+6FC3, U+7167, U+7269, U+72EC, U+7406, U+74B0, U+7570, U+767A, U+7686,
+    U+76E4, U+7701, U+773C, U+7740, U+7834, U+7A0B, U+7A2E, U+7A4D, U+7ACB,
+    U+7B2C, U+7D5E, U+7D71, U+7DCF, U+7E01, U+7FA9, U+7FCC, U+8089, U+853D,
+    U+88C5, U+898F, U+89E6, U+8A55, U+8A72, U+8B77, U+8C37, U+8DB3, U+8DEF,
+    U+8F2A, U+9023, U+906E, U+90ED, U+914D, U+91D1, U+9664, U+968E, U+969B,
+    U+96A0, U+96F2, U+9759, U+97FF, U+983C, U+985E, U+98DF;
 }
 
 /* planetarium-fonts:event:end */
@@ -143,6 +139,13 @@
   background:
     linear-gradient(100deg, rgba(12, 67, 123, 0.88), rgba(5, 28, 53, 0.82)),
     var(--sky-800);
+}
+
+.app-shell--night .event-row[aria-selected="true"] {
+  background:
+    linear-gradient(100deg, rgba(59, 11, 9, 0.98), rgba(31, 5, 4, 0.94)),
+    var(--sky-800);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .event-row__icon {
@@ -297,6 +300,18 @@
   overflow-wrap: anywhere;
 }
 
+.event-details__title:focus {
+  box-shadow: none;
+  outline: none;
+}
+
+.event-details__title[data-keyboard-focus="true"]:focus {
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--focus);
+  outline: 2px solid transparent;
+  outline-offset: 3px;
+}
+
 .event-visibility {
   align-items: flex-start;
   color: var(--text-muted);
@@ -368,6 +383,54 @@
 .event-observer svg {
   flex: 0 0 auto;
   margin-top: 1px;
+}
+
+.event-accuracy-summary {
+  align-items: center;
+  background: rgba(10, 25, 47, 0.58);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  display: flex;
+  font-size: 11px;
+  gap: 8px 14px;
+  justify-content: space-between;
+  line-height: 1.45;
+  margin-top: 11px;
+  padding: 8px 10px;
+}
+
+.event-accuracy-summary__facts {
+  align-items: center;
+  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 0;
+}
+
+.event-accuracy-summary__facts > * {
+  white-space: nowrap;
+}
+
+.event-accuracy-summary__facts > * + *::before {
+  color: var(--line-strong);
+  content: "·";
+  padding: 0 6px;
+}
+
+.event-accuracy-summary strong {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.event-accuracy-summary a {
+  color: var(--focus);
+  flex: 0 0 auto;
+  font-weight: 650;
+  text-underline-offset: 3px;
+}
+
+.event-accuracy-summary a:hover {
+  color: var(--text);
 }
 
 .event-details__metrics {
@@ -604,7 +667,7 @@
 .event-action--primary {
   background: var(--accent-strong);
   border: 1px solid var(--accent);
-  color: var(--text);
+  color: #fff;
 }
 
 .event-action--secondary {
@@ -1305,7 +1368,8 @@
   min-width: 0;
 }
 
-.event-year-controls__actions button {
+.event-year-controls__actions button,
+.event-year-controls__current {
   align-items: center;
   background: rgba(8, 22, 40, 0.82);
   border: 1px solid var(--line-strong);
@@ -1319,6 +1383,10 @@
   min-height: 36px;
   padding: 5px 8px;
   white-space: nowrap;
+}
+
+.event-year-controls__current {
+  color: var(--text-muted);
 }
 
 .event-year-controls__actions button:hover:not(:disabled) {
@@ -1364,6 +1432,10 @@
   .event-year-controls__actions button {
     min-height: 40px;
   }
+
+  .event-year-controls__current {
+    min-height: 40px;
+  }
 }
 
 @media (max-width: 720px) {
@@ -1399,13 +1471,16 @@
   .event-safety-note,
   .event-state,
   .event-warnings,
-  .event-year-controls__actions button {
+  .event-year-controls__actions button,
+  .event-year-controls__current {
     background: Canvas;
     color: CanvasText;
   }
 
-  .event-row[aria-selected="true"] {
+  .event-row[aria-selected="true"],
+  .app-shell--night .event-row[aria-selected="true"] {
     background: Highlight;
+    box-shadow: none;
     color: HighlightText;
     forced-color-adjust: none;
   }

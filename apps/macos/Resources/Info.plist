@@ -25,6 +25,6 @@
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSLocationUsageDescription</key>
-    <string>現在地の星空を表示するために、一度だけ緯度と経度を取得します。座標は保存・外部送信しません。</string>
+    <string>現在地の星空を表示するために、一度だけ緯度と経度を取得します。座標は保存しません。現在気象の明示取得でも気象庁には送らず、実測を使えない場合だけ丸めてOpen-Meteoへ送ります。</string>
 </dict>
 </plist>

@@ -31,6 +31,39 @@ shipped by the respective packages.
 - Use in Planetarium: lazy-loaded WebGL celestial-sphere renderer.
 - Distributed license text: `apps/web/public/licenses/three-MIT.txt`
 
+## Open-Meteo weather data
+
+- Provider: OpenMeteo GmbH, <https://open-meteo.com/>
+- Data license: Attribution 4.0 International (CC BY 4.0)
+- License and data-source details: <https://open-meteo.com/en/licence>
+- Use in Planetarium: after an explicit user action, when a qualifying JMA
+  observation is unavailable, current modelled surface pressure, 2 m air
+  temperature, and 2 m relative humidity for the selected coordinate are used
+  as optional atmospheric-refraction inputs. Planetarium
+  does not imply that Open-Meteo endorses this application. The values are
+  validated and adapted from percent humidity to a 0–1 fraction; no other
+  modification is made before the refraction model consumes them.
+- Service terms: the public endpoint is limited to non-commercial use and the
+  published request limits. Commercial releases require an appropriate
+  Open-Meteo API subscription: <https://open-meteo.com/en/terms>
+
+## Japan Meteorological Agency AMeDAS observation data
+
+- Provider: Japan Meteorological Agency (JMA), <https://www.jma.go.jp/>
+- Terms of use: <https://www.jma.go.jp/jma/kishou/info/coment.html>
+- Use in Planetarium: after an explicit user action, Planetarium downloads the
+  latest nationwide AMeDAS observation time, station table, and observation map.
+  The selected coordinate is not sent to JMA. Planetarium locally selects the
+  nearest station within 25 km that has good-quality local station pressure,
+  temperature, and relative humidity no older than 30 minutes.
+- Processing notice: Planetarium selects the nearest qualifying station, converts
+  relative humidity from percent to a 0–1 fraction, validates all values, and uses
+  them as optional atmospheric-refraction inputs. The displayed observation is a
+  nearby station measurement, not a sensor measurement at the selected coordinate.
+- Availability notice: the public feeds are not a versioned developer API and may
+  change, move, or become unavailable. Planetarium validates them strictly and
+  falls back to a separately attributed model-data provider when necessary.
+
 ## Bright Star Catalogue, 5th Revised Edition (Preliminary)
 
 - Source and provenance: `shared/catalog/README.md`

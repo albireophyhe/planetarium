@@ -1,4 +1,9 @@
-import { type ClipboardEvent, useState } from "react";
+import {
+  type ClipboardEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type { AppliedRefraction } from "../../app/types";
 import {
   atmosphereSourceLabel,
@@ -12,11 +17,30 @@ import {
   type Atmosphere,
 } from "../../domain";
 import { Dialog } from "../../ui/Dialog";
+import {
+  fetchCurrentAtmosphereWeather,
+  type CurrentAtmosphereWeather,
+} from "./currentAtmosphereWeather";
+import {
+  canonicalOpenMeteoCoordinates,
+  OpenMeteoWeatherError,
+} from "./openMeteoWeather";
+
+type AtmosphereApplyOptions = Readonly<{
+  closeDialog?: boolean;
+}>;
 
 type AtmosphereDialogProps = {
   current: AppliedRefraction | null;
   manualDraftAtmosphere?: Atmosphere | null;
-  onApply: (refraction: AppliedRefraction) => void;
+  observer: Readonly<{
+    latitude: number;
+    longitude: number;
+  }>;
+  onApply: (
+    refraction: AppliedRefraction,
+    options?: AtmosphereApplyOptions,
+  ) => void;
   onClose: () => void;
   open: boolean;
 };
@@ -52,6 +76,12 @@ type AtmosphereDraftValidation =
       ok: false;
       summary: string;
     };
+
+type WeatherRequestState =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "success"; weather: CurrentAtmosphereWeather }
+  | { kind: "error"; message: string };
 
 const FIELD_LABELS: Record<AtmosphereField, string> = {
   minimumGeometricAltitudeDegrees: "適用下限の幾何高度",
@@ -105,6 +135,48 @@ function normalizeNumericText(text: string) {
     .replace(/[\u2212\uFE63\uFF0D]/g, "-")
     .replace(/[\uFF0B\uFE62]/g, "+")
     .replace(/^(\s*)\+/, "$1");
+}
+
+function weatherErrorMessage(error: unknown): string {
+  if (
+    error instanceof OpenMeteoWeatherError &&
+    error.code === "timeout"
+  ) {
+    return "天気情報の取得がタイムアウトしました。通信状態を確認して再試行してください。大気設定は変更されていません。";
+  }
+  if (
+    error instanceof OpenMeteoWeatherError &&
+    error.code === "invalid-response"
+  ) {
+    return "天気情報の形式または単位を確認できませんでした。時間をおいて再試行してください。大気設定は変更されていません。";
+  }
+  return "天気情報を取得できませんでした。通信状態を確認して再試行してください。大気設定は変更されていません。";
+}
+
+function observedAtLabel(observedAtIso: string): string {
+  const date = new Date(observedAtIso);
+  return `${new Intl.DateTimeFormat("ja-JP", {
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    month: "2-digit",
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+  }).format(date)} JST`;
+}
+
+function weatherValueSummary(weather: CurrentAtmosphereWeather): string {
+  return `気圧 ${weather.pressureHpa} hPa・気温 ${weather.temperatureCelsius}°C・相対湿度 ${weather.relativeHumidityPercent}%`;
+}
+
+function weatherProvenanceSummary(
+  weather: CurrentAtmosphereWeather,
+): string {
+  if (weather.providerKind === "jma-observation") {
+    return `気象庁・最寄り局実測（${weather.stationName}・約${weather.stationDistanceKilometers.toFixed(1)} km・標高 ${weather.stationElevationMeters} m、${observedAtLabel(weather.observedAtIso)}）`;
+  }
+  return `Open-Meteo気象モデル（${observedAtLabel(weather.observedAtIso)}）`;
 }
 
 function rangeError(
@@ -247,15 +319,30 @@ function validateAtmosphereDraft(
 export function AtmosphereDialog({
   current,
   manualDraftAtmosphere = null,
+  observer,
   onApply,
   onClose,
   open,
 }: AtmosphereDialogProps) {
+  const weatherCoordinates = canonicalOpenMeteoCoordinates(
+    observer.latitude,
+    observer.longitude,
+  );
   const [draft, setDraft] = useState(() =>
     initialDraft(current, manualDraftAtmosphere),
   );
   const [errors, setErrors] = useState<AtmosphereFieldErrors>({});
   const [summary, setSummary] = useState<string | null>(null);
+  const [weatherRequest, setWeatherRequest] =
+    useState<WeatherRequestState>({ kind: "idle" });
+  const weatherRequestControllerRef = useRef<AbortController | null>(
+    null,
+  );
+
+  useEffect(
+    () => () => weatherRequestControllerRef.current?.abort(),
+    [],
+  );
 
   function updateField(field: AtmosphereField, value: string) {
     setDraft((previous) => ({ ...previous, [field]: value }));
@@ -284,6 +371,9 @@ export function AtmosphereDialog({
   }
 
   function applyManual() {
+    if (weatherRequestControllerRef.current) {
+      return;
+    }
     const validation = validateAtmosphereDraft(draft);
     if (!validation.ok) {
       setErrors(validation.errors);
@@ -297,6 +387,93 @@ export function AtmosphereDialog({
       }),
     );
   }
+
+  async function applyCurrentWeather() {
+    if (weatherRequestControllerRef.current) {
+      return;
+    }
+
+    const preservedValueValidation = validateAtmosphereDraft({
+      ...draft,
+      pressureHpa: editableNumber(
+        STANDARD_VISUAL_ATMOSPHERE.pressureHpa,
+      ),
+      relativeHumidityPercent: editableNumber(
+        STANDARD_VISUAL_ATMOSPHERE.relativeHumidity * 100,
+      ),
+      temperatureCelsius: editableNumber(
+        STANDARD_VISUAL_ATMOSPHERE.temperatureCelsius,
+      ),
+    });
+    if (!preservedValueValidation.ok) {
+      setErrors(preservedValueValidation.errors);
+      setSummary(
+        "観測波長と適用下限を確認してください。天気情報はまだ取得していません。大気設定は変更されていません。",
+      );
+      return;
+    }
+
+    const controller = new AbortController();
+    weatherRequestControllerRef.current = controller;
+    setErrors({});
+    setSummary(null);
+    setWeatherRequest({ kind: "loading" });
+
+    try {
+      const weather = await fetchCurrentAtmosphereWeather({
+        latitude: weatherCoordinates.latitude,
+        longitude: weatherCoordinates.longitude,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      const weatherDraft: AtmosphereDraft = {
+        ...draft,
+        pressureHpa: editableNumber(weather.pressureHpa),
+        relativeHumidityPercent: editableNumber(
+          weather.relativeHumidityPercent,
+        ),
+        temperatureCelsius: editableNumber(
+          weather.temperatureCelsius,
+        ),
+      };
+      const validation = validateAtmosphereDraft(weatherDraft);
+      if (!validation.ok) {
+        setErrors(validation.errors);
+        setWeatherRequest({
+          kind: "error",
+          message:
+            "取得した気象値を安全に適用できませんでした。時間をおいて再試行してください。大気設定は変更されていません。",
+        });
+        return;
+      }
+
+      setDraft(weatherDraft);
+      setWeatherRequest({ kind: "success", weather });
+      onApply(
+        Object.freeze({
+          atmosphere: validation.atmosphere,
+          inputSource: "manual",
+        }),
+        { closeDialog: false },
+      );
+    } catch (error: unknown) {
+      if (!controller.signal.aborted) {
+        setWeatherRequest({
+          kind: "error",
+          message: weatherErrorMessage(error),
+        });
+      }
+    } finally {
+      if (weatherRequestControllerRef.current === controller) {
+        weatherRequestControllerRef.current = null;
+      }
+    }
+  }
+
+  const weatherIsLoading = weatherRequest.kind === "loading";
 
   const currentLabel = current
     ? `${atmosphereSourceLabel(current.inputSource)}を適用中`
@@ -330,6 +507,64 @@ export function AtmosphereDialog({
           applyManual();
         }}
       >
+        <fieldset className="atmosphere-dialog__weather">
+          <legend>現在の気象から補正</legend>
+          <p className="form-note" id="weather-coordinate-note">
+            ボタンを押すと、国内では座標を送信せず気象庁の10分ごとの最新観測から25 km以内の最寄り適格局を端末内で選びます。欠測・品質不良・遠距離などの場合だけ、選択中の観測地点（緯度 {weatherCoordinates.latitude.toFixed(4)}°、経度 {weatherCoordinates.longitude.toFixed(4)}°）を Open-Meteo へ送信します。
+          </p>
+          <p className="form-note">
+            気象庁実測が利用できない場合は、端末センサーの実測ではない気象モデル値へ切り替えます。実測の気圧は観測局標高での未補正現地気圧なので、観測地点との標高差が大きい場合はずれます。気象の取得時刻は星図の表示時刻とは自動同期しません。観測波長と適用下限は現在の入力を保ちます。
+          </p>
+          <button
+            aria-describedby="weather-coordinate-note"
+            className="button button--secondary atmosphere-dialog__weather-button"
+            disabled={weatherIsLoading}
+            onClick={() => void applyCurrentWeather()}
+            type="button"
+          >
+            {weatherIsLoading
+              ? "現在の気象を取得中…"
+              : "現在の気象を取得して適用"}
+          </button>
+          <span className="atmosphere-dialog__attributions">
+            <a
+              className="atmosphere-dialog__attribution"
+              href="https://www.jma.go.jp/bosai/amedas/"
+              rel="noreferrer"
+              target="_blank"
+            >
+              気象庁公開データを加工して利用
+            </a>
+            <a
+              className="atmosphere-dialog__attribution"
+              href="https://open-meteo.com/en/licence"
+              rel="noreferrer"
+              target="_blank"
+            >
+              Weather data by Open-Meteo.com
+            </a>
+          </span>
+          {weatherRequest.kind === "loading" ? (
+            <p aria-live="polite" className="form-note" role="status">
+              気象庁の最新観測を確認しています。利用できない場合は Open-Meteo の気象モデルへ切り替えます。
+            </p>
+          ) : null}
+          {weatherRequest.kind === "error" ? (
+            <p className="notice notice--error" role="alert">
+              {weatherRequest.message}
+            </p>
+          ) : null}
+          {weatherRequest.kind === "success" ? (
+            <p
+              aria-live="polite"
+              className="notice notice--info"
+              role="status"
+            >
+              {weatherProvenanceSummary(weatherRequest.weather)}の {weatherValueSummary(weatherRequest.weather)} を適用しました。
+            </p>
+          ) : null}
+        </fieldset>
+
         <fieldset>
           <legend>手動大気</legend>
           <p className="form-note">
@@ -347,6 +582,7 @@ export function AtmosphereDialog({
                 }
                 aria-invalid={Boolean(errors.pressureHpa)}
                 autoComplete="off"
+                disabled={weatherIsLoading}
                 inputMode="decimal"
                 max="1100"
                 min="0"
@@ -380,6 +616,7 @@ export function AtmosphereDialog({
                 }
                 aria-invalid={Boolean(errors.temperatureCelsius)}
                 autoComplete="off"
+                disabled={weatherIsLoading}
                 inputMode="decimal"
                 max="60"
                 min="-100"
@@ -421,6 +658,7 @@ export function AtmosphereDialog({
                   errors.relativeHumidityPercent,
                 )}
                 autoComplete="off"
+                disabled={weatherIsLoading}
                 inputMode="decimal"
                 max="100"
                 min="0"
@@ -462,6 +700,7 @@ export function AtmosphereDialog({
                   errors.wavelengthMicrometers,
                 )}
                 autoComplete="off"
+                disabled={weatherIsLoading}
                 inputMode="decimal"
                 max="2"
                 min="0.3"
@@ -511,6 +750,7 @@ export function AtmosphereDialog({
                 errors.minimumGeometricAltitudeDegrees,
               )}
               autoComplete="off"
+              disabled={weatherIsLoading}
               inputMode="decimal"
               max="30"
               min="5"
@@ -557,16 +797,21 @@ export function AtmosphereDialog({
             onClick={onClose}
             type="button"
           >
-            キャンセル
+            {weatherRequest.kind === "success" ? "閉じる" : "キャンセル"}
           </button>
           <button
             className="button button--secondary"
+            disabled={weatherIsLoading}
             onClick={() => onApply(STANDARD_APPLIED_REFRACTION)}
             type="button"
           >
             標準大気を適用
           </button>
-          <button className="button button--primary" type="submit">
+          <button
+            className="button button--primary"
+            disabled={weatherIsLoading}
+            type="submit"
+          >
             手動値を適用
           </button>
         </div>

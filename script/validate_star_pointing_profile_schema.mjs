@@ -613,7 +613,7 @@ for (const [label, mutate] of negativeCases) {
 }
 
 console.log(
-  "精密導入JSON Schema検証OK: " +
+  "参考座標JSON Schema検証OK: " +
     `${positiveCases.length}合成正例 + ` +
     `${macProductionFixtureFiles.length} macOS実出力 / ` +
     `${negativeCases.length}負例`

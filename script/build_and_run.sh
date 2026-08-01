@@ -35,6 +35,14 @@ rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS" "$APP_RESOURCES"
 cp "$BUILD_BINARY" "$APP_BINARY"
 chmod +x "$APP_BINARY"
+
+# SwiftPM release products retain local symbols that are useful to LLDB but
+# are not needed in a staged application. Strip them before signing so the
+# distribution-size gate measures the same kind of binary users receive.
+if [[ "$MODE" != "--debug" && "$MODE" != "debug" ]]; then
+  /usr/bin/strip -x "$APP_BINARY"
+fi
+
 cp "$INFO_PLIST_TEMPLATE" "$INFO_PLIST"
 cp "$APP_ICON_SOURCE" "$APP_ICON"
 

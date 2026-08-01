@@ -993,7 +993,7 @@ final class SkyStore {
         )
         statusMessage =
             "指定した地点へ移動しました（WGS84楕円体高 \(height) m）。"
-            + "座標と楕円体高は保存・送信されません。"
+            + "この地点設定では座標と楕円体高を保存・外部送信しません。"
         AppLog.ui.info("custom location applied")
     }
 
@@ -1038,7 +1038,7 @@ final class SkyStore {
                     ?? "（楕円体高は0 m近似）"
                 self.statusMessage =
                     "現在地へ移動しました\(accuracyText)\(altitudeText)。"
-                    + "座標は保存・送信されません。"
+                    + "この位置取得では座標を保存・外部送信しません。"
                 AppLog.location.info("location request succeeded")
             case let .failure(error):
                 self.statusMessage = nil

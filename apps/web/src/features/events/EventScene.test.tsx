@@ -319,6 +319,16 @@ describe("EventScene", () => {
         ".event-scene__star--hidden[data-body=\"target\"]",
       ),
     ).toHaveLength(2);
+    expect(
+      container.querySelectorAll(
+        ".event-scene__star--hidden .event-scene__star-contrast-outline",
+      ),
+    ).toHaveLength(2);
+    expect(
+      container.querySelectorAll(
+        ".event-scene__star--hidden .event-scene__star-mark",
+      ),
+    ).toHaveLength(2);
     expect(screen.getByText("月半径比")).toBeInTheDocument();
   });
 

@@ -4,6 +4,8 @@
   --event-scene-moon-dark: #8c96a7;
   --event-scene-penumbra: rgba(94, 108, 132, 0.22);
   --event-scene-penumbra-line: rgba(164, 181, 207, 0.64);
+  --event-scene-star-hidden-inner: #f5f8fc;
+  --event-scene-star-hidden-outer: #020914;
   --event-scene-sun-core: #fff7c7;
   --event-scene-sun-edge: #f5aa38;
   --event-scene-umbra: rgba(25, 28, 39, 0.78);
@@ -158,13 +160,26 @@
 }
 
 .event-scene__star--hidden {
-  color: #30435f;
+  color: var(--event-scene-star-hidden-inner);
   fill: transparent;
-  opacity: 0.96;
+}
+
+.event-scene__star-contrast-outline {
+  color: var(--event-scene-star-hidden-outer);
+  stroke-dasharray: none;
+}
+
+.event-scene__star-contrast-outline circle,
+.event-scene__star-contrast-outline path {
+  stroke-width: 4.4;
+}
+
+.event-scene__star-mark {
   stroke-dasharray: 3 2;
 }
 
-.event-scene__star--hidden path {
+.event-scene__star-mark circle,
+.event-scene__star-mark path {
   stroke-width: 1.8;
 }
 
@@ -319,15 +334,13 @@
   --event-scene-moon-light: #c76f68;
   --event-scene-moon-dark: #6e2825;
   --event-scene-penumbra: rgba(157, 55, 50, 0.16);
-  --event-scene-penumbra-line: rgba(213, 97, 89, 0.54);
+  --event-scene-penumbra-line: rgba(213, 97, 89, 0.74);
+  --event-scene-star-hidden-inner: #f7b2aa;
+  --event-scene-star-hidden-outer: #190303;
   --event-scene-sun-core: #e7857c;
   --event-scene-sun-edge: #9d312b;
   --event-scene-umbra: rgba(22, 2, 2, 0.82);
-  --event-scene-umbra-line: rgba(217, 88, 80, 0.66);
-}
-
-.app-shell--night .event-scene__star--hidden {
-  color: #280504;
+  --event-scene-umbra-line: rgba(217, 88, 80, 0.74);
 }
 
 @container (max-width: 520px) {

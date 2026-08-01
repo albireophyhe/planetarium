@@ -29,7 +29,7 @@ struct SettingsView: View {
                     Button("大気差を詳しく設定…") {
                         isAtmosphereEditorPresented = true
                     }
-                    Text("OFFでは真空中の幾何高度を表示します。ONへ切り替えた場合は標準大気を使います。「詳しく設定」では、このセッションだけの気圧・気温・湿度・波長・最低適用高度を指定できます。")
+                    Text("OFFでは真空中の幾何高度を表示します。ONへ切り替えた場合は標準大気を使います。「詳しく設定」では、手動値、または気象庁の最寄り局実測（Open-Meteoモデルfallback）を、このセッションだけに適用できます。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Text("選択星の軌跡は既定OFFです。ONでは選択した1星だけを前後3時間、30分間隔、最大13点で計算します。")
@@ -49,7 +49,7 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Text("保存するのは、星座線、星の名前、選択星の軌跡、ナイトモード、大気差ON/OFFの5項目です。手動入力した気象値と入力元は保存せず、次回起動時にONなら標準大気へ戻します。地点、正確な位置座標、日時、検索語、選択した星は保存しません。初期地点は東京です。")
+                    Text("保存するのは、星座線、星の名前、選択星の軌跡、ナイトモード、大気差ON/OFFの5項目です。手動入力または現在気象から取得した値は保存せず、次回起動時にONなら標準大気へ戻します。地点、正確な位置座標、日時、検索語、選択した星は保存しません。初期地点は東京です。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

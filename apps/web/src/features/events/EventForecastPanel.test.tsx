@@ -873,7 +873,7 @@ describe("EventForecastPanel", () => {
       within(kindFilter).getAllByRole("option").map(
         (option) => option.textContent,
       ),
-    ).toEqual(["すべて", "日食", "月食", "恒星掩蔽"]);
+    ).toEqual(["すべて", "日食", "月食", "月が星を隠す現象"]);
 
     kindFilter.focus();
     expect(kindFilter).toHaveFocus();
@@ -1012,7 +1012,7 @@ describe("EventForecastPanel", () => {
 
     await user.selectOptions(kindFilter, "lunar-occultation");
     expect(
-      screen.getByText("選択した恒星掩蔽はありません"),
+      screen.getByText("選択した月が星を隠す現象はありません"),
     ).toBeVisible();
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
 
@@ -1322,9 +1322,10 @@ describe("EventForecastPanel", () => {
 
     await screen.findByText("該当する現象はありません");
     expect(screen.getByRole("button", { name: "前年" })).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "観測年へ戻る" }),
-    ).toBeDisabled();
+    expect(screen.getByText("観測年を表示中")).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
 
     await userEvent.click(
       screen.getByRole("button", { name: "翌年" }),

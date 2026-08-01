@@ -139,6 +139,34 @@ const CONSTELLATION_NAMES = new Map(
   ]),
 );
 
+function useNarrowSidePanelLayout(): boolean {
+  const query = "(max-width: 860px)";
+  const [isNarrow, setIsNarrow] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia(query).matches,
+  );
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    ) {
+      return;
+    }
+    const mediaQuery = window.matchMedia(query);
+    const handleChange = (event: MediaQueryListEvent) => {
+      setIsNarrow(event.matches);
+    };
+    mediaQuery.addEventListener?.("change", handleChange);
+    return () =>
+      mediaQuery.removeEventListener?.("change", handleChange);
+  }, []);
+
+  return isNarrow;
+}
+
 const REQUIRED_RENDER_STAR_HRS = requiredRenderStarHrs;
 
 const FALLBACK_RENDER_STARS = renderStars;
@@ -267,9 +295,12 @@ export function App() {
   const [location, setLocation] = useState<ObserverLocation>(cityToLocation);
   const [locationOpen, setLocationOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<"stars" | "settings">("stars");
+  const isNarrowSidePanelLayout = useNarrowSidePanelLayout();
   const [eventFeatureActivated, setEventFeatureActivated] = useState(
     () => route === "events",
   );
+  const [showRouteScreenKeyboardFocus, setShowRouteScreenKeyboardFocus] =
+    useState(false);
   const [eventReturnContext, setEventReturnContext] = useState<{
     readonly eventDate: Date;
     readonly eventTitle: string;
@@ -326,9 +357,13 @@ export function App() {
     (
       nextRoute: AppRoute,
       focusTarget: "screen" | "event-time-return" = "screen",
+      showKeyboardFocus = true,
     ) => {
       const nextPathname = pathnameForAppRoute(nextRoute);
       pendingRouteFocusRef.current = focusTarget;
+      setShowRouteScreenKeyboardFocus(
+        focusTarget === "screen" && showKeyboardFocus,
+      );
       if (window.location.pathname !== nextPathname) {
         window.history.pushState(null, "", nextPathname);
       }
@@ -353,6 +388,7 @@ export function App() {
         window.location.pathname,
       );
       pendingRouteFocusRef.current = "screen";
+      setShowRouteScreenKeyboardFocus(true);
       if (nextRoute === "events") {
         setEventFeatureActivated(true);
       }
@@ -410,7 +446,7 @@ export function App() {
       return;
     }
     event.preventDefault();
-    navigateToRoute(nextRoute);
+    navigateToRoute(nextRoute, "screen", event.detail === 0);
   }
 
   const clearTimeBoundaryNotice = useCallback(() => {
@@ -1123,7 +1159,10 @@ export function App() {
     setLayers((current) => ({ ...current, [key]: checked }));
   }
 
-  function handleAtmosphereApply(next: AppliedRefraction) {
+  function handleAtmosphereApply(
+    next: AppliedRefraction,
+    options?: Readonly<{ closeDialog?: boolean }>,
+  ) {
     playback.pause();
     if (next.inputSource === "manual") {
       setLastManualAtmosphere(next.atmosphere);
@@ -1133,7 +1172,9 @@ export function App() {
       ...current,
       atmosphericRefraction: true,
     }));
-    handleAtmosphereClose();
+    if (options?.closeDialog !== false) {
+      handleAtmosphereClose();
+    }
   }
 
   function handleAtmosphereClose() {
@@ -1266,17 +1307,39 @@ export function App() {
           >
             現象
           </a>
+          {route === "events" ? (
+            <button
+              aria-label="現象画面のヘルプとプライバシー"
+              className="app-primary-nav__help"
+              onClick={(event) => handleHelpOpen(event.currentTarget)}
+              title="ヘルプとプライバシー"
+              type="button"
+            >
+              <CircleHelpIcon
+                aria-hidden="true"
+                size={20}
+                strokeWidth={1.8}
+              />
+            </button>
+          ) : null}
         </nav>
       </header>
 
-      <div className="mobile-datetime">
-        <time dateTime={date.toISOString()}>{displayDateTime}</time>
-      </div>
+      {route === "sky" ? (
+        <div className="mobile-datetime">
+          <time dateTime={date.toISOString()}>{displayDateTime}</time>
+        </div>
+      ) : null}
 
       <div className={`workspace workspace--${route}`}>
         <main
           aria-labelledby="sky-screen-title"
           className="sky-region"
+          data-keyboard-focus={
+            route === "sky" && showRouteScreenKeyboardFocus
+              ? "true"
+              : undefined
+          }
           hidden={route !== "sky"}
           id="sky-screen"
           ref={skyScreenRef}
@@ -1409,7 +1472,13 @@ export function App() {
               </span>
               <span className="observation-time-return__actions">
                 <button
-                  onClick={() => navigateToRoute("events")}
+                  onClick={(event) =>
+                    navigateToRoute(
+                      "events",
+                      "screen",
+                      event.detail === 0,
+                    )
+                  }
                   type="button"
                 >
                   現象へ戻る
@@ -1517,12 +1586,22 @@ export function App() {
           </div>
 
           <div
+            aria-label={
+              isNarrowSidePanelLayout ? undefined : "恒星"
+            }
+            aria-labelledby={
+              isNarrowSidePanelLayout
+                ? "mobile-stars-tab"
+                : undefined
+            }
             className={`side-panel__stars${
               mobileTab === "stars" ? " is-mobile-active" : ""
             }`}
+            hidden={
+              isNarrowSidePanelLayout && mobileTab !== "stars"
+            }
             id="mobile-stars-panel"
-            role="tabpanel"
-            aria-labelledby="mobile-stars-tab"
+            role={isNarrowSidePanelLayout ? "tabpanel" : "region"}
           >
             <StarExplorer
               allStars={namedViewModels}
@@ -1558,12 +1637,22 @@ export function App() {
           </div>
 
           <div
+            aria-label={
+              isNarrowSidePanelLayout ? undefined : "表示設定パネル"
+            }
+            aria-labelledby={
+              isNarrowSidePanelLayout
+                ? "mobile-settings-tab"
+                : undefined
+            }
             className={`side-panel__settings${
               mobileTab === "settings" ? " is-mobile-active" : ""
             }`}
+            hidden={
+              isNarrowSidePanelLayout && mobileTab !== "settings"
+            }
             id="mobile-settings-panel"
-            role="tabpanel"
-            aria-labelledby="mobile-settings-tab"
+            role={isNarrowSidePanelLayout ? "tabpanel" : "region"}
           >
             <LayerPanel
               appliedRefraction={appliedRefraction}
@@ -1588,6 +1677,11 @@ export function App() {
           <main
             aria-labelledby="events-screen-title"
             className="events-region"
+            data-keyboard-focus={
+              route === "events" && showRouteScreenKeyboardFocus
+                ? "true"
+                : undefined
+            }
             hidden={route !== "events"}
             id="events-screen"
             ref={eventsScreenRef}
@@ -1662,6 +1756,7 @@ export function App() {
         <AtmosphereDialog
           current={appliedRefraction}
           manualDraftAtmosphere={lastManualAtmosphere}
+          observer={location}
           onApply={handleAtmosphereApply}
           onClose={handleAtmosphereClose}
           open

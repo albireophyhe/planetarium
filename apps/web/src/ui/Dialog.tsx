@@ -1,9 +1,16 @@
-import { type ReactNode, useEffect, useId, useRef } from "react";
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useId,
+  useRef,
+} from "react";
 import { XIcon } from "lucide-react";
 
 type DialogProps = {
   children: ReactNode;
   description?: string;
+  focusContentOnOpen?: boolean;
   onClose: () => void;
   open: boolean;
   title: string;
@@ -13,14 +20,83 @@ type DialogProps = {
 export function Dialog({
   children,
   description,
+  focusContentOnOpen = false,
   onClose,
   open,
   title,
   wide = false,
 }: DialogProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const descriptionId = useId();
   const titleId = useId();
+
+  function handleContentKeyDown(
+    event: ReactKeyboardEvent<HTMLDivElement>,
+  ) {
+    if (
+      !focusContentOnOpen ||
+      event.target !== event.currentTarget
+    ) {
+      return;
+    }
+
+    const pageDistance = Math.max(
+      event.currentTarget.clientHeight * 0.8,
+      44,
+    );
+    const scrollOptions: ScrollToOptions = {
+      behavior: "auto",
+      left: 0,
+    };
+
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        event.currentTarget.scrollBy({
+          ...scrollOptions,
+          top: 44,
+        });
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        event.currentTarget.scrollBy({
+          ...scrollOptions,
+          top: -44,
+        });
+        break;
+      case "End":
+        event.preventDefault();
+        event.currentTarget.scrollTo({
+          ...scrollOptions,
+          top: event.currentTarget.scrollHeight,
+        });
+        break;
+      case "Home":
+        event.preventDefault();
+        event.currentTarget.scrollTo({
+          ...scrollOptions,
+          top: 0,
+        });
+        break;
+      case "PageDown":
+        event.preventDefault();
+        event.currentTarget.scrollBy({
+          ...scrollOptions,
+          top: pageDistance,
+        });
+        break;
+      case "PageUp":
+        event.preventDefault();
+        event.currentTarget.scrollBy({
+          ...scrollOptions,
+          top: -pageDistance,
+        });
+        break;
+      default:
+        break;
+    }
+  }
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -33,7 +109,11 @@ export function Dialog({
     } else if (!open && dialog.open) {
       dialog.close();
     }
-  }, [open]);
+
+    if (open && focusContentOnOpen) {
+      contentRef.current?.focus({ preventScroll: true });
+    }
+  }, [focusContentOnOpen, open]);
 
   return (
     <dialog
@@ -65,7 +145,18 @@ export function Dialog({
           <XIcon aria-hidden="true" size={20} strokeWidth={1.8} />
         </button>
       </header>
-      <div className="dialog__body">{children}</div>
+      <div
+        aria-label={
+          focusContentOnOpen ? `${title}の内容` : undefined
+        }
+        className="dialog__body"
+        onKeyDown={handleContentKeyDown}
+        ref={contentRef}
+        role={focusContentOnOpen ? "region" : undefined}
+        tabIndex={focusContentOnOpen ? -1 : undefined}
+      >
+        {children}
+      </div>
     </dialog>
   );
 }

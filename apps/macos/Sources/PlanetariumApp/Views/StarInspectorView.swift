@@ -169,6 +169,7 @@ struct StarInspectorView: View {
         VStack(alignment: .leading, spacing: 5) {
             Text(star.name?.nameJa ?? star.name?.name ?? "HR \(star.hr)")
                 .font(SkyTypography.displayTitle)
+                .accessibilityAddTraits(.isHeader)
                 .textSelection(.enabled)
             if let name = star.name {
                 Text(name.name)
@@ -191,40 +192,6 @@ struct StarInspectorView: View {
             .foregroundStyle(star.isAboveHorizon ? .green : .secondary)
             .padding(.top, 3)
 
-            Label(
-                store.selectedStarAnnualParallaxMode
-                    == .truncatedVSOP2000HeliocentricEarth
-                    ? "年周視差：VSOP2000 200項暦で適用"
-                    : "年周視差：正の星表視差値なし",
-                systemImage: "arrow.left.and.right.circle"
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-            Label(
-                solarLightDeflectionLabel,
-                systemImage: "sun.max"
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-            Label(
-                "日周光行差：WGS84・選択地点の標高を反映",
-                systemImage: "globe"
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-            Label(
-                starPositionAccuracySummary,
-                systemImage: "scope"
-            )
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .fixedSize(
-                horizontal: false,
-                vertical: true
-            )
         }
 
         Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
@@ -264,6 +231,17 @@ struct StarInspectorView: View {
             }
         }
 
+        Label(
+            starPositionAccuracySummary,
+            systemImage: "scope"
+        )
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(
+            horizontal: false,
+            vertical: true
+        )
+
         if !star.observedHorizontal.azimuthIsDefined {
             Label(
                 "天頂では方位角を一意に定められません。",
@@ -276,7 +254,7 @@ struct StarInspectorView: View {
 
         precisionPointingReadout(star)
 
-        DisclosureGroup("詳しい情報") {
+        DisclosureGroup("星表情報（J2000）") {
             Text(
                 "赤経は天球上の東西方向を時間で、赤緯は天の赤道からの南北角を示します。J2000は2000年1月1.5日の基準座標で、上の高度・方位は選択した観測日時・地点へ変換した値です。0.001°単位の表示桁そのものは精度の保証ではありません。"
             )
@@ -348,23 +326,52 @@ struct StarInspectorView: View {
             .font(.callout)
             .padding(.top, 6)
         }
+        .accessibilityIdentifier("star.catalogDisclosure")
 
-        VStack(alignment: .leading, spacing: 4) {
-            Text(
-                store.useStandardAtmosphericRefraction
-                    ? "精密モデルv2 · \(solarLightDeflectionSummary) · 日周光行差 · \(store.atmosphericRefractionSummary)"
-                    : "精密モデルv2 · \(solarLightDeflectionSummary) · 日周光行差 · 幾何高度 · 大気差なし"
-            )
+        DisclosureGroup("計算モデルと制限") {
+            VStack(alignment: .leading, spacing: 6) {
+                Label(
+                    store.selectedStarAnnualParallaxMode
+                        == .truncatedVSOP2000HeliocentricEarth
+                        ? "年周視差：VSOP2000 200項暦で適用"
+                        : "年周視差：正の星表視差値なし",
+                    systemImage: "arrow.left.and.right.circle"
+                )
+                Label(
+                    solarLightDeflectionLabel,
+                    systemImage: "sun.max"
+                )
+                Label(
+                    "日周光行差：WGS84・選択地点の標高を反映",
+                    systemImage: "globe"
+                )
+                Text(
+                    store.useStandardAtmosphericRefraction
+                        ? "精密モデルv2 · \(solarLightDeflectionSummary) · 日周光行差 · \(store.atmosphericRefractionSummary)"
+                        : "精密モデルv2 · \(solarLightDeflectionSummary) · 日周光行差 · 幾何高度 · 大気差なし"
+                )
                 .font(.caption.weight(.semibold))
-            Text(refractionExplanation)
-            Text(annualParallaxExplanation)
-            Text(solarLightDeflectionExplanation)
-            Text("日周光行差は地球自転による東向き速度をWGS84で求め、選択地点の楕円体高を反映します。都市は0 m、手入力は指定値、端末測位は取得できたOSの楕円体高を使い、取得できない場合は0 mとします。")
-            Text("BSC5PのFK5座標はJ2000回転・フレームスピンでHipparcos/ICRSへ接続します。既定の共有地球暦はVSOP2000由来200項をTT（TDBのproxy）で評価し、解析微分を年周光行差の速度に使いますが、太陽系重心に対する太陽の速度は加えません。BSC5Pの格納分解能、FK5のゾーン誤差、この切り詰めと近似が精度を制限します。IERS収録期間内の「概ね1〜数秒角級」は、BSC5Pの格納分解能から見た真空中の通常目安で、全恒星の実測精度を保証する値ではありません。大気差ON時の表示高度は別です。既定の年周視差は厳密な太陽系重心暦と実観測地点の変位を含まず、恒星の日周視差、惑星による光の曲がり、日内の極運動潮汐、天候、光害、地形も含みません。太陽の水平位置だけはWGS84地点変位による日周視差を含みます。サブ秒角精度や望遠鏡導入を保証しません。星の大きさと色は見分けやすくした表現です。")
+                Text(refractionExplanation)
+                Text(annualParallaxExplanation)
+                Text(solarLightDeflectionExplanation)
+                if !hasBundledEarthOrientation {
+                    Label(
+                        "地球回転データを利用できず近似中",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.orange)
+                    Text(StarPositionAccuracySummary.fallbackDetails)
+                }
+                Text("日周光行差は地球自転による東向き速度をWGS84で求め、選択地点の楕円体高を反映します。都市は0 m、手入力は指定値、端末測位は取得できたOSの楕円体高を使い、取得できない場合は0 mとします。")
+                Text("BSC5PのFK5座標はJ2000回転・フレームスピンでHipparcos/ICRSへ接続します。既定の共有地球暦はVSOP2000由来200項をTT（TDBのproxy）で評価し、解析微分を年周光行差の速度に使いますが、太陽系重心に対する太陽の速度は加えません。BSC5Pの格納分解能、FK5のゾーン誤差、この切り詰めと近似が精度を制限します。IERS収録期間内の「概ね1〜数秒角級」は、BSC5Pの格納分解能から見た真空中の通常目安で、全恒星の実測精度を保証する値ではありません。大気差ON時の表示高度は別です。既定の年周視差は厳密な太陽系重心暦と実観測地点の変位を含まず、恒星の日周視差、惑星による光の曲がり、日内の極運動潮汐、天候、光害、地形も含みません。太陽の水平位置だけはWGS84地点変位による日周視差を含みます。サブ秒角精度や望遠鏡導入を保証しません。星の大きさと色は見分けやすくした表現です。")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 7)
         }
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("star.modelDisclosure")
     }
 
     private var annualParallaxExplanation: String {
@@ -389,10 +396,13 @@ struct StarInspectorView: View {
 
     private var starPositionAccuracySummary: String {
         StarPositionAccuracySummary.text(
-            hasBundledEarthOrientation:
-                store.currentDUT1Estimate != nil
-                && store.currentPolarMotionEstimate != nil
+            hasBundledEarthOrientation: hasBundledEarthOrientation
         )
+    }
+
+    private var hasBundledEarthOrientation: Bool {
+        store.currentDUT1Estimate != nil
+            && store.currentPolarMotionEstimate != nil
     }
 
     private var solarLightDeflectionLabel: String {
@@ -498,200 +508,221 @@ struct StarInspectorView: View {
     private func precisionPointingReadout(
         _ star: RenderedStar
     ) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(alignment: .firstTextBaseline) {
-                Label("導入用座標", systemImage: "scope")
-                    .font(SkyTypography.heading)
-                Spacer()
-                Text("精密モデルv2")
-                    .font(.caption.weight(.semibold))
+        VStack(alignment: .leading, spacing: 8) {
+            DisclosureGroup {
+                VStack(alignment: .leading, spacing: 9) {
+                    Text(
+                        "見かけ赤道座標、真空中のtopocentric幾何座標、"
+                            + "設定した大気差を反映した観測座標を分けて表示します。"
+                    )
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-            }
+                    .fixedSize(horizontal: false, vertical: true)
 
-            Text(
-                "見かけ赤道座標、真空中のtopocentric幾何座標、"
-                    + "設定した大気差を反映した観測座標を分けて表示します。"
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+                    Grid(
+                        alignment: .leading,
+                        horizontalSpacing: 12,
+                        verticalSpacing: 8
+                    ) {
+                        detailRow(
+                            label: "見かけ赤経（日時）",
+                            value:
+                                star.apparentEquatorial.map {
+                                    StarPointingPayloadFormatter
+                                        .preciseRightAscension(
+                                            $0.rightAscension
+                                        )
+                                } ?? "—"
+                        )
+                        detailRow(
+                            label: "見かけ赤緯（日時）",
+                            value:
+                                star.apparentEquatorial.map {
+                                    StarPointingPayloadFormatter
+                                        .preciseDeclination(
+                                            $0.declination
+                                        )
+                                } ?? "—"
+                        )
+                        detailRow(
+                            label: "高度（真空・topocentric）",
+                            value:
+                                StarPointingPayloadFormatter
+                                    .preciseDegrees(
+                                        star.geometricHorizontal.altitude
+                                    )
+                        )
+                        detailRow(
+                            label: "方位（真空・topocentric）",
+                            value:
+                                StarPointingPayloadFormatter
+                                    .preciseAzimuth(
+                                        star.geometricHorizontal
+                                    )
+                        )
+                        detailRow(
+                            label: "高度（設定大気差後）",
+                            value:
+                                StarPointingPayloadFormatter
+                                    .preciseDegrees(
+                                        star.observedHorizontal.altitude
+                                    )
+                        )
+                        detailRow(
+                            label: "方位（設定大気差後）",
+                            value:
+                                StarPointingPayloadFormatter
+                                    .preciseAzimuth(
+                                        star.observedHorizontal
+                                    )
+                        )
+                    }
+                    .font(.callout)
 
-            Grid(
-                alignment: .leading,
-                horizontalSpacing: 12,
-                verticalSpacing: 8
-            ) {
-                detailRow(
-                    label: "見かけ赤経（日時）",
-                    value:
-                        star.apparentEquatorial.map {
-                            StarPointingPayloadFormatter
-                                .preciseRightAscension(
-                                    $0.rightAscension
-                                )
-                        } ?? "—"
-                )
-                detailRow(
-                    label: "見かけ赤緯（日時）",
-                    value:
-                        star.apparentEquatorial.map {
-                            StarPointingPayloadFormatter
-                                .preciseDeclination(
-                                    $0.declination
-                                )
-                        } ?? "—"
-                )
-                detailRow(
-                    label: "高度（真空・topocentric）",
-                    value:
-                        StarPointingPayloadFormatter
-                            .preciseDegrees(
-                                star.geometricHorizontal.altitude
+                    Text(
+                        store.useStandardAtmosphericRefraction
+                            ? "\(store.pointingRefractionDescription)です。適用域より低い星は真空幾何値のままです。"
+                            : "大気差は無効です。設定大気差後の値は真空幾何値と同じです。"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                    Divider()
+
+                    Text("現在の計算条件")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Grid(
+                        alignment: .leading,
+                        horizontalSpacing: 12,
+                        verticalSpacing: 7
+                    ) {
+                        detailRow(
+                            label: "UTC",
+                            value: store.pointingUTCTimestamp
+                        )
+                        detailRow(
+                            label: "現地時刻",
+                            value: store.pointingLocalTimestamp
+                        )
+                        detailRow(
+                            label: "観測地点",
+                            value:
+                                store
+                                .pointingLocationDescription
+                        )
+                        detailRow(
+                            label: "大気差",
+                            value:
+                                store
+                                .pointingRefractionDescription
+                        )
+                    }
+                    .font(.caption)
+
+                    Picker(
+                        "コピー形式",
+                        selection: $pointingPayloadProfile
+                    ) {
+                        ForEach(
+                            StarPointingPayloadProfile.allCases
+                        ) { profile in
+                            Text(profile.label)
+                                .tag(profile)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityHint(
+                        "読みやすい本文または座標系と単位を明示したversion付きJSONを選択"
+                    )
+
+                    Button {
+                        copyPointingPayload()
+                    } label: {
+                        Label(
+                            pointingPayloadProfile.copyLabel,
+                            systemImage:
+                                pointingPayloadProfile
+                                == .precisionJSON
+                                ? "curlybraces"
+                                : "doc.on.doc"
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(
+                        !store
+                            .isSelectedStarPointingPayloadAvailable(
+                                profile:
+                                    pointingPayloadProfile
                             )
-                )
-                detailRow(
-                    label: "方位（真空・topocentric）",
-                    value:
-                        StarPointingPayloadFormatter
-                            .preciseAzimuth(
-                                star.geometricHorizontal
-                            )
-                )
-                detailRow(
-                    label: "高度（設定大気差後）",
-                    value:
-                        StarPointingPayloadFormatter
-                            .preciseDegrees(
-                                star.observedHorizontal.altitude
-                            )
-                )
-                detailRow(
-                    label: "方位（設定大気差後）",
-                    value:
-                        StarPointingPayloadFormatter
-                            .preciseAzimuth(
-                                star.observedHorizontal
-                            )
-                )
-            }
-            .font(.callout)
+                    )
+                    .help(
+                        pointingPayloadProfile == .precisionJSON
+                            ? "profile ID・座標系・原点・単位・UTC/UT1/TT・EOPをJSONでコピー"
+                            : "J2000・見かけ座標・真空/大気差後の水平座標とUTC/UT1/TT・EOP識別情報をコピー"
+                    )
 
-            Text(
-                store.useStandardAtmosphericRefraction
-                    ? "\(store.pointingRefractionDescription)です。適用域より低い星は真空幾何値のままです。"
-                    : "大気差は無効です。設定大気差後の値は真空幾何値と同じです。"
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+                    if let pointingCopyStatus {
+                        Label(
+                            pointingCopyStatus,
+                            systemImage:
+                                pointingCopyFailed
+                                ? "exclamationmark.triangle"
+                                : "checkmark.circle"
+                        )
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(
+                            pointingCopyFailed
+                                ? Color.orange
+                                : Color.secondary
+                        )
+                        .fixedSize(
+                            horizontal: false,
+                            vertical: true
+                        )
+                        .accessibilityElement(
+                            children: .combine
+                        )
+                    }
 
-            Divider()
-
-            Text("現在の計算条件")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            Grid(
-                alignment: .leading,
-                horizontalSpacing: 12,
-                verticalSpacing: 7
-            ) {
-                detailRow(
-                    label: "UTC",
-                    value: store.pointingUTCTimestamp
-                )
-                detailRow(
-                    label: "現地時刻",
-                    value: store.pointingLocalTimestamp
-                )
-                detailRow(
-                    label: "観測地点",
-                    value:
-                        store
-                        .pointingLocationDescription
-                )
-                detailRow(
-                    label: "大気差",
-                    value:
-                        store
-                        .pointingRefractionDescription
-                )
-            }
-            .font(.caption)
-
-            Picker(
-                "コピー形式",
-                selection: $pointingPayloadProfile
-            ) {
-                ForEach(
-                    StarPointingPayloadProfile.allCases
-                ) { profile in
-                    Text(profile.label)
-                        .tag(profile)
+                    Text(
+                        "0.01秒時・0.000001°単位の表示桁そのものは"
+                            + "位置精度の保証ではありません。望遠鏡の座標系と"
+                            + "大気差設定を確認して使ってください。"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(
+                        horizontal: false,
+                        vertical: true
+                    )
+                }
+                .padding(.top, 8)
+            } label: {
+                HStack(alignment: .firstTextBaseline) {
+                    Label(
+                        "座標転記（参考）",
+                        systemImage: "scope"
+                    )
+                    .font(SkyTypography.heading)
+                    Spacer()
+                    Text("精密モデルv2")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
                 }
             }
-            .pickerStyle(.segmented)
-            .accessibilityHint(
-                "読みやすい本文または座標系と単位を明示したversion付きJSONを選択"
-            )
+            .accessibilityIdentifier("star.pointingDisclosure")
 
-            Button {
-                copyPointingPayload()
-            } label: {
-                Label(
-                    pointingPayloadProfile.copyLabel,
-                    systemImage:
-                        pointingPayloadProfile
-                            == .precisionJSON
-                        ? "curlybraces"
-                        : "doc.on.doc"
-                )
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(
-                !store
-                    .isSelectedStarPointingPayloadAvailable(
-                        profile:
-                            pointingPayloadProfile
-                    )
+            Label(
+                "望遠鏡の自動導入・追尾を保証する座標ではありません。",
+                systemImage: "exclamationmark.triangle.fill"
             )
-            .help(
-                pointingPayloadProfile == .precisionJSON
-                    ? "profile ID・座標系・原点・単位・UTC/UT1/TT・EOPをJSONでコピー"
-                    : "J2000・見かけ座標・真空/大気差後の水平座標とUTC/UT1/TT・EOP識別情報をコピー"
-            )
-
-            if let pointingCopyStatus {
-                Label(
-                    pointingCopyStatus,
-                    systemImage:
-                        pointingCopyFailed
-                        ? "exclamationmark.triangle"
-                        : "checkmark.circle"
-                )
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(
-                    pointingCopyFailed
-                        ? Color.orange
-                        : Color.secondary
-                )
-                .fixedSize(
-                    horizontal: false,
-                    vertical: true
-                )
-                .accessibilityElement(
-                    children: .combine
-                )
-            }
-
-            Text(
-                "0.01秒時・0.000001°単位の表示桁そのものは"
-                    + "位置精度の保証ではありません。望遠鏡の座標系と"
-                    + "大気差設定を確認して使ってください。"
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.orange)
             .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement(children: .combine)
         }
         .padding(12)
         .background(.quaternary.opacity(0.35))
@@ -732,7 +763,7 @@ struct StarInspectorView: View {
                 )
         else {
             let message =
-                "導入用データを作成できませんでした。"
+                "参考座標データを作成できませんでした。"
             updatePointingCopyStatus(
                 message,
                 failed: true
@@ -753,8 +784,8 @@ struct StarInspectorView: View {
             let payloadKind =
                 pointingPayloadProfile
                     == .precisionJSON
-                ? "JSON導入用データ"
-                : "導入用データ"
+                ? "参考座標JSON"
+                : "参考座標"
             updatePointingCopyStatus(
                 prefix
                     + "UTC "

@@ -79,6 +79,42 @@ final class AccuracyCopySourceContractTests: XCTestCase {
                 "大気差ON時の表示高度は別です"
             )
         )
+        XCTAssertTrue(
+            text.contains("DisclosureGroup(\"計算モデルと制限\")")
+        )
+        XCTAssertTrue(
+            text.contains("DisclosureGroup(\"星表情報（J2000）\")")
+        )
+        XCTAssertTrue(text.contains("\"座標転記（参考）\""))
+        XCTAssertTrue(
+            text.contains(
+                "望遠鏡の自動導入・追尾を保証する座標ではありません"
+            )
+        )
+        XCTAssertTrue(
+            text.contains("star.pointingDisclosure")
+                && text.contains("star.catalogDisclosure")
+                && text.contains("star.modelDisclosure")
+        )
+    }
+
+    func testReadablePointingPayloadKeepsReferenceOnlyWarning() throws {
+        let text = try source(
+            "apps/macos/Sources/PlanetariumApp/Support/StarPointingPayload.swift"
+        )
+
+        XCTAssertTrue(text.contains("Planetarium 参考座標データ"))
+        XCTAssertFalse(text.contains("Planetarium 導入用データ"))
+        XCTAssertTrue(
+            text.contains(
+                "望遠鏡の自動導入・追尾を保証せず"
+            )
+        )
+        XCTAssertTrue(
+            text.contains(
+                "無人運転の唯一の入力には使用しないでください"
+            )
+        )
     }
 
     func testEventReturnContextDoesNotMisstateAChangedObservationTime()
@@ -174,6 +210,47 @@ final class AccuracyCopySourceContractTests: XCTestCase {
         )
         XCTAssertTrue(text.contains("Text(\"安全上の注意\")"))
         XCTAssertTrue(text.contains("\"最大時刻を空に表示\""))
+        XCTAssertTrue(text.contains("\"この時刻の空を見る\""))
+        XCTAssertTrue(
+            text.contains(
+                "\"この時刻の空を見る。\\(label)\""
+            )
+        )
+        XCTAssertTrue(text.contains("skyStore.nightMode"))
+        XCTAssertTrue(text.contains(".controlSize(.large)"))
+        XCTAssertTrue(
+            text.contains(".keyboardShortcut(.defaultAction)")
+        )
+    }
+
+    func testEventInspectorPrioritizesWarningsAndCollapsesDeepDetails()
+        throws
+    {
+        let text = try source(
+            "apps/macos/Sources/PlanetariumApp/Views/EventForecastInspectorView.swift"
+        )
+        let inspector = try sourceSlice(
+            text,
+            from: "private func inspectorDetails(",
+            until: "private func inspectorHeader("
+        )
+
+        assertSourceOrder(
+            [
+                "precisionWarningsSection(forecast)",
+                "warningsSection(item.warnings)",
+                "uncertaintySection(item.uncertainty)",
+                "assumptionsSection(item)",
+                "provenanceSection(item.provenance)",
+            ],
+            in: inspector
+        )
+        XCTAssertTrue(text.contains("event.precisionWarnings"))
+        XCTAssertTrue(text.contains("event.warnings"))
+        XCTAssertTrue(text.contains("event.uncertainty"))
+        XCTAssertTrue(text.contains("event.uncertaintyDetails"))
+        XCTAssertTrue(text.contains("event.assumptions"))
+        XCTAssertTrue(text.contains("event.provenance"))
     }
 
     func testSelectedLunarEclipsePrimaryActionPrecedesScene() throws {

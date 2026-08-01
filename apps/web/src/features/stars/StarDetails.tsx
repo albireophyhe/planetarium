@@ -230,14 +230,24 @@ function positionAccuracySummary(
   if (star.calculationModel !== "v2") {
     return "簡易モデルのため、秒角単位の位置精度は想定していません。";
   }
-  if (
-    earthOrientationEstimate &&
-    timeScales?.dut1Source.startsWith("iers-")
-  ) {
-    return "BSC5Pの格納分解能から見た真空中の通常目安として、IERS収録期間内では概ね1〜数秒角級です。全恒星の実測精度を保証する値ではありません。地点・時計の誤差や、大気差ON時の表示高度は別です。";
+  if (hasBundledEarthOrientation(earthOrientationEstimate, timeScales)) {
+    return "BSC5Pの格納分解能から見た真空中の通常目安は概ね1〜数秒角級です。全恒星の実測精度を保証する値ではありません。地点・時計の誤差や、大気差ON時の表示高度は別です。詳しい前提は「詳しい情報」で確認できます。";
   }
-  return "IERS収録外または未取得です。DUT1=0秒・xp/yp=0近似を使います。時角の最大約13.5秒角は、現行の整数うるう秒UTCを前提にしたDUT1だけの条件付き目安です。xp/yp=0による方向差も、同梱履歴では最大約0.6秒角です。1972年以前はTAI−UTC=0秒、将来は既知最後の37秒を仮定するUTC近似を含みます。地点・時計の誤差や、大気差ON時の表示高度は別です。";
+  return "精度低下：地球回転データを利用できず、DUT1=0秒・xp/yp=0で近似中です。真空中の条件付き目安として、時角差は最大約13.5秒角、極運動による方向差は最大約0.6秒角です。地点・時計の誤差や、大気差ON時の表示高度は別です。詳しい近似条件は「詳しい情報」で確認できます。";
 }
+
+function hasBundledEarthOrientation(
+  earthOrientationEstimate: IersEarthOrientationEstimateV1 | null,
+  timeScales: ResolvedTimeScales | null,
+) {
+  return Boolean(
+    earthOrientationEstimate &&
+      timeScales?.dut1Source.startsWith("iers-"),
+  );
+}
+
+const POSITION_ACCURACY_FALLBACK_DETAILS =
+  "時角の最大約13.5秒角は、現行の整数うるう秒UTCを前提にしたDUT1だけの条件付き目安です。xp/yp=0による方向差も、同梱履歴では最大約0.6秒角です。1972年以前はTAI−UTC=0秒、将来は既知最後の37秒を仮定するUTC近似を含みます。";
 
 type StarPointingSnapshot = {
   earthOrientationEstimate: IersEarthOrientationEstimateV1 | null;
@@ -463,123 +473,18 @@ export function StarDetails({
           この日時と地点では地平線下です
         </p>
       ) : null}
-      <p className="star-details__accuracy-note">
-        <strong>位置精度の目安</strong>
-        {positionAccuracySummary(
-          star,
-          earthOrientationEstimate,
-          timeScales,
-        )}
-      </p>
-
-      {observationDate && location ? (
-        <aside
-          aria-label="導入条件"
-          className="star-details__pointing-context"
-        >
-          <strong>導入条件</strong>
-          <dl>
-            <div>
-              <dt>UTC</dt>
-              <dd>{observationDate.toISOString()}</dd>
-            </div>
-            <div>
-              <dt>現地時刻</dt>
-              <dd>
-                {formatZonedDateTimeInput(
-                  observationDate,
-                  location.timeZone,
-                ).replace("T", " ")}
-                <small>{location.timeZone}</small>
-              </dd>
-            </div>
-            <div>
-              <dt>観測地点</dt>
-              <dd>
-                {location.name}・緯度 {location.latitude.toFixed(6)}°・経度{" "}
-                {location.longitude.toFixed(6)}°・楕円体高{" "}
-                {location.heightMeters.toFixed(1)} m
-                <small>
-                  {locationSourceLabel(location.locationSource)}・
-                  {locationAccuracyLabel(location)}
-                </small>
-              </dd>
-            </div>
-            <div>
-              <dt>大気差</dt>
-              <dd>
-                {refractionLabel(star, refractionInputSource)}
-                {refractionAtmosphere ? (
-                  <small>
-                    {atmosphereValueSummary(refractionAtmosphere)}
-                  </small>
-                ) : null}
-              </dd>
-            </div>
-          </dl>
-          <div className="star-details__pointing-copy">
-            <button
-              className="button button--secondary"
-              onClick={() => {
-                void copyPointingSnapshot?.("readable-text");
-              }}
-              type="button"
-            >
-              導入用データをコピー
-            </button>
-            <button
-              className="button button--secondary"
-              disabled={!precisionJsonAvailable}
-              onClick={() => {
-                void copyPointingSnapshot?.(
-                  "precision-json-v1",
-                );
-              }}
-              type="button"
-              title={
-                precisionJsonAvailable
-                  ? "座標系・単位・適用したEOPを含むversion付きJSONをコピー"
-                  : "精密モデルv2の完全な計算snapshotがある場合だけ利用できます"
-              }
-            >
-              JSONをコピー
-            </button>
-            <span aria-atomic="true" aria-live="polite" role="status">
-              {currentCopyResult?.status === "copied"
-                ? `${
-                    currentCopyResult.pausedPlayback
-                      ? "時刻を停止し、"
-                      : ""
-                  }UTC ${currentCopyResult.utc} 時点の${
-                    currentCopyResult.format ===
-                    "precision-json-v1"
-                      ? "JSON"
-                      : "座標"
-                  }をコピーしました`
-                : currentCopyResult?.status === "error"
-                  ? `${
-                      currentCopyResult.pausedPlayback
-                        ? "時刻を停止しましたが、"
-                        : ""
-                    }UTC ${currentCopyResult.utc} 時点の${
-                      currentCopyResult.format ===
-                      "precision-json-v1"
-                        ? "JSON"
-                        : "座標"
-                    }をコピーできませんでした`
-                  : ""}
-            </span>
-          </div>
-        </aside>
-      ) : null}
 
       <dl className="star-details__metrics">
         <div>
-          <dt>高度（計算値）</dt>
+          <dt>
+            高度<span className="sr-only">（計算値）</span>
+          </dt>
           <dd>{formatSignedDegrees(star.altitudeDeg, 3)}</dd>
         </div>
         <div>
-          <dt>方位（計算値）</dt>
+          <dt>
+            方位<span className="sr-only">（計算値）</span>
+          </dt>
           <dd>
             {star.azimuthDefined
               ? azimuthCompassLabel(star.azimuthDeg)
@@ -597,11 +502,140 @@ export function StarDetails({
         </div>
       </dl>
 
+      <details className="star-details__disclosure star-details__disclosure--pointing">
+        <summary>
+          精度と座標転記
+          <ChevronDownIcon aria-hidden="true" size={20} strokeWidth={1.8} />
+        </summary>
+        <p className="star-details__accuracy-note">
+          <strong>位置精度の目安</strong>
+          {positionAccuracySummary(
+            star,
+            earthOrientationEstimate,
+            timeScales,
+          )}
+        </p>
+
+        {observationDate && location ? (
+          <aside
+            aria-label="座標転記条件"
+            className="star-details__pointing-context"
+          >
+            <strong>座標転記条件</strong>
+            <p className="star-details__pointing-warning">
+              望遠鏡の自動導入・追尾を保証する座標ではありません。
+            </p>
+            <dl>
+              <div>
+                <dt>UTC</dt>
+                <dd>{observationDate.toISOString()}</dd>
+              </div>
+              <div>
+                <dt>現地時刻</dt>
+                <dd>
+                  {formatZonedDateTimeInput(
+                    observationDate,
+                    location.timeZone,
+                  ).replace("T", " ")}
+                  <small>{location.timeZone}</small>
+                </dd>
+              </div>
+              <div>
+                <dt>観測地点</dt>
+                <dd>
+                  {location.name}・緯度 {location.latitude.toFixed(6)}°・経度{" "}
+                  {location.longitude.toFixed(6)}°・楕円体高{" "}
+                  {location.heightMeters.toFixed(1)} m
+                  <small>
+                    {locationSourceLabel(location.locationSource)}・
+                    {locationAccuracyLabel(location)}
+                  </small>
+                </dd>
+              </div>
+              <div>
+                <dt>大気差</dt>
+                <dd>
+                  {refractionLabel(star, refractionInputSource)}
+                  {refractionAtmosphere ? (
+                    <small>
+                      {atmosphereValueSummary(refractionAtmosphere)}
+                    </small>
+                  ) : null}
+                </dd>
+              </div>
+            </dl>
+            <div className="star-details__pointing-copy">
+              <button
+                className="button button--secondary"
+                onClick={() => {
+                  void copyPointingSnapshot?.("readable-text");
+                }}
+                type="button"
+              >
+                参考座標をコピー
+              </button>
+              <button
+                className="button button--secondary"
+                disabled={!precisionJsonAvailable}
+                onClick={() => {
+                  void copyPointingSnapshot?.(
+                    "precision-json-v1",
+                  );
+                }}
+                type="button"
+                title={
+                  precisionJsonAvailable
+                    ? "座標系・単位・適用したEOPを含むversion付きJSONをコピー"
+                    : "精密モデルv2の完全な計算snapshotがある場合だけ利用できます"
+                }
+              >
+                JSONをコピー
+              </button>
+              <span aria-atomic="true" aria-live="polite" role="status">
+                {currentCopyResult?.status === "copied"
+                  ? `${
+                      currentCopyResult.pausedPlayback
+                        ? "時刻を停止し、"
+                        : ""
+                    }UTC ${currentCopyResult.utc} 時点の${
+                      currentCopyResult.format ===
+                      "precision-json-v1"
+                        ? "JSON"
+                        : "座標"
+                    }をコピーしました`
+                  : currentCopyResult?.status === "error"
+                    ? `${
+                        currentCopyResult.pausedPlayback
+                          ? "時刻を停止しましたが、"
+                          : ""
+                      }UTC ${currentCopyResult.utc} 時点の${
+                        currentCopyResult.format ===
+                        "precision-json-v1"
+                          ? "JSON"
+                          : "座標"
+                      }をコピーできませんでした`
+                    : ""}
+              </span>
+            </div>
+          </aside>
+        ) : null}
+      </details>
+
       <details className="star-details__disclosure">
         <summary>
           詳しい情報
           <ChevronDownIcon aria-hidden="true" size={20} strokeWidth={1.8} />
         </summary>
+        {star.calculationModel === "v2" &&
+        !hasBundledEarthOrientation(
+          earthOrientationEstimate,
+          timeScales,
+        ) ? (
+          <p className="star-details__accuracy-note star-details__accuracy-note--warning">
+            <strong>地球回転近似の条件</strong>
+            {POSITION_ACCURACY_FALLBACK_DETAILS}
+          </p>
+        ) : null}
         <p className="star-details__coordinate-help">
           赤経は天球上の東西方向を時間で、赤緯は天の赤道からの南北角を示します。
           「見かけ（観測日）」は選択した日時の空へ変換した座標、

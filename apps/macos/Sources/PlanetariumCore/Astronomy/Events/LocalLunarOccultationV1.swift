@@ -1062,40 +1062,41 @@ public enum LocalLunarOccultationV1 {
                 earthOrientation:
                     maximumEarthOrientation
             )
-        var dominantContributors = [
+        var dominantContributors: [String] = [
             "BSC5P J2000 FK5恒星位置（星ごとの共分散なし、位置分解能2.5″を境界帯へ反映）",
             "平均球面月縁（LOLA・かぐや地形未使用、月地形±11 kmを境界帯へ反映）",
             "DE442s月位置係数量子化（地心月最大約24.5 mを境界帯へ反映）",
             "月と恒星の共通太陽重力偏向を未適用",
         ]
-        + (
-            missingProperMotion
-            ? ["対象星の固有運動が不完全"]
-            : []
-        )
-        + (
-            astrometry?.parallaxArcseconds == nil
-            ? ["対象星の年周視差が未収録"]
-            : []
-        )
-        + (
-            maximumEarthOrientation.dut1Seconds
-                == nil
-            ? ["UT1−UTCを0秒と仮定"]
-            : []
-        )
-        + (
-            maximumEarthOrientation.polarMotion
-                == nil
-            ? ["極運動xp・ypを0と仮定"]
-            : []
-        )
-        + (
-            options.horizontalAccuracyMeters
-                == nil
-            ? ["観測地点の水平精度が不明"]
-            : ["観測地点の水平精度を境界帯へ線形加算"]
-        )
+        if missingProperMotion {
+            dominantContributors.append(
+                "対象星の固有運動が不完全"
+            )
+        }
+        if astrometry?.parallaxArcseconds == nil {
+            dominantContributors.append(
+                "対象星の年周視差が未収録"
+            )
+        }
+        if maximumEarthOrientation.dut1Seconds == nil {
+            dominantContributors.append(
+                "UT1−UTCを0秒と仮定"
+            )
+        }
+        if maximumEarthOrientation.polarMotion == nil {
+            dominantContributors.append(
+                "極運動xp・ypを0と仮定"
+            )
+        }
+        if options.horizontalAccuracyMeters == nil {
+            dominantContributors.append(
+                "観測地点の水平精度が不明"
+            )
+        } else {
+            dominantContributors.append(
+                "観測地点の水平精度を境界帯へ線形加算"
+            )
+        }
         switch maximumEarthRotation.uncertainty {
         case .none:
             break
@@ -1130,24 +1131,24 @@ public enum LocalLunarOccultationV1 {
                     )
                 }
             )
-        let warnings = [
+        let earthRotationBoundaryWarning =
+            maximumEarthRotation
+            .uncertainty
+            .pathKilometers
+            .map {
+                earthRotationPathWarning(
+                    uncertainty:
+                        maximumEarthRotation
+                        .uncertainty,
+                    pathKilometers: $0
+                )
+            }
+            ?? ""
+        var warnings: [String] = [
             "明るい恒星を対象にした参考予報です。精密な望遠鏡時刻測定には使用しないでください。",
             "潜入・出現は平均月縁との幾何学的接触で、月面地形による数秒規模の差を含みません。",
             "境界判定は月地形±11 km、DE442s月位置係数量子化約24.5 m、BSC5P位置分解能2.5″、既知の観測地点水平精度"
-                + (
-                    maximumEarthRotation
-                        .uncertainty
-                        .pathKilometers
-                        .map {
-                            earthRotationPathWarning(
-                                uncertainty:
-                                    maximumEarthRotation
-                                    .uncertainty,
-                                pathKilometers: $0
-                            )
-                        }
-                    ?? ""
-                )
+                + earthRotationBoundaryWarning
                 + "を保守的に線形加算します。",
             String(
                 format:
@@ -1156,13 +1157,17 @@ public enum LocalLunarOccultationV1 {
             ),
             "大気差、地形、建物、雲、視程は含みません。",
         ]
-        + (
-            geometry.boundaryUncertain
-            ? ["最接近が保守的な物理境界帯内のため、発生有無を確定せず最接近時刻のみを示します。"]
-            : []
+        if geometry.boundaryUncertain {
+            warnings.append(
+                "最接近が保守的な物理境界帯内のため、発生有無を確定せず最接近時刻のみを示します。"
+            )
+        }
+        warnings.append(
+            contentsOf: timeScaleNotices.warnings
         )
-        + timeScaleNotices.warnings
-        + maximumEarthRotation.warnings
+        warnings.append(
+            contentsOf: maximumEarthRotation.warnings
+        )
         return LocalLunarOccultationCircumstancesV1(
             candidate: candidate,
             title: candidate.title,

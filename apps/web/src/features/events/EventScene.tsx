@@ -217,9 +217,21 @@ function StarMarker({
       data-body="target"
       transform={`translate(${x} ${y})`}
     >
-      <circle r={hidden ? 5 : 4} />
-      <path d="M -13 0 H 13 M 0 -13 V 13" />
-      <path d="M -7 -7 L 7 7 M -7 7 L 7 -7" />
+      {hidden ? (
+        <g
+          aria-hidden="true"
+          className="event-scene__star-contrast-outline"
+        >
+          <circle r={5} />
+          <path d="M -13 0 H 13 M 0 -13 V 13" />
+          <path d="M -7 -7 L 7 7 M -7 7 L 7 -7" />
+        </g>
+      ) : null}
+      <g className={hidden ? "event-scene__star-mark" : undefined}>
+        <circle r={hidden ? 5 : 4} />
+        <path d="M -13 0 H 13 M 0 -13 V 13" />
+        <path d="M -7 -7 L 7 7 M -7 7 L 7 -7" />
+      </g>
     </g>
   );
 }

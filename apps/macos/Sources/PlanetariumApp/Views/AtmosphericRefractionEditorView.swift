@@ -3,6 +3,7 @@ import SwiftUI
 
 struct AtmosphericRefractionEditorView: View {
     let store: SkyStore
+    let weatherProvider: any CurrentWeatherProviding
 
     @Environment(\.dismiss)
     private var dismiss
@@ -11,11 +12,24 @@ struct AtmosphericRefractionEditorView: View {
     private var draft: AtmosphericRefractionDraft
     @State
     private var validationMessage: String?
+    @State
+    private var weatherTask: Task<Void, Never>?
+    @State
+    private var isWeatherLoading = false
+    @State
+    private var appliedWeather:
+        CurrentAtmosphereWeather?
     @AccessibilityFocusState
     private var validationMessageIsFocused: Bool
 
-    init(store: SkyStore) {
+    init(
+        store: SkyStore,
+        weatherProvider:
+            any CurrentWeatherProviding =
+            ObservationFirstCurrentWeatherService()
+    ) {
         self.store = store
+        self.weatherProvider = weatherProvider
         _draft = State(
             initialValue: AtmosphericRefractionDraft(
                 inputSource:
@@ -45,6 +59,7 @@ struct AtmosphericRefractionEditorView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .disabled(isWeatherLoading)
                 } header: {
                     Text("大気差モデル")
                 } footer: {
@@ -108,6 +123,96 @@ struct AtmosphericRefractionEditorView: View {
                     }
                 }
 
+                Section {
+                    LabeledContent("観測地点（小数4桁）") {
+                        Text(weatherLocationText)
+                            .multilineTextAlignment(.trailing)
+                            .textSelection(.enabled)
+                    }
+
+                    Button {
+                        requestWeatherAndApply()
+                    } label: {
+                        HStack(spacing: 8) {
+                            if isWeatherLoading {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(
+                                    systemName:
+                                        "cloud.sun"
+                                )
+                            }
+                            Text(
+                                isWeatherLoading
+                                    ? "現在の天気を取得中…"
+                                    : "現在の天気を取得して適用"
+                            )
+                        }
+                    }
+                    .disabled(isWeatherLoading)
+                    .accessibilityHint(
+                        "気象庁の最新実測を座標送信なしで取得し、利用できない場合だけ表示中の座標を小数4桁でOpen-Meteoへ送信します"
+                    )
+
+                    if let appliedWeather {
+                        Label(
+                            weatherSuccessText(
+                                appliedWeather
+                            ),
+                            systemImage: "checkmark.circle.fill"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(
+                            horizontal: false,
+                            vertical: true
+                        )
+                        .accessibilityLabel(
+                            "天気情報を適用しました。"
+                                + weatherSuccessText(
+                                    appliedWeather
+                                )
+                        )
+                    }
+                } header: {
+                    Text("現在地点の天気")
+                } footer: {
+                    VStack(
+                        alignment: .leading,
+                        spacing: 4
+                    ) {
+                        Text(
+                            "ボタンを押した時だけ気象庁の10分ごとの最新観測を固定URLから取得し、端末内で25 km以内の最寄り有効局を選びます。気象庁へのURLに現在地点の座標は含みません。"
+                        )
+                        Text(
+                            "実測が欠測・品質不良・距離超過・30分超の古さ、または取得失敗の場合だけ、表示中の座標を小数4桁に丸めてOpen-Meteoへ送信し、15分ごとの気象モデル値を使います。星図の観測日時とは自動同期しません。"
+                        )
+                        Text(
+                            "観測波長と最低適用高度は現在の入力を保持します。"
+                        )
+                        Text(
+                            "観測局標高での未補正の現地気圧を使うため、現在地点との標高差が大きい場合は気圧がずれます。"
+                        )
+                        HStack(spacing: 12) {
+                            Link(
+                                "気象庁公開データを加工して利用",
+                                destination: URL(
+                                    string:
+                                        "https://www.jma.go.jp/bosai/amedas/"
+                                )!
+                            )
+                            Link(
+                                "Weather data by Open-Meteo.com",
+                                destination: URL(
+                                    string:
+                                        "https://open-meteo.com/en/licence"
+                                )!
+                            )
+                        }
+                    }
+                }
+
                 if let validationMessage {
                     Section {
                         Label(
@@ -135,7 +240,7 @@ struct AtmosphericRefractionEditorView: View {
 
             HStack {
                 Text(
-                    "「適用」するまで星図・軌跡・転記データは変わりません。"
+                    "手入力は「適用」、天気は取得完了時に星図・軌跡・転記データへ反映します。"
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -147,6 +252,7 @@ struct AtmosphericRefractionEditorView: View {
                 Button("適用") {
                     applyDraft()
                 }
+                .disabled(isWeatherLoading)
                 .keyboardShortcut(.defaultAction)
             }
             .padding()
@@ -155,6 +261,10 @@ struct AtmosphericRefractionEditorView: View {
         .onChange(of: draft) {
             validationMessage = nil
             validationMessageIsFocused = false
+        }
+        .onDisappear {
+            weatherTask?.cancel()
+            weatherTask = nil
         }
     }
 
@@ -171,7 +281,20 @@ struct AtmosphericRefractionEditorView: View {
     }
 
     private var editorHeight: CGFloat {
-        draft.inputSource == .manual ? 540 : 330
+        draft.inputSource == .manual ? 700 : 510
+    }
+
+    private var weatherLocationText: String {
+        store.location.name
+            + " · 緯度 "
+            + CurrentWeatherCoordinate.formatted(
+                store.location.latitude
+            )
+            + "° · 経度 "
+            + CurrentWeatherCoordinate.formatted(
+                store.location.longitude
+            )
+            + "°"
     }
 
     private func atmosphereField(
@@ -190,6 +313,7 @@ struct AtmosphericRefractionEditorView: View {
                     .accessibilityHint(
                         "対応範囲は\(rangeHint)"
                     )
+                    .disabled(isWeatherLoading)
                 Text(unit)
                     .foregroundStyle(.secondary)
                     .frame(
@@ -217,5 +341,142 @@ struct AtmosphericRefractionEditorView: View {
                 error.localizedDescription
             validationMessageIsFocused = true
         }
+    }
+
+    private func requestWeatherAndApply() {
+        guard weatherTask == nil else { return }
+
+        validationMessage = nil
+        validationMessageIsFocused = false
+        appliedWeather = nil
+        isWeatherLoading = true
+
+        let requestedLocation = store.location
+        let requestedDraft = draft
+        let provider = weatherProvider
+        weatherTask = Task { @MainActor in
+            defer {
+                isWeatherLoading = false
+                weatherTask = nil
+            }
+
+            do {
+                let weather = try await provider
+                    .currentAtmosphere(
+                        latitude:
+                            requestedLocation.latitude,
+                        longitude:
+                            requestedLocation.longitude
+                    )
+                try Task.checkCancellation()
+                guard store.location == requestedLocation
+                else {
+                    throw AtmosphericWeatherApplicationError
+                        .locationChanged
+                }
+
+                let atmosphere = try
+                    AtmosphericWeatherApplicator.apply(
+                        weather,
+                        preserving: requestedDraft,
+                        to: store
+                    )
+                draft = AtmosphericRefractionDraft(
+                    inputSource: .manual,
+                    manualAtmosphere: atmosphere
+                )
+                appliedWeather = weather
+            } catch is CancellationError {
+                return
+            } catch {
+                validationMessage =
+                    error.localizedDescription
+                validationMessageIsFocused = true
+            }
+        }
+    }
+
+    private func weatherSuccessText(
+        _ weather: CurrentAtmosphereWeather
+    ) -> String {
+        "適用済み："
+            + weatherProviderText(weather)
+            + "・現地気圧 "
+            + value(
+                weather.pressureHPA,
+                fractionDigits: 1
+            )
+            + " hPa・気温 "
+            + value(
+                weather.temperatureCelsius,
+                fractionDigits: 1
+            )
+            + "°C・相対湿度 "
+            + value(
+                weather.relativeHumidityPercent,
+                fractionDigits: 0
+            )
+            + (weather.provider == .jmaObservation
+                ? "%・観測時刻 "
+                : "%・モデル時刻 ")
+            + utcDateTime(weather.observedAt)
+            + " UTC"
+    }
+
+    private func weatherProviderText(
+        _ weather: CurrentAtmosphereWeather
+    ) -> String {
+        switch weather.provider {
+        case .jmaObservation:
+            guard let station = weather.station else {
+                return "気象庁・最寄り局実測"
+            }
+            return "気象庁・最寄り局実測・"
+                + station.name
+                + "（距離 "
+                + value(
+                    station.distanceKilometers,
+                    fractionDigits: 1
+                )
+                + " km・標高 "
+                + value(
+                    station.elevationMeters,
+                    fractionDigits: 0
+                )
+                + " m）"
+        case .openMeteoModel:
+            return "Open-Meteo気象モデル値"
+        }
+    }
+
+    private func utcDateTime(_ date: Date) -> String {
+        var format = Date.FormatStyle(
+            date: .numeric,
+            time: .shortened
+        )
+        format.timeZone = TimeZone(secondsFromGMT: 0)!
+        return date.formatted(format)
+    }
+
+    private func value(
+        _ value: Double,
+        fractionDigits: Int
+    ) -> String {
+        String(
+            format: "%.*f",
+            locale: Locale(identifier: "ja_JP"),
+            fractionDigits,
+            value
+        )
+    }
+}
+
+private enum AtmosphericWeatherApplicationError:
+    LocalizedError
+{
+    case locationChanged
+
+    var errorDescription: String? {
+        "天気情報の取得中に観測地点が変わりました。現在の地点でもう一度お試しください。"
     }
 }

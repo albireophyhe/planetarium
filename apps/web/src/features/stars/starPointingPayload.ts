@@ -260,7 +260,7 @@ export function buildStarPointingPayload({
   );
 
   return [
-    "Planetarium 精密導入データ",
+    "Planetarium 参考座標データ",
     `対象: ${star.japaneseName} / ${star.englishName} / HR ${star.hr}`,
     `UTC: ${observationDate.toISOString()}`,
     `現地時刻: ${localDateTime} [${location.timeZone}]`,
@@ -298,7 +298,7 @@ export function buildStarPointingPayload({
     ...timeScaleLines,
     `EOP品質: ${qualityLabel(earthOrientationEstimate)}`,
     `計算モデル: ${star.calculationModel === "v2" ? "精密モデル v2" : "簡易モデル v1"}`,
-    "注記: 表示桁は計算条件の再現用であり、同じ桁までの実測精度を保証しません。",
+    "注記: 座標系と大気差設定を確認した手動導入・機材設定比較の補助情報です。表示桁は計算条件の再現用であり、同じ桁までの実測精度を保証しません。望遠鏡の自動導入・追尾を保証せず、無人運転の唯一の入力には使用しないでください。",
   ].join("\n");
 }
 

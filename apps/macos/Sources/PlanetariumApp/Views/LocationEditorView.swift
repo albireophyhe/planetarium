@@ -130,7 +130,7 @@ struct LocationEditorView: View {
 
             HStack(alignment: .center, spacing: 10) {
                 Label(
-                    "現在地はボタンを押した時だけ取得します。座標と楕円体高は保存・外部送信しません。",
+                    "現在地はボタンを押した時だけ取得します。地点の設定だけでは座標と楕円体高を保存・外部送信しません。現在気象の明示取得でも気象庁には座標を送らず、実測を使えない場合だけ丸めた座標をOpen-Meteoへ送ります。",
                     systemImage: "hand.raised"
                 )
                 .font(.caption)

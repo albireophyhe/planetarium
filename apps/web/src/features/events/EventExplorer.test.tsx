@@ -448,6 +448,11 @@ describe("EventExplorer", () => {
       const detailHeading = screen.getByRole("heading", {
         name: "2026年8月28日 部分月食",
       });
+      expect(detailHeading).toHaveClass("event-details__title");
+      expect(detailHeading).toHaveAttribute(
+        "data-keyboard-focus",
+        "true",
+      );
       expect(detailHeading).toHaveFocus();
 
       const listbox = document.querySelector<HTMLElement>(
@@ -485,6 +490,9 @@ describe("EventExplorer", () => {
         screen.getByRole("button", { name: "一覧へ戻る" }),
       );
       await user.click(lunarOption);
+      expect(detailHeading).not.toHaveAttribute(
+        "data-keyboard-focus",
+      );
       expect(detailHeading).toHaveFocus();
     } finally {
       vi.unstubAllGlobals();
@@ -503,6 +511,224 @@ describe("EventExplorer", () => {
           "scrollIntoView",
         );
       }
+    }
+  });
+
+  it("adds only the trailing space needed to reveal a whole selected row", () => {
+    const initialProps = explorerProps({
+      events: [SOLAR_EVENT, LUNAR_EVENT],
+      selectedCircumstances: SOLAR_CIRCUMSTANCES,
+      selectedEventId: SOLAR_EVENT.id,
+      status: "ready",
+    });
+    const { rerender } = render(
+      <EventExplorer {...initialProps} />,
+    );
+    const listbox = document.querySelector<HTMLElement>(
+      ".event-list",
+    );
+    const solarOption = screen.getByRole("option", {
+      name: /2026年8月12日 皆既日食/,
+    });
+    const lunarOption = screen.getByRole("option", {
+      name: /2026年8月28日 部分月食/,
+    });
+    expect(listbox).not.toBeNull();
+    if (!listbox) {
+      throw new Error("event list was not rendered");
+    }
+    Object.defineProperties(listbox, {
+      clientHeight: { configurable: true, value: 100 },
+      scrollHeight: { configurable: true, value: 160 },
+    });
+    vi.spyOn(listbox, "getBoundingClientRect").mockReturnValue({
+      bottom: 100,
+      top: 0,
+    } as DOMRect);
+    vi.spyOn(solarOption, "getBoundingClientRect").mockReturnValue({
+      bottom: 80,
+      top: 0,
+    } as DOMRect);
+    vi.spyOn(lunarOption, "getBoundingClientRect").mockReturnValue({
+      bottom: 160,
+      top: 80,
+    } as DOMRect);
+    listbox.scrollTop = 0;
+
+    rerender(
+      <EventExplorer
+        {...initialProps}
+        selectedCircumstances={{
+          ...SOLAR_CIRCUMSTANCES,
+          event: LUNAR_EVENT,
+          localClassification: "partial",
+        }}
+        selectedEventId={LUNAR_EVENT.id}
+      />,
+    );
+
+    expect(listbox.style.paddingBottom).toBe("20px");
+    expect(listbox.scrollTop).toBe(80);
+  });
+
+  it("realigns whole rows when the list viewport changes size", () => {
+    let resizeCallback: ResizeObserverCallback | undefined;
+    const disconnect = vi.fn();
+    const observe = vi.fn();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          resizeCallback = callback;
+        }
+
+        disconnect = disconnect;
+        observe = observe;
+        unobserve = vi.fn();
+      },
+    );
+
+    try {
+      const { unmount } = render(
+        <EventExplorer
+          {...explorerProps({
+            events: [SOLAR_EVENT, LUNAR_EVENT],
+            selectedCircumstances: {
+              ...SOLAR_CIRCUMSTANCES,
+              event: LUNAR_EVENT,
+              localClassification: "partial",
+            },
+            selectedEventId: LUNAR_EVENT.id,
+            status: "ready",
+          })}
+        />,
+      );
+      const listbox = screen.getByRole("listbox", {
+        name: "天文現象",
+      });
+      const solarOption = screen.getByRole("option", {
+        name: /2026年8月12日 皆既日食/,
+      });
+      const lunarOption = screen.getByRole("option", {
+        name: /2026年8月28日 部分月食/,
+      });
+      Object.defineProperties(listbox, {
+        clientHeight: { configurable: true, value: 100 },
+        scrollHeight: { configurable: true, value: 160 },
+      });
+      vi.spyOn(listbox, "getBoundingClientRect").mockReturnValue({
+        bottom: 100,
+        top: 0,
+      } as DOMRect);
+      vi.spyOn(solarOption, "getBoundingClientRect").mockReturnValue({
+        bottom: 20,
+        top: -60,
+      } as DOMRect);
+      vi.spyOn(lunarOption, "getBoundingClientRect").mockReturnValue({
+        bottom: 100,
+        top: 20,
+      } as DOMRect);
+      listbox.scrollTop = 60;
+
+      act(() => {
+        resizeCallback?.([], {} as ResizeObserver);
+      });
+
+      expect(observe).toHaveBeenCalledWith(listbox, {
+        box: "border-box",
+      });
+      expect(listbox.style.paddingBottom).toBe("20px");
+      expect(listbox.scrollTop).toBe(80);
+      unmount();
+      expect(disconnect).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("realigns the selected row after leaving the narrow detail view", () => {
+    let narrowListener:
+      | ((event: MediaQueryListEvent) => void)
+      | undefined;
+    let isNarrow = true;
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        addEventListener: (
+          _type: string,
+          listener: (event: MediaQueryListEvent) => void,
+        ) => {
+          if (query === "(max-width: 959px)") {
+            narrowListener = listener;
+          }
+        },
+        get matches() {
+          return query === "(max-width: 959px)" && isNarrow;
+        },
+        media: query,
+        onchange: null,
+        removeEventListener: vi.fn(),
+      })),
+    );
+
+    try {
+      render(
+        <EventExplorer
+          {...explorerProps({
+            events: [SOLAR_EVENT, LUNAR_EVENT],
+            selectedCircumstances: {
+              ...SOLAR_CIRCUMSTANCES,
+              event: LUNAR_EVENT,
+              localClassification: "partial",
+            },
+            selectedEventId: LUNAR_EVENT.id,
+            status: "ready",
+          })}
+        />,
+      );
+      const listColumn = document.querySelector(
+        ".event-explorer__list-column",
+      );
+      const listbox = screen.getByRole("listbox", {
+        name: "天文現象",
+      });
+      const solarOption = screen.getByRole("option", {
+        name: /2026年8月12日 皆既日食/,
+      });
+      const lunarOption = screen.getByRole("option", {
+        name: /2026年8月28日 部分月食/,
+      });
+      fireEvent.click(lunarOption);
+      expect(listColumn).toHaveAttribute("hidden");
+
+      Object.defineProperties(listbox, {
+        clientHeight: { configurable: true, value: 100 },
+        scrollHeight: { configurable: true, value: 160 },
+      });
+      vi.spyOn(listbox, "getBoundingClientRect").mockReturnValue({
+        bottom: 100,
+        top: 0,
+      } as DOMRect);
+      vi.spyOn(solarOption, "getBoundingClientRect").mockReturnValue({
+        bottom: 80,
+        top: 0,
+      } as DOMRect);
+      vi.spyOn(lunarOption, "getBoundingClientRect").mockReturnValue({
+        bottom: 160,
+        top: 80,
+      } as DOMRect);
+      listbox.scrollTop = 0;
+
+      act(() => {
+        isNarrow = false;
+        narrowListener?.({ matches: false } as MediaQueryListEvent);
+      });
+
+      expect(listColumn).not.toHaveAttribute("hidden");
+      expect(listbox.style.paddingBottom).toBe("20px");
+      expect(listbox.scrollTop).toBe(80);
+    } finally {
+      vi.unstubAllGlobals();
     }
   });
 
@@ -655,6 +881,26 @@ describe("EventExplorer", () => {
         "保守的な工学上の幅（統計的な信頼区間ではありません）",
       ),
     ).toBeInTheDocument();
+    const accuracySummary = screen.getByRole("note", {
+      name: "予報精度の要点",
+    });
+    expect(
+      within(accuracySummary).getByText("予報精度：不確実性あり"),
+    ).toBeInTheDocument();
+    expect(
+      within(accuracySummary).getByText("地点精度 ±20 m"),
+    ).toBeInTheDocument();
+    expect(
+      within(accuracySummary).getByText("平均月縁"),
+    ).toBeInTheDocument();
+    expect(
+      within(accuracySummary).getByRole("link", {
+        name: "精度・前提を見る",
+      }),
+    ).toHaveAttribute(
+      "href",
+      `#${screen.getByRole("region", { name: "予報精度" }).id}`,
+    );
     expect(screen.getByText("不確実性あり")).toBeInTheDocument();
     expect(screen.getByText("±1.5 km")).toBeInTheDocument();
     expect(screen.getByText("±0.000750秒")).toBeInTheDocument();
@@ -1627,6 +1873,11 @@ describe("EventExplorer", () => {
         name: "月による8 β¹ Scoの掩蔽候補（発生未確定）",
       }),
     ).toBeInTheDocument();
+    expect(
+      screen.getAllByText(
+        "月が恒星を隠す候補（発生未確定）",
+      ),
+    ).toHaveLength(2);
     expect(
       screen.getByText(
         "平均月縁の物理境界帯内のため、この地点で掩蔽が起きるかは未確定です。",

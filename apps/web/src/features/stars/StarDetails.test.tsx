@@ -117,8 +117,11 @@ describe("StarDetails time-scale provenance", () => {
       />,
     );
 
+    screen.getByText("精度と座標転記", {
+      selector: "summary",
+    }).click();
     const pointingConditions = screen.getByRole("complementary", {
-      name: "導入条件",
+      name: "座標転記条件",
     });
     expect(
       within(pointingConditions).getByText("手動大気差を適用"),
@@ -128,6 +131,46 @@ describe("StarDetails time-scale provenance", () => {
         "998.4 hPa・18.5°C・湿度72%・0.6 µm・高度8°以上",
       ),
     ).toBeVisible();
+  });
+
+  it("keeps basic sky values ahead of the collapsed precision workflow", () => {
+    render(
+      <StarDetails
+        location={{
+          heightMeters: 0,
+          horizontalAccuracyMeters: null,
+          id: "tokyo",
+          latitude: 35.6812,
+          locationSource: "bundled-city",
+          longitude: 139.7671,
+          name: "東京",
+          timeZone: "Asia/Tokyo",
+        }}
+        observationDate={new Date("2026-07-31T03:00:00.000Z")}
+        star={STAR}
+        timeScales={timeScales("iers-predicted")}
+      />,
+    );
+
+    const metrics = screen
+      .getByText("高度", { selector: "dt" })
+      .closest("dl");
+    const precisionSummary = screen.getByText("精度と座標転記", {
+      selector: "summary",
+    });
+    const precisionDetails = precisionSummary.closest("details");
+    expect(metrics).not.toBeNull();
+    expect(precisionDetails).not.toBeNull();
+    expect(precisionDetails).not.toHaveAttribute("open");
+    expect(
+      metrics!.compareDocumentPosition(precisionDetails!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "望遠鏡の自動導入・追尾を保証する座標ではありません。",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("uses a typographic minus and symmetric rounding below the horizon", () => {
@@ -188,17 +231,15 @@ describe("StarDetails time-scale provenance", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/IERS収録期間内では概ね1〜数秒角級です/),
-    ).toHaveTextContent(
-      "BSC5Pの格納分解能から見た真空中の通常目安",
-    );
+      screen.getByText(/BSC5Pの格納分解能から見た真空中の通常目安は概ね1〜数秒角級です/),
+    ).toHaveTextContent("詳しい前提は「詳しい情報」で確認できます");
     expect(
-      screen.getByText(/IERS収録期間内では概ね1〜数秒角級です/),
+      screen.getByText(/BSC5Pの格納分解能から見た真空中の通常目安は概ね1〜数秒角級です/),
     ).toHaveTextContent(
       "全恒星の実測精度を保証する値ではありません",
     );
     expect(
-      screen.getByText(/IERS収録期間内では概ね1〜数秒角級です/),
+      screen.getByText(/BSC5Pの格納分解能から見た真空中の通常目安は概ね1〜数秒角級です/),
     ).toHaveTextContent(
       "大気差ON時の表示高度は別です",
     );
@@ -224,21 +265,27 @@ describe("StarDetails time-scale provenance", () => {
       screen.getByText("xp=0 / yp=0（IERSデータ未取得のため近似）"),
     ).toBeInTheDocument();
     const accuracySummary = screen.getByText(
-      /DUT1=0秒・xp\/yp=0近似/,
+      /精度低下：地球回転データを利用できず/,
     );
     expect(accuracySummary).toHaveTextContent(
-      "時角の最大約13.5秒角",
+      "時角差は最大約13.5秒角",
     );
     expect(accuracySummary).toHaveTextContent(
+      "詳しい近似条件は「詳しい情報」で確認できます",
+    );
+    const fallbackDetails = screen.getByText(
+      /現行の整数うるう秒UTCを前提にしたDUT1だけの条件付き目安/,
+    );
+    expect(fallbackDetails).toHaveTextContent(
       "現行の整数うるう秒UTCを前提にしたDUT1だけの条件付き目安",
     );
-    expect(accuracySummary).toHaveTextContent(
+    expect(fallbackDetails).toHaveTextContent(
       "xp/yp=0による方向差も、同梱履歴では最大約0.6秒角",
     );
-    expect(accuracySummary).toHaveTextContent(
+    expect(fallbackDetails).toHaveTextContent(
       "1972年以前はTAI−UTC=0秒",
     );
-    expect(accuracySummary).toHaveTextContent(
+    expect(fallbackDetails).toHaveTextContent(
       "将来は既知最後の37秒を仮定するUTC近似",
     );
     expect(accuracySummary).toHaveTextContent(
@@ -274,12 +321,17 @@ describe("StarDetails time-scale provenance", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "導入用データをコピー",
+        name: "参考座標をコピー",
       }),
     );
 
     expect(writeText).toHaveBeenCalledWith(
-      expect.stringContaining("Planetarium 精密導入データ"),
+      expect.stringContaining("Planetarium 参考座標データ"),
+    );
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "望遠鏡の自動導入・追尾を保証せず、無人運転の唯一の入力には使用しないでください。",
+      ),
     );
     expect(writeText).toHaveBeenCalledWith(
       expect.stringContaining("WGS84楕円体高 44.5 m"),
@@ -287,13 +339,13 @@ describe("StarDetails time-scale provenance", () => {
     expect(writeText).toHaveBeenCalledWith(
       expect.stringContaining("地点由来: 手動入力 / 水平精度は未指定"),
     );
-    expect(screen.getByLabelText("導入条件")).toHaveTextContent(
+    expect(screen.getByLabelText("座標転記条件")).toHaveTextContent(
       "UTC2026-07-31T03:00:00.000Z",
     );
-    expect(screen.getByLabelText("導入条件")).toHaveTextContent(
+    expect(screen.getByLabelText("座標転記条件")).toHaveTextContent(
       "現地時刻2026-07-31 12:00:00Asia/Tokyo",
     );
-    expect(screen.getByLabelText("導入条件")).toHaveTextContent(
+    expect(screen.getByLabelText("座標転記条件")).toHaveTextContent(
       "大気差幾何高度（大気差なし）",
     );
     expect(
@@ -425,7 +477,7 @@ describe("StarDetails time-scale provenance", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "導入用データをコピー",
+        name: "参考座標をコピー",
       }),
     );
 
@@ -492,7 +544,7 @@ describe("StarDetails time-scale provenance", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "導入用データをコピー",
+        name: "参考座標をコピー",
       }),
     );
 
@@ -589,7 +641,7 @@ describe("StarDetails time-scale provenance", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "導入用データをコピー",
+        name: "参考座標をコピー",
       }),
     );
     expect(writeText).toHaveBeenCalledTimes(1);
@@ -654,7 +706,7 @@ describe("StarDetails time-scale provenance", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "導入用データをコピー",
+        name: "参考座標をコピー",
       }),
     );
 
@@ -707,7 +759,7 @@ describe("StarDetails time-scale provenance", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "導入用データをコピー",
+        name: "参考座標をコピー",
       }),
     );
     await user.click(
@@ -778,7 +830,7 @@ describe("StarDetails time-scale provenance", () => {
 
     expect(
       screen.getByRole("button", {
-        name: "導入用データをコピー",
+        name: "参考座標をコピー",
       }),
     ).toBeEnabled();
     expect(

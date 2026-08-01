@@ -325,9 +325,9 @@ struct EventForecastDetailView: View {
             precisionWarningsSection(forecast)
         }
 
+        warningsSection(item.warnings)
         uncertaintySection(item.uncertainty)
         assumptionsSection(item)
-        warningsSection(item.warnings)
         provenanceSection(item.provenance)
     }
 
@@ -934,7 +934,7 @@ struct EventForecastDetailView: View {
             LocalLunarOccultationCircumstancesV1
     ) -> some View {
         if !forecast.precisionWarnings.isEmpty {
-            GroupBox("恒星位置の精度注意") {
+            GroupBox {
                 VStack(alignment: .leading, spacing: 7) {
                     ForEach(
                         forecast.precisionWarnings,
@@ -955,14 +955,20 @@ struct EventForecastDetailView: View {
                     maxWidth: .infinity,
                     alignment: .leading
                 )
+            } label: {
+                Text("恒星位置の精度注意")
+                    .accessibilityAddTraits(.isHeader)
             }
+            .accessibilityIdentifier(
+                "event.precisionWarnings"
+            )
         }
     }
 
     private func uncertaintySection(
         _ uncertainty: EclipseForecastUncertaintyV1
     ) -> some View {
-        GroupBox("予報精度") {
+        GroupBox {
             VStack(alignment: .leading, spacing: 8) {
                 EventMetricRow(
                     label: "計算区分",
@@ -1021,76 +1027,103 @@ struct EventForecastDetailView: View {
                         }
                         ?? "不明"
                 )
-                if let earthOrientation =
-                    uncertainty.earthOrientation
+                if uncertainty.earthOrientation != nil
+                    || !uncertainty.dominantContributors.isEmpty
                 {
-                    EventMetricRow(
-                        label: "IERS DUT1公表誤差",
-                        value:
-                            "±"
-                            + AstronomicalFormatting
-                            .decimal(
-                                earthOrientation
-                                    .dut1ReportedErrorSeconds,
-                                fractionDigits: 6
-                            )
-                            + "秒"
-                    )
-                    EventMetricRow(
-                        label: "IERS地表経路成分",
-                        value:
-                            "±"
-                            + AstronomicalFormatting
-                            .decimal(
-                                earthOrientation
-                                    .combinedPathMeters,
-                                fractionDigits: 2
-                            )
-                            + " m"
-                    )
-                    Text(
-                        "DUT1 "
-                            + AstronomicalFormatting
-                            .decimal(
-                                earthOrientation
-                                    .dut1PathMeters,
-                                fractionDigits: 2
-                            )
-                            + " m ＋ xp/yp "
-                            + AstronomicalFormatting
-                            .decimal(
-                                earthOrientation
-                                    .polarMotionPathMeters,
-                                fractionDigits: 2
-                            )
-                            + " m。IERS公表誤差の線形包絡で、1σや総合時刻誤差ではありません。"
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
+                    DisclosureGroup(
+                        "IERS・誤差要因の内訳"
+                    ) {
+                        VStack(
+                            alignment: .leading,
+                            spacing: 7
+                        ) {
+                            if let earthOrientation =
+                                uncertainty.earthOrientation
+                            {
+                                EventMetricRow(
+                                    label: "IERS DUT1公表誤差",
+                                    value:
+                                        "±"
+                                        + AstronomicalFormatting
+                                        .decimal(
+                                            earthOrientation
+                                                .dut1ReportedErrorSeconds,
+                                            fractionDigits: 6
+                                        )
+                                        + "秒"
+                                )
+                                EventMetricRow(
+                                    label: "IERS地表経路成分",
+                                    value:
+                                        "±"
+                                        + AstronomicalFormatting
+                                        .decimal(
+                                            earthOrientation
+                                                .combinedPathMeters,
+                                            fractionDigits: 2
+                                        )
+                                        + " m"
+                                )
+                                Text(
+                                    "DUT1 "
+                                        + AstronomicalFormatting
+                                        .decimal(
+                                            earthOrientation
+                                                .dut1PathMeters,
+                                            fractionDigits: 2
+                                        )
+                                        + " m ＋ xp/yp "
+                                        + AstronomicalFormatting
+                                        .decimal(
+                                            earthOrientation
+                                                .polarMotionPathMeters,
+                                            fractionDigits: 2
+                                        )
+                                        + " m。IERS公表誤差の線形包絡で、1σや総合時刻誤差ではありません。"
+                                )
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            }
 
-                ForEach(
-                    uncertainty.dominantContributors,
-                    id: \.self
-                ) { contributor in
-                    Label(
-                        contributor,
-                        systemImage: "circle.fill"
-                    )
-                    .labelStyle(
-                        EventForecastBulletLabelStyle()
-                    )
+                            ForEach(
+                                uncertainty.dominantContributors,
+                                id: \.self
+                            ) { contributor in
+                                Label(
+                                    contributor,
+                                    systemImage: "circle.fill"
+                                )
+                                .labelStyle(
+                                    EventForecastBulletLabelStyle()
+                                )
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.top, 6)
+                    }
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier(
+                        "event.uncertaintyDetails"
+                    )
+                    .accessibilityHint(
+                        "IERS公表誤差と予報を制限する要因を表示します"
+                    )
                 }
             }
+        } label: {
+            Text("予報精度")
+                .accessibilityAddTraits(.isHeader)
         }
+        .accessibilityIdentifier("event.uncertainty")
     }
 
     private func assumptionsSection(
         _ item: EventForecastItem
     ) -> some View {
-        GroupBox("前提") {
+        DisclosureGroup(
+            "計算前提（平均月縁・大気差なし）"
+        ) {
             VStack(alignment: .leading, spacing: 7) {
                 Label(
                     "JPL DE442sを端末内で評価",
@@ -1140,7 +1173,13 @@ struct EventForecastDetailView: View {
                 horizontal: false,
                 vertical: true
             )
+            .padding(.top, 6)
         }
+        .font(.caption)
+        .accessibilityIdentifier("event.assumptions")
+        .accessibilityHint(
+            "暦、恒星位置、月縁、地球姿勢、観測地点の前提を表示します"
+        )
     }
 
     @ViewBuilder
@@ -1148,7 +1187,7 @@ struct EventForecastDetailView: View {
         _ warnings: [String]
     ) -> some View {
         if !warnings.isEmpty {
-            GroupBox("注意") {
+            GroupBox {
                 VStack(alignment: .leading, spacing: 7) {
                     ForEach(
                         warnings,
@@ -1166,7 +1205,11 @@ struct EventForecastDetailView: View {
                     maxWidth: .infinity,
                     alignment: .leading
                 )
+            } label: {
+                Text("注意")
+                    .accessibilityAddTraits(.isHeader)
             }
+            .accessibilityIdentifier("event.warnings")
         }
     }
 
@@ -1239,6 +1282,10 @@ struct EventForecastDetailView: View {
             .padding(.top, 7)
         }
         .font(.caption)
+        .accessibilityIdentifier("event.provenance")
+        .accessibilityHint(
+            "アルゴリズム、暦、EOP、時刻モデルの出典を表示します"
+        )
     }
 
     private func contactHeading(
@@ -1304,11 +1351,29 @@ struct EventForecastDetailView: View {
                 )
             } label: {
                 Label(
-                    label,
+                    "この時刻の空を見る",
                     systemImage: "clock.arrow.circlepath"
+                )
+                .frame(
+                    maxWidth: .infinity,
+                    alignment: .center
                 )
             }
             .buttonStyle(.borderedProminent)
+            .tint(
+                skyStore.nightMode
+                    ? Color(
+                        red: 0.659,
+                        green: 0.247,
+                        blue: 0.231
+                    )
+                    : .blue
+            )
+            .controlSize(.large)
+            .keyboardShortcut(.defaultAction)
+            .accessibilityLabel(
+                "この時刻の空を見る。\(label)"
+            )
             .accessibilityIdentifier(
                 "event.showOnSky.primary"
             )
